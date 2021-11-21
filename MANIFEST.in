@@ -1,0 +1,2 @@
+include src/cheetah/resources/*
+include src/cheetah/ui_src/*.ui

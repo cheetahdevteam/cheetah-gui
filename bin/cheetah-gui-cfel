@@ -1,6 +1,0 @@
-#!/bin/bash
-
-export PYTHONPATH=""
-
-cheetah-gui.py
-
