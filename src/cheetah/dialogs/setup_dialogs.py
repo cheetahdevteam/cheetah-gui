@@ -1,12 +1,11 @@
-from os import path
 import pathlib
-import re
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any, List, TextIO, Union, Dict
+from typing import Any, List, TextIO, Union, Callable
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
 from cheetah.crawlers import facilities
 from cheetah import __file__ as cheetah_src_path
+from cheetah.experiment import TypeExperimentConfig
 
 
 class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
@@ -182,11 +181,11 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def _check_config(self) -> None:
-        self._config: Dict[str, str] = {
+        self._config: TypeExperimentConfig = {
             "facility": self._facility_cb.currentText(),
             "instrument": self._instrument_cb.currentText(),
             "detector": self._detector_cb.currentText(),
-            "xtcdir": self._raw_directory_le.text(),
+            "raw_dir": self._raw_directory_le.text(),
             "output_dir": self._cheetah_directory_le.text(),
             "cheetah_resources": self._cheetah_resources_le.text(),
         }
@@ -195,7 +194,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         else:
             self._button_box.buttons()[0].setEnabled(True)
 
-    def get_config(self) -> Dict[str, str]:
+    def get_config(self) -> TypeExperimentConfig:
         self._check_config()
         return self._config
 
@@ -224,7 +223,11 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
 
     def _guess_raw_data_directory(self) -> Union[pathlib.Path, None]:
         if self._facility:
-            return facilities[self._facility]["guess_raw_directory"](self._path)
+            function: Callable[[pathlib.Path], pathlib.Path] = facilities[
+                self._facility
+            ]["guess_raw_directory"]
+
+            return function(self._path)
         else:
             return None
 

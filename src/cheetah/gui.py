@@ -1,16 +1,85 @@
 import click  # type: ignore
 import sys
 import csv
-import time
 import pathlib
 from datetime import datetime
-import shutil
 
-from typing import Any, List, Dict, Text, TextIO
-from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
+from typing import Any, List, Dict, TextIO
+from PyQt5 import QtCore, QtWidgets, uic  # type: ignore
+from cheetah.crawlers.base import Crawler
 from cheetah.dialogs import setup_dialogs
 from cheetah import __file__ as cheetah_src_path
-from cheetah.crawlers import facilities
+from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
+from cheetah.crawlers.base import Crawler
+
+
+class CrawlerRefresher(QtCore.QObject):  # type: ignore
+    """
+    See documentation of the `__init__` function.
+    """
+
+    finished = QtCore.pyqtSignal()
+
+    def __init__(self, crawler: Crawler) -> None:
+        """ """
+        super(CrawlerRefresher, self).__init__()
+        self._crawler: Crawler = crawler
+
+    def refresh(self) -> None:
+        self._crawler.update()
+        self.finished.emit()
+
+
+class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
+    """
+    See documentation of the `__init__` function.
+    """
+
+    def __init__(self, experiment: CheetahExperiment, parent: Any = None) -> None:
+        """ """
+        super(CrawlerGui, self).__init__(parent)
+        self.parent: Any = parent
+        self.resize(300, 50)
+        self.setWindowTitle("Cheetah Crawler")
+
+        self._refresh_button: Any = QtWidgets.QPushButton("Refresh")
+        self._refresh_button.clicked.connect(self._refresh)
+        self._status_label: Any = QtWidgets.QLabel()
+
+        layout: Any = QtWidgets.QHBoxLayout()
+        layout.addWidget(self._refresh_button)
+        layout.addWidget(self._status_label)
+        self._central_widget = QtWidgets.QWidget()
+        self._central_widget.setLayout(layout)
+        self.setCentralWidget(self._central_widget)
+
+        self._experiment: CheetahExperiment = experiment
+        self._refresher = CrawlerRefresher(self._experiment.start_crawler())
+        self._refresh_thread: Any = QtCore.QThread()
+        self._refresher.moveToThread(self._refresh_thread)
+
+        self._refresh_thread.started.connect(self._refresher.refresh)
+        self._refresher.finished.connect(self._refresh_finished)
+        self._refresher.finished.connect(self._refresh_thread.quit)
+
+        self._refresh_timer: Any = QtCore.QTimer()
+        self._refresh_timer.timeout.connect(self._refresh)
+
+        self._refresh()
+
+    def _refresh(self) -> None:
+        self._refresh_button.setEnabled(False)
+        self._status_label.setText("Scanning files")
+        self._refresh_thread.start()
+
+    def _refresh_finished(self) -> None:
+        self._refresh_button.setEnabled(True)
+        self._status_label.setText("Ready")
+        self._refresh_timer.start(60000)
+
+    def closeEvent(self, event: Any) -> None:
+        self.parent._crawler_gui_closed()
+        event.accept()
 
 
 class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
@@ -26,7 +95,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
         self.show()
 
-        self._setup_experiment()
+        self._select_experiment()
+        self.setWindowTitle(f"Cheetah GUI: {self.experiment.get_working_directory()}")
+        self._crawler_csv_filename: pathlib.Path = (
+            self.experiment.get_crawler_csv_filename()
+        )
 
         self._table: Any = self._ui.table_status
         self._table_data: List[Dict[str, Any]] = []
@@ -60,7 +133,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.button_peakogram.clicked.connect(self._pass)
 
         # File menu actions
-        self._ui.menu_file_start_crawler.triggered.connect(self._pass)
+        self._ui.menu_file_start_crawler.triggered.connect(self._start_crawler)
         self._ui.menu_file_new_geometry.triggered.connect(self._pass)
         self._ui.menu_file_modify_beamline_configuration.triggered.connect(self._pass)
 
@@ -113,6 +186,14 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_cheetah_relabel.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
+    def _start_crawler(self) -> None:
+        print("Starting crawler")
+        self.crawler_window = CrawlerGui(self.experiment, self)
+        self.crawler_window.show()
+
+    def _crawler_gui_closed(self) -> None:
+        print("Crawler closed")
+
     def _pass(self) -> None:
         pass
 
@@ -120,112 +201,35 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         print("Bye bye.")
         sys.exit(0)
 
-    def _select_experiment(self) -> pathlib.Path:
-        dialog: setup_dialogs.ExperimentSelectionDialog = (
-            setup_dialogs.ExperimentSelectionDialog(self)
-        )
-        if dialog.exec() == 0:
-            print("Catch you another time.")
-            self._exit()
-        return dialog.get_experiment()
-
-    def _parse_config(self) -> Dict[str, str]:
-        config: Dict[str, str] = {}
-        fh: TextIO
-        with open(self._crawler_config_filename, "r") as fh:
-            line: str
-            for line in fh:
-                line_items: List[str] = line.split("=")
-                if len(line_items) == 2:
-                    config[line_items[0].strip()] = line_items[1].strip()
-        return config
-
-    def _resolve_path(
-        self, path: pathlib.Path, parent_path: pathlib.Path
-    ) -> pathlib.Path:
-        if path.is_absolute():
-            return path
+    def _select_experiment(self) -> None:
+        if pathlib.Path("./crawler.config").is_file():
+            working_directory: pathlib.Path = pathlib.Path.cwd()
         else:
-            return (self._working_directory / path).resolve()
+            dialog: setup_dialogs.ExperimentSelectionDialog = (
+                setup_dialogs.ExperimentSelectionDialog(self)
+            )
+            if dialog.exec() == 0:
+                print("Catch you another time.")
+                self._exit()
+            working_directory = dialog.get_experiment()
 
-    def _setup_experiment(self) -> None:
-        if not pathlib.Path("./crawler.config").is_file():
-            self._working_directory = self._select_experiment()
+        if (working_directory / "crawler.config").is_file():
+            self.experiment: CheetahExperiment = CheetahExperiment(
+                path=working_directory
+            )
         else:
-            self._working_directory = pathlib.Path.cwd()
-        self._crawler_config_filename: pathlib.Path = (
-            self._working_directory / "crawler.config"
-        )
-        self._process_directory: pathlib.Path = (
-            self._working_directory / "../process"
-        ).resolve()
-        if self._crawler_config_filename.exists():
-            self._load_existing_experiment()
-        else:
-            self._setup_new_experiment()
-        self.setWindowTitle("Cheetah GUI: {self._working_directory}")
-        self._crawler_csv_filename: pathlib.Path = (
-            self._working_directory / "crawler.txt"
-        )
+            self._setup_new_experiment(working_directory)
 
-    def _load_existing_experiment(self) -> None:
-        print(
-            f"Going to selected experiment: {self._working_directory}\n"
-            f"Loading configuration file: {self._crawler_config_filename}"
-        )
-        self._config: Dict[str, str] = self._parse_config()
-        self._last_cheetah_config_filename: pathlib.Path = self._resolve_path(
-            pathlib.Path(self._config["cheetahini"]), self._process_directory
-        )
-        self._last_geometry: pathlib.Path = self._resolve_path(
-            pathlib.Path(self._config["geometry"]), self._working_directory
-        )
-        self._last_tag: str = self._config["cheetahtag"]
-
-    def _setup_new_experiment(self) -> None:
+    def _setup_new_experiment(self, path: pathlib.Path) -> None:
         dialog: setup_dialogs.SetupNewExperimentDialog = (
-            setup_dialogs.SetupNewExperimentDialog(self._working_directory, self)
+            setup_dialogs.SetupNewExperimentDialog(path, self)
         )
         if dialog.exec() == 0:
-            self._setup_experiment()
-            return
+            self._select_experiment()
         else:
-            new_experiment_config: Dict[str, str] = dialog.get_config()
-        print("Setting up new experiment\n")
-        print(
-            f"Creating new Cheetah directory:\n{new_experiment_config['output_dir']}\n"
-        )
-        self._working_directory = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "gui"
-        )
-        self._working_directory.mkdir(parents=True, exist_ok=False)
-
-        self._hdf5_directory: pathlib.Path = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "hdf5"
-        )
-        self._hdf5_directory.mkdir(parents=True, exist_ok=False)
-
-        self._calib_directory: pathlib.Path = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "calib"
-        )
-        self._calib_directory.mkdir(parents=True, exist_ok=False)
-
-        self._process_directory = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "process"
-        )
-        self._process_directory.mkdir(parents=True, exist_ok=False)
-
-        print(
-            f"Copying {new_experiment_config['detector']} geometry and mask to \n"
-            f"{self._calib_directory}\n"
-        )
-        resource: str
-        for resource in facilities[new_experiment_config["facility"]]["instruments"][
-            new_experiment_config["instrument"]
-        ]["detectors"][new_experiment_config["detector"]]["resources"]:
-            shutil.copyfile(
-                pathlib.Path(new_experiment_config["cheetah_resources"]) / resource,
-                self._calib_directory / resource,
+            new_experiment_config: TypeExperimentConfig = dialog.get_config()
+            self.experiment = CheetahExperiment(
+                path, new_experiment_config=new_experiment_config
             )
 
     def _enable_commands(self) -> None:
@@ -238,6 +242,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _refresh_table(self) -> None:
         if not self._crawler_csv_filename.exists():
+            self._refresh_timer.start(60000)
             return
         self._table.setSortingEnabled(False)
         n_columns: int = self._table.columnCount()
