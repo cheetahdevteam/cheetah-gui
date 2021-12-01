@@ -2,8 +2,8 @@ import csv
 import pathlib
 
 from abc import ABC, abstractmethod
-from typing import List, TextIO, Dict, TypedDict, Union, cast
 from datetime import datetime
+from typing import List, TextIO, Dict, TypedDict, Union, cast
 
 
 class TypeProcStatusItem(TypedDict):

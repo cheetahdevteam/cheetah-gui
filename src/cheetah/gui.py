@@ -1,16 +1,16 @@
 import click  # type: ignore
-import sys
 import csv
 import pathlib
-from datetime import datetime
+import sys
 
-from typing import Any, List, Dict, TextIO
+from datetime import datetime
 from PyQt5 import QtCore, QtWidgets, uic  # type: ignore
+from typing import Any, List, Dict, TextIO
+
 from cheetah.crawlers.base import Crawler
 from cheetah.dialogs import setup_dialogs
 from cheetah import __file__ as cheetah_src_path
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
-from cheetah.crawlers.base import Crawler
 
 
 class CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -117,6 +117,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._table.setWordWrap(False)
         self._table.verticalHeader().setVisible(False)
 
+        # self._table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
+        self._table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+
         self._refresh_timer: Any = QtCore.QTimer()
         self._refresh_timer.timeout.connect(self._refresh_table)
 
@@ -124,7 +127,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         # Connect front panel buttons to actions
         self._ui.button_refresh.clicked.connect(self._refresh_table)
-        self._ui.button_run_cheetah.clicked.connect(self._pass)
+        self._ui.button_run_cheetah.clicked.connect(self._process_runs)
         self._ui.button_index.clicked.connect(self._pass)
         self._ui.button_view_hits.clicked.connect(self._pass)
         self._ui.button_sum_blanks.clicked.connect(self._pass)
@@ -138,7 +141,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_modify_beamline_configuration.triggered.connect(self._pass)
 
         # Cheetah menu actions
-        self._ui.menu_cheetah_process_selected.triggered.connect(self._pass)
+        self._ui.menu_cheetah_process_selected.triggered.connect(self._process_runs)
         self._ui.menu_cheetah_relabel.triggered.connect(self._pass)
         self._ui.menu_cheetah_autorun.triggered.connect(self._pass)
         self._ui.menu_modify_config_files.triggered.connect(self._pass)
@@ -186,59 +189,36 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_cheetah_relabel.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
-    def _start_crawler(self) -> None:
-        print("Starting crawler")
-        self.crawler_window = CrawlerGui(self.experiment, self)
-        self.crawler_window.show()
+    def _pass(self) -> None:
+        pass
 
     def _crawler_gui_closed(self) -> None:
         print("Crawler closed")
 
-    def _pass(self) -> None:
-        pass
+    def _enable_commands(self) -> None:
+        self._ui.button_run_cheetah.setEnabled(True)
+        # self._ui.button_index.setEnabled(True)
+        self._ui.menu_file_start_crawler.setEnabled(True)
+        self._ui.menu_cheetah_process_selected.setEnabled(True)
+        # self._ui.menu_cheetah_autorun.setEnabled(True)
+        # self._ui.menu_cheetah_relabel.setEnabled(True)
 
     def _exit(self) -> None:
         print("Bye bye.")
         sys.exit(0)
 
-    def _select_experiment(self) -> None:
-        if pathlib.Path("./crawler.config").is_file():
-            working_directory: pathlib.Path = pathlib.Path.cwd()
-        else:
-            dialog: setup_dialogs.ExperimentSelectionDialog = (
-                setup_dialogs.ExperimentSelectionDialog(self)
-            )
-            if dialog.exec() == 0:
-                print("Catch you another time.")
-                self._exit()
-            working_directory = dialog.get_experiment()
-
-        if (working_directory / "crawler.config").is_file():
-            self.experiment: CheetahExperiment = CheetahExperiment(
-                path=working_directory
-            )
-        else:
-            self._setup_new_experiment(working_directory)
-
-    def _setup_new_experiment(self, path: pathlib.Path) -> None:
-        dialog: setup_dialogs.SetupNewExperimentDialog = (
-            setup_dialogs.SetupNewExperimentDialog(path, self)
+    def _process_runs(self) -> None:
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
         )
-        if dialog.exec() == 0:
-            self._select_experiment()
-        else:
-            new_experiment_config: TypeExperimentConfig = dialog.get_config()
-            self.experiment = CheetahExperiment(
-                path, new_experiment_config=new_experiment_config
+        row: int
+        for row in selected_rows:
+            table_id: str = self._table.item(row, 0).text()
+            run_id: str = self.experiment.crawler_table_id_to_raw_id(table_id)
+            self.experiment.process_run(
+                run_id, self.experiment._last_process_config_filename, "test"
             )
-
-    def _enable_commands(self) -> None:
-        self._ui.button_run_cheetah.setEnabled(True)
-        self._ui.button_index.setEnabled(True)
-        self._ui.menu_file_start_crawler.setEnabled(True)
-        self._ui.menu_cheetah_process_selected.setEnabled(True)
-        self._ui.menu_cheetah_autorun.setEnabled(True)
-        self._ui.menu_cheetah_relabel.setEnabled(True)
+        # TODO: move process to a separate thread, add process dialog
 
     def _refresh_table(self) -> None:
         if not self._crawler_csv_filename.exists():
@@ -280,6 +260,42 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         print(f"Table refreshed at {datetime.now()}")
 
         self._refresh_timer.start(60000)
+
+    def _select_experiment(self) -> None:
+        if pathlib.Path("./crawler.config").is_file():
+            working_directory: pathlib.Path = pathlib.Path.cwd()
+        else:
+            dialog: setup_dialogs.ExperimentSelectionDialog = (
+                setup_dialogs.ExperimentSelectionDialog(self)
+            )
+            if dialog.exec() == 0:
+                print("Catch you another time.")
+                self._exit()
+            working_directory = dialog.get_experiment()
+
+        if (working_directory / "crawler.config").is_file():
+            self.experiment: CheetahExperiment = CheetahExperiment(
+                path=working_directory
+            )
+        else:
+            self._setup_new_experiment(working_directory)
+
+    def _setup_new_experiment(self, path: pathlib.Path) -> None:
+        dialog: setup_dialogs.SetupNewExperimentDialog = (
+            setup_dialogs.SetupNewExperimentDialog(path, self)
+        )
+        if dialog.exec() == 0:
+            self._select_experiment()
+        else:
+            new_experiment_config: TypeExperimentConfig = dialog.get_config()
+            self.experiment = CheetahExperiment(
+                path, new_experiment_config=new_experiment_config
+            )
+
+    def _start_crawler(self) -> None:
+        print("Starting crawler")
+        self.crawler_window = CrawlerGui(self.experiment, self)
+        self.crawler_window.show()
 
 
 @click.command()  # type: ignore

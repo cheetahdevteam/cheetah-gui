@@ -2,6 +2,7 @@ import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
 from typing import Any, List, TextIO, Union, Callable
+
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
 from cheetah.crawlers import facilities
 from cheetah import __file__ as cheetah_src_path
@@ -94,7 +95,7 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
 
     def _get_previous_experiments_list(self) -> List[str]:
         logfile_path: pathlib.Path = pathlib.Path.expanduser(
-            pathlib.Path("~/.cheetah-crawler")
+            pathlib.Path("~/.cheetah-crawler2")
         )
         if pathlib.Path(logfile_path).is_file():
             fh: TextIO
@@ -140,12 +141,17 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
 
         self._raw_directory_le: Any = QtWidgets.QLineEdit()
         self._raw_directory_le.setReadOnly(True)
+        self._raw_directory_le.textChanged.connect(self._raw_directory_changed)
         self._raw_directory_button: Any = QtWidgets.QPushButton("Browse")
         self._raw_directory_button.clicked.connect(self._select_raw_directory)
         raw_directory_layout: Any = QtWidgets.QHBoxLayout()
         raw_directory_layout.addWidget(self._raw_directory_le)
         raw_directory_layout.addWidget(self._raw_directory_button)
         form_layout.addRow("Raw data directory: ", raw_directory_layout)
+
+        self._experiment_id_le: Any = QtWidgets.QLineEdit()
+        self._experiment_id_le.textChanged.connect(self._check_config)
+        form_layout.addRow("Experiment ID: ", self._experiment_id_le)
 
         self._cheetah_directory_le: Any = QtWidgets.QLineEdit()
         self._cheetah_directory_le.setReadOnly(True)
@@ -180,12 +186,19 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
 
         self._check_config()
 
+    def _accept(self) -> None:
+        self.done(1)
+
+    def _cancel(self) -> None:
+        self.done(0)
+
     def _check_config(self) -> None:
         self._config: TypeExperimentConfig = {
             "facility": self._facility_cb.currentText(),
             "instrument": self._instrument_cb.currentText(),
             "detector": self._detector_cb.currentText(),
             "raw_dir": self._raw_directory_le.text(),
+            "experiment_id": self._experiment_id_le.text(),
             "output_dir": self._cheetah_directory_le.text(),
             "cheetah_resources": self._cheetah_resources_le.text(),
         }
@@ -194,25 +207,24 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         else:
             self._button_box.buttons()[0].setEnabled(True)
 
-    def get_config(self) -> TypeExperimentConfig:
-        self._check_config()
-        return self._config
-
-    def _accept(self) -> None:
-        self.done(1)
-
-    def _cancel(self) -> None:
-        self.done(0)
-
     def _guess_cheetah_resources_directory(self) -> Union[pathlib.Path, None]:
-        path: pathlib.Path = (pathlib.Path(cheetah_src_path) / "../resources").resolve()
+        path: pathlib.Path = pathlib.Path(cheetah_src_path).parent / "resources"
         if path.is_dir():
             return path
         else:
             return None
 
+    def _guess_experiment_id(self, path: pathlib.Path) -> Union[str, None]:
+        if self._facility:
+            function: Callable[[pathlib.Path], str] = facilities[self._facility][
+                "guess_experiment_id"
+            ]
+
+            return function(path)
+        else:
+            return None
+
     def _guess_instrument(self) -> Union[str, None]:
-        print(self._path, facilities[self._facility]["instruments"].keys())
         instrument: str
         for instrument in facilities[self._facility]["instruments"].keys():
             if "/" + instrument in str(self._path) or "/" + instrument.lower() in str(
@@ -251,6 +263,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         ] = self._guess_raw_data_directory()
         if possible_raw_directory is not None and possible_raw_directory.is_dir():
             self._raw_directory_le.setText(str(possible_raw_directory))
+
         self._check_config()
 
     def _instrument_changed(self) -> None:
@@ -264,6 +277,14 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         else:
             self._detector_cb.setEnabled(False)
         self._check_config()
+
+    def _raw_directory_changed(self) -> None:
+        raw_directory: str = self._raw_directory_le.text()
+        possible_experiment_id: Union[str, None] = self._guess_experiment_id(
+            pathlib.Path(raw_directory)
+        )
+        if possible_experiment_id:
+            self._experiment_id_le.setText(possible_experiment_id)
 
     def _select_raw_directory(self) -> None:
         path: str = self._raw_directory_le.text()
@@ -288,3 +309,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             path: str = directory_selection_dialog.selectedFiles()[0]
             self._cheetah_resources_le.setText(path)
         self._check_config()
+
+    def get_config(self) -> TypeExperimentConfig:
+        self._check_config()
+        return self._config

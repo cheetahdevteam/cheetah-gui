@@ -1,0 +1,74 @@
+om:
+  parallelization_layer: mpi
+  parallelization_engine: MpiParallelizationEngine
+  data_retrieval_layer: data_handlers_psana
+  data_event_handler: MfxLclsDataEventHandler
+  processing_layer: cheetah
+  monitor: Cheetah
+
+data_retrieval_layer:
+  calibration: true
+  psana_detector_name: epix10k2M
+  psana_detector_distance_epics_name: MFX:DET:MMS:04.RBV
+  psana_calibration_directory: {{psana_calib_dir}}
+  event_rejection_threshold: null
+  required_data:
+    - "detector_data"
+    - "beam_energy"
+    - "detector_distance"
+    - "timestamp"
+    - "event_id"
+    - "frame_id"
+
+cheetah:
+  processed_directory: {{processed_directory}}
+  processed_filename_prefix: "{{experiment_id}}-{{run_id}}"
+  processed_filename_extension: "cxi"
+  write_class_sums: true
+  class_sums_update_interval: 5
+  class_sums_sending_interval: 100
+  class_sum_filename_prefix: "{{run_id}}"
+  status_file_update_interval: 100
+  hdf5_file_data_type: "float32"
+  hdf5_file_compression: null
+  hdf5_file_compression_opts: null
+  hdf5_file_max_num_peaks: 2048
+  hdf5_fields:
+    detector_data: "/entry_1/data_1/data"
+    event_id: "/LCLS/fiducial"
+    beam_energy: "/LCLS/photon_energy_eV"
+    detector_distance: "/LCLS/detector_1/EncoderValue"
+    timestamp: "/LCLS/timestamp"
+    peak_list: "/entry_1/result_1"
+    pixel_size: "/entry_1/instrument_1/detector_1/x_pixel_size"
+
+crystallography:
+  num_frames_in_event_to_process: 1
+  data_broadcast_url: null
+  responding_url: null
+  geometry_file: {{geometry_file}}
+  min_num_peaks_for_hit: 8
+  max_num_peaks_for_hit: 5000
+  running_average_window_size: 200
+  geometry_is_optimized: false
+  speed_report_interval: 100
+  data_broadcast_interval: 90
+  hit_frame_sending_interval: 10
+  non_hit_frame_sending_interval: 5
+
+correction:
+  filename: null
+  hdf5_path: null
+
+peakfinder8_peak_detection:
+  detector_type: epix10k2M
+  max_num_peaks: 2048
+  adc_threshold: 100.0
+  minimum_snr: 5.0
+  min_pixel_count: 1
+  max_pixel_count: 30
+  local_bg_radius: 4
+  bad_pixel_map_filename: {{mask_file}}
+  bad_pixel_map_hdf5_path: /data/data
+  min_res: 80
+  max_res: 800
