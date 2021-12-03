@@ -207,6 +207,29 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         else:
             self._button_box.buttons()[0].setEnabled(True)
 
+    def _facility_changed(self) -> None:
+        self._facility: str = self._facility_cb.currentText()
+        self._instrument_cb.clear()
+        if self._facility:
+            self._instrument_cb.setEnabled(True)
+            self._instrument_cb.addItems(
+                facilities[self._facility]["instruments"].keys()
+            )
+            instrument: Union[str, None] = self._guess_instrument()
+            if instrument:
+                index: int = self._instrument_cb.findText(instrument)
+                if index >= 0:
+                    self._instrument_cb.setCurrentIndex(index)
+        else:
+            self._instrument_cb.setEnabled(False)
+        possible_raw_directory: Union[
+            pathlib.Path, None
+        ] = self._guess_raw_data_directory()
+        if possible_raw_directory is not None and possible_raw_directory.is_dir():
+            self._raw_directory_le.setText(str(possible_raw_directory))
+
+        self._check_config()
+
     def _guess_cheetah_resources_directory(self) -> Union[pathlib.Path, None]:
         path: pathlib.Path = pathlib.Path(cheetah_src_path).parent / "resources"
         if path.is_dir():
@@ -242,29 +265,6 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             return function(self._path)
         else:
             return None
-
-    def _facility_changed(self) -> None:
-        self._facility: str = self._facility_cb.currentText()
-        self._instrument_cb.clear()
-        if self._facility:
-            self._instrument_cb.setEnabled(True)
-            self._instrument_cb.addItems(
-                facilities[self._facility]["instruments"].keys()
-            )
-            instrument: Union[str, None] = self._guess_instrument()
-            if instrument:
-                index: int = self._instrument_cb.findText(instrument)
-                if index >= 0:
-                    self._instrument_cb.setCurrentIndex(index)
-        else:
-            self._instrument_cb.setEnabled(False)
-        possible_raw_directory: Union[
-            pathlib.Path, None
-        ] = self._guess_raw_data_directory()
-        if possible_raw_directory is not None and possible_raw_directory.is_dir():
-            self._raw_directory_le.setText(str(possible_raw_directory))
-
-        self._check_config()
 
     def _instrument_changed(self) -> None:
         self._instrument: str = self._instrument_cb.currentText()

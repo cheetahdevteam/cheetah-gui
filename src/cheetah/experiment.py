@@ -5,7 +5,7 @@ from typing import List, Dict, TextIO, TypedDict, Union, Any
 
 from cheetah.crawlers import facilities
 from cheetah.crawlers.base import Crawler
-from cheetah.process import CheetahProcess
+from cheetah.process import CheetahProcess, TypeProcessingConfig
 
 
 class TypeExperimentConfig(TypedDict):
@@ -38,7 +38,7 @@ class CheetahExperiment:
         self._crawler: Crawler = facilities[self._facility]["crawler"](
             self._raw_directory,
             self._proc_directory,
-            self._proc_directory,  # change to indexing directory later
+            self._proc_directory,  # TODO: change to indexing directory later
             self._crawler_csv_filename,
         )
         self._cheetah_process: CheetahProcess = CheetahProcess(
@@ -106,6 +106,9 @@ class CheetahExperiment:
         self._experiment_id: str = facilities["LCLS"]["guess_experiment_id"](
             self._raw_directory
         )
+        self._proc_directory: pathlib.Path = self._resolve_path(
+            pathlib.Path(crawler_config["hdf5dir"]), self._gui_directory
+        )
         self._process_script: pathlib.Path = self._resolve_path(
             pathlib.Path(crawler_config["process"]), self._gui_directory
         )
@@ -118,7 +121,7 @@ class CheetahExperiment:
             pathlib.Path(crawler_config["geometry"]), self._gui_directory
         )
         self._last_mask: Union[None, pathlib.Path] = None
-        self._last_tag: Union[None, str] = crawler_config["cheetahtag"]
+        self._last_tag: str = crawler_config["cheetahtag"]
 
         self._base_path: pathlib.Path = self._raw_directory.parent
 
@@ -135,14 +138,14 @@ class CheetahExperiment:
         )
         crawler_config: Dict[str, str] = self._parse_crawler_config()
 
+        if "xtcdir" in crawler_config.keys():
+            self._load_existing_experiment_oldstyle(crawler_config)
+            return
+
         self._facility = crawler_config["facility"]
         self._instrument = crawler_config["instrument"]
         self._detector = crawler_config["detector"]
         self._experiment_id = crawler_config["experiment_id"]
-
-        if "xtcdir" in crawler_config.keys():
-            self._load_existing_experiment_oldstyle(crawler_config)
-            return
 
         self._base_path = pathlib.Path(crawler_config["base_path"])
         self._raw_directory = self._resolve_path(
@@ -274,31 +277,43 @@ class CheetahExperiment:
     def get_crawler_csv_filename(self) -> pathlib.Path:
         return self._crawler_csv_filename
 
+    def get_last_processing_config(self) -> TypeProcessingConfig:
+        return {
+            "config_template": str(self._last_process_config_filename),
+            "tag": self._last_tag,
+            "geometry": str(self._last_geometry),
+            "mask": str(self._last_mask) if self._last_mask else "",
+        }
+
     def get_working_directory(self) -> pathlib.Path:
         return (self._gui_directory / "..").resolve()
+
+    def get_proc_directory(self) -> pathlib.Path:
+        return self._proc_directory
 
     def process_run(
         self,
         run_id: str,
-        om_config_template_file: pathlib.Path,
-        tag: str,
-        geometry_file: Union[None, pathlib.Path] = None,
-        mask_file: Union[None, pathlib.Path] = None,
+        processing_config: Union[TypeProcessingConfig, None],
         queue: Union[str, None] = None,
         n_processes: Union[int, None] = None,
     ) -> None:
-        self._last_process_config_filename = om_config_template_file
-        self._last_tag = tag
-        if geometry_file:
-            self._last_geometry = geometry_file
-        if mask_file:
-            self._last_mask = mask_file
+        if processing_config is None:
+            processing_config = self.get_last_processing_config()
+        else:
+            self._last_process_config_filename = pathlib.Path(
+                processing_config["config_template"]
+            )
+            self._last_tag = processing_config["tag"]
+            self._last_geometry = pathlib.Path(processing_config["geometry"])
+            if processing_config["mask"]:
+                self._last_mask = pathlib.Path(processing_config["mask"])
+            else:
+                self._last_mask = None
+
         self._cheetah_process.process_run(
             run_id,
-            self._last_process_config_filename,
-            self._last_tag,
-            self._last_geometry,
-            self._last_mask,
+            processing_config,
             queue,
             n_processes,
         )

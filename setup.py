@@ -42,6 +42,7 @@ setup(
         "console_scripts": [],
         "gui_scripts": [
             "cheetah_gui.py=cheetah.gui:main",
+            "cheetah_viewer.py=cheetah.viewer:main",
         ],
     },
     packages=find_packages(where="src"),

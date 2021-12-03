@@ -29,7 +29,7 @@ class PathDoesNotExistDialog(QtWidgets.QDialog):  # type: ignore
 
         if filename:
             message: str = (
-                f"There does not seem to be a {filename} file in this directory.\n"
+                f"File {path / filename} doesn't exist or isn't a file.\n"
                 "Please check."
             )
             self._path: pathlib.Path = path / filename

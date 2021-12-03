@@ -1,16 +1,18 @@
 import click  # type: ignore
 import csv
 import pathlib
+import subprocess
 import sys
 
 from datetime import datetime
-from PyQt5 import QtCore, QtWidgets, uic  # type: ignore
-from typing import Any, List, Dict, TextIO
+from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
+from typing import Any, List, Dict, TextIO, Literal
 
-from cheetah.crawlers.base import Crawler
-from cheetah.dialogs import setup_dialogs
+from cheetah.crawlers.base import Crawler, TypeTableRow
+from cheetah.dialogs import setup_dialogs, process_dialogs
 from cheetah import __file__ as cheetah_src_path
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
+from cheetah.process import TypeProcessingConfig
 
 
 class CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -82,6 +84,29 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         event.accept()
 
 
+class ProcessThread(QtCore.QThread):  # type: ignore
+    """
+    See documentation of the `__init__` function.
+    """
+
+    def __init__(
+        self,
+        experiment: CheetahExperiment,
+        runs: List[str],
+        config: TypeProcessingConfig,
+    ) -> None:
+        """ """
+        super(ProcessThread, self).__init__()
+        self._experiment: CheetahExperiment = experiment
+        self._runs: List[str] = runs
+        self._config: TypeProcessingConfig = config
+
+    def run(self) -> None:
+        """ """
+        for run_id in self._runs:
+            self._experiment.process_run(run_id, self._config)
+
+
 class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     """
     See documentation of the `__init__` function.
@@ -103,6 +128,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self._table: Any = self._ui.table_status
         self._table_data: List[Dict[str, Any]] = []
+        self._table_column_names: List[str] = list(TypeTableRow.__annotations__.keys())
         self._table.horizontalHeader().setDefaultSectionSize(
             self.width() // self._table.columnCount()
         )
@@ -120,6 +146,21 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # self._table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self._table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
 
+        self._status_colors: Dict[str, Any] = {
+            "---": QtGui.QColor(255, 255, 255),
+            "Submitting": QtGui.QColor(255, 165, 0),
+            "Submitted": QtGui.QColor(255, 255, 100),
+            "Copying": QtGui.QColor(255, 255, 100),
+            "Restoring": QtGui.QColor(255, 255, 100),
+            "Incomplete": QtGui.QColor(255, 255, 100),
+            "Started": QtGui.QColor(0, 255, 255),
+            "Not finished": QtGui.QColor(0, 255, 255),
+            "Ready": QtGui.QColor(200, 255, 200),
+            "Finished": QtGui.QColor(200, 255, 200),
+            "Terminated": QtGui.QColor(255, 200, 200),
+            "Error": QtGui.QColor(255, 100, 100),
+        }
+
         self._refresh_timer: Any = QtCore.QTimer()
         self._refresh_timer.timeout.connect(self._refresh_table)
 
@@ -129,10 +170,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.button_refresh.clicked.connect(self._refresh_table)
         self._ui.button_run_cheetah.clicked.connect(self._process_runs)
         self._ui.button_index.clicked.connect(self._pass)
-        self._ui.button_view_hits.clicked.connect(self._pass)
-        self._ui.button_sum_blanks.clicked.connect(self._pass)
-        self._ui.button_sum_hits.clicked.connect(self._pass)
-        self._ui.button_peak_powder.clicked.connect(self._pass)
+        self._ui.button_view_hits.clicked.connect(self._view_hits)
+        self._ui.button_sum_blanks.clicked.connect(self._view_sum_blanks)
+        self._ui.button_sum_hits.clicked.connect(self._view_sum_hits)
+        self._ui.button_peak_powder.clicked.connect(self._view_powder_hits)
         self._ui.button_peakogram.clicked.connect(self._pass)
 
         # File menu actions
@@ -168,10 +209,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_analysis_saturation.triggered.connect(self._pass)
 
         # Powder menu actions
-        self._ui.menu_powder_hits_sum.triggered.connect(self._pass)
-        self._ui.menu_powder_blanks_sum.triggered.connect(self._pass)
-        self._ui.menu_powder_peaks_hits.triggered.connect(self._pass)
-        self._ui.menu_powder_peaks_blanks.triggered.connect(self._pass)
+        self._ui.menu_powder_hits_sum.triggered.connect(self._view_sum_hits)
+        self._ui.menu_powder_blanks_sum.triggered.connect(self._view_sum_blanks)
+        self._ui.menu_powder_peaks_hits.triggered.connect(self._view_powder_hits)
+        self._ui.menu_powder_peaks_blanks.triggered.connect(self._view_powder_blanks)
 
         # Log menu actions
         self._ui.menu_log_batch.triggered.connect(self._pass)
@@ -195,6 +236,78 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _crawler_gui_closed(self) -> None:
         print("Crawler closed")
 
+    def _view_hits(self) -> None:
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        cxi_files: List[str] = []
+        dir: pathlib.Path
+        for dir in selected_directories:
+            if len(list(dir.glob("*.cxi"))) > 0:
+                cxi_files.append(f"{dir}/*.cxi")
+        if len(cxi_files) == 0:
+            print("There's no .cxi files in the selected directories yet.")
+            return
+        input_str: str = " ".join(cxi_files)
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        viewer_command: str = (
+            f"cheetah_viewer.py {input_str} -d /entry_1/data_1/data "
+            f"-p /entry_1/result_1 -g {geometry}"
+        )
+        print(viewer_command)
+        subprocess.Popen(viewer_command, shell=True)
+
+    def _view_sum_hits(self) -> None:
+        self._view_sums(1, "/data/data")
+
+    def _view_sum_blanks(self) -> None:
+        self._view_sums(0, "/data/data")
+
+    def _view_powder_hits(self) -> None:
+        self._view_sums(1, "/data/peakpowder")
+
+    def _view_powder_blanks(self) -> None:
+        self._view_sums(0, "/data/peakpowder")
+
+    def _view_sums(
+        self,
+        sum_class: Literal[0, 1],
+        hdf5_dataset: Literal["/data/data", "/data/peakpowder"],
+    ) -> None:
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        sum_files: List[str] = []
+        dir: pathlib.Path
+        for dir in selected_directories:
+            file: pathlib.Path
+            for file in dir.glob(f"*-class{sum_class}-sum.h5"):
+                sum_files.append(str(file))
+        if len(sum_files) == 0:
+            print(
+                f"There's no class{sum_class} sum files in the selected directories yet."
+            )
+            return
+        input_str: str = " ".join(sum_files)
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        viewer_command: str = (
+            f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry}"
+        )
+        print(viewer_command)
+        subprocess.Popen(viewer_command, shell=True)
+
     def _enable_commands(self) -> None:
         self._ui.button_run_cheetah.setEnabled(True)
         # self._ui.button_index.setEnabled(True)
@@ -211,24 +324,57 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )
-        row: int
-        for row in selected_rows:
-            table_id: str = self._table.item(row, 0).text()
-            run_id: str = self.experiment.crawler_table_id_to_raw_id(table_id)
-            self.experiment.process_run(
-                run_id, self.experiment._last_process_config_filename, "test"
+
+        selected_runs: List[str] = [
+            self.experiment.crawler_table_id_to_raw_id(self._table.item(row, 0).text())
+            for row in selected_rows
+        ]
+
+        if len(selected_runs) == 0:
+            return
+        dialog: process_dialogs.RunProcessingDialog = (
+            process_dialogs.RunProcessingDialog(
+                self.experiment.get_last_processing_config(), self
             )
-        # TODO: move process to a separate thread, add process dialog
+        )
+        if dialog.exec() == 0:
+            return
+        else:
+            processing_config: TypeProcessingConfig = dialog.get_config()
+            self._process_thread: ProcessThread = ProcessThread(
+                self.experiment,
+                selected_runs,
+                processing_config,
+            )
+            self._process_thread.started.connect(self._process_thread_started)
+            self._process_thread.finished.connect(self._process_thread_finished)
+            self._process_thread.finished.connect(self._process_thread.deleteLater)
+            self._process_thread.start()
+
+            cheetah_column: int = self._table_column_names.index("Cheetah")
+            row: int
+            for row in selected_rows:
+                self._table.setItem(
+                    row, cheetah_column, QtWidgets.QTableWidgetItem("Submitting")
+                )
+                self._table.item(row, cheetah_column).setBackground(
+                    self._status_colors["Submitting"]
+                )
+
+    def _process_thread_started(self) -> None:
+        self._ui.button_run_cheetah.setEnabled(False)
+        self._ui.menu_cheetah_process_selected.setEnabled(False)
+
+    def _process_thread_finished(self) -> None:
+        self._ui.button_run_cheetah.setEnabled(True)
+        self._ui.menu_cheetah_process_selected.setEnabled(True)
 
     def _refresh_table(self) -> None:
         if not self._crawler_csv_filename.exists():
             self._refresh_timer.start(60000)
             return
         self._table.setSortingEnabled(False)
-        n_columns: int = self._table.columnCount()
-        column_names: List[str] = [
-            self._table.horizontalHeaderItem(i).text() for i in range(n_columns)
-        ]
+        n_columns: int = len(self._table_column_names)
         fh: TextIO
         with open(self._crawler_csv_filename, "r") as fh:
             self._table_data = list(csv.DictReader(fh))
@@ -244,7 +390,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         row: int
         name: str
         data: Dict[str, Any]
-        for column, name in enumerate(column_names):
+        for column, name in enumerate(self._table_column_names):
             if name in self._table_data[0].keys():
                 for row, data in enumerate(self._table_data):
                     value: str = data[name]
@@ -254,6 +400,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                     except ValueError:
                         item.setText(value)
                     self._table.setItem(row, column, item)
+
+                    self._table.item(row, column).setBackground(
+                        QtGui.QColor(255, 255, 255)
+                    )
+                    if name in ("Rawdata", "Cheetah"):
+                        if value in self._status_colors.keys():
+                            self._table.item(row, column).setBackground(
+                                self._status_colors[value]
+                            )
 
         self._table.resizeRowsToContents()
         self._table.setSortingEnabled(True)

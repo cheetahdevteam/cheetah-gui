@@ -1,10 +1,11 @@
+import click  # type: ignore
 import jinja2
 import pathlib
 import shutil
 import stat
 import subprocess
 
-from typing import Callable, TextIO, Union, TypedDict
+from typing import Callable, TextIO, Union, TypedDict, Literal
 
 from cheetah.crawlers import facilities
 
@@ -14,8 +15,8 @@ class TypeOmConfigTemplateData(TypedDict):
     output_dir: pathlib.Path
     experiment_id: str
     run_id: str
-    geometry_file: Union[pathlib.Path, None]
-    mask_file: Union[pathlib.Path, None]
+    geometry_file: pathlib.Path
+    mask_file: Union[pathlib.Path, Literal["null"]]
 
 
 class TypeProcessScriptTemplateData(TypedDict):
@@ -24,6 +25,13 @@ class TypeProcessScriptTemplateData(TypedDict):
     n_processes: int
     om_source: str
     om_config: pathlib.Path
+
+
+class TypeProcessingConfig(TypedDict):
+    config_template: str
+    tag: str
+    geometry: str
+    mask: str
 
 
 class CheetahProcess:
@@ -52,17 +60,42 @@ class CheetahProcess:
             [str, str, pathlib.Path, pathlib.Path], str
         ] = facilities[self._facility]["prepare_om_source"]
 
+    def _raw_id_to_proc_id(self, raw_id: str) -> str:
+        """ """
+        return raw_id.replace("-", "_")
+
+    def _write_process_config_file(
+        self, output_directory: pathlib.Path, config: TypeProcessingConfig
+    ) -> None:
+        fh: TextIO
+        with open(output_directory / "process_config.txt", "w") as fh:
+            for key, value in config.items():
+                fh.write(f"{key}: {value}\n")
+
+    def _write_status_file(self, output_directory: pathlib.Path) -> None:
+        fh: TextIO
+        with open(output_directory / "status.txt", "w") as fh:
+            fh.write("# Cheetah status\n")
+            fh.write("Status: Submitted\n")
+
     def process_run(
         self,
         run_id: str,
-        om_config_template_file: pathlib.Path,
-        tag: str,
-        geometry_file: Union[None, pathlib.Path] = None,
-        mask_file: Union[None, pathlib.Path] = None,
+        config: TypeProcessingConfig,
         queue: Union[str, None] = None,
         n_processes: Union[int, None] = None,
     ) -> None:
         """ """
+        om_config_template_file: pathlib.Path = pathlib.Path(config["config_template"])
+        tag: str = config["tag"]
+        geometry_file: pathlib.Path = pathlib.Path(config["geometry"])
+        if config["mask"]:
+            mask_file: Union[pathlib.Path, Literal["null"]] = pathlib.Path(
+                config["mask"]
+            )
+        else:
+            mask_file = "null"
+
         proc_id: str = self._raw_id_to_proc_id(run_id)
         output_directory_name: str = f"{proc_id}-{tag}"
         output_directory: pathlib.Path = self._proc_directory / output_directory_name
@@ -115,9 +148,17 @@ class CheetahProcess:
             fh.write(self._process_template.render(process_script_data))
 
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
-        subprocess.run(f"{process_script}")
-        # TODO: write status.txt
+        subprocess.run(f"{process_script}", cwd=output_directory)
+        self._write_status_file(output_directory)
+        self._write_process_config_file(output_directory, config)
 
-    def _raw_id_to_proc_id(self, raw_id: str) -> str:
-        """ """
-        return raw_id.replace("-", "_")
+
+@click.command()  # type: ignore
+def main() -> None:
+    """ """
+    pass
+    # TODO: make cheetah_process.py a standalone script
+
+
+if __name__ == "__main__":
+    main()

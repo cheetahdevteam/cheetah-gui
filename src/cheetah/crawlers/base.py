@@ -14,6 +14,7 @@ class TypeProcStatusItem(TypedDict):
     update_time: float
     processed: int
     hits: int
+    recipe: str
 
 
 class TypeRawStatusItem(TypedDict):
@@ -87,6 +88,15 @@ class Crawler(ABC):
             split_items: List[str] = run_name.split("-")
             run_id: str = split_items[0]
             tag: str = "-".join(split_items[1:])
+            recipe: str = ""
+            process_config_file: pathlib.Path = run_directory / "process_config.txt"
+            if process_config_file.is_file():
+                process_config: Dict[str, str] = self._parse_status_file(
+                    process_config_file
+                )
+                if "config_template" in process_config.keys():
+                    recipe = pathlib.Path(process_config["config_template"]).name
+
             if status_file.is_file():
                 status: Dict[str, str] = self._parse_status_file(status_file)
                 if "Update time" in status.keys():
@@ -94,7 +104,7 @@ class Crawler(ABC):
                         status["Update time"], "%a %b %d %H:%M:%S %Y"
                     ).timestamp()
                 else:
-                    update_time = 0
+                    update_time = status_file.stat().st_mtime
                 if "Frames processed" in status.keys():
                     processed: int = int(status["Frames processed"])
                 else:
@@ -112,8 +122,10 @@ class Crawler(ABC):
                         "update_time": update_time,
                         "processed": processed,
                         "hits": hits,
+                        "recipe": recipe,
                     }
                 )
+
         return hdf5_status
 
     def _parse_status_file(self, filename: pathlib.Path) -> Dict[str, str]:
@@ -160,6 +172,7 @@ class Crawler(ABC):
                 row["Dataset"] = latest_proc_item["tag"]
                 row["H5Directory"] = latest_proc_item["run_name"]
                 row["Cheetah"] = latest_proc_item["status"]
+                row["Recipe"] = latest_proc_item["recipe"]
 
                 hits: int = latest_proc_item["hits"]
                 processed: int = latest_proc_item["processed"]

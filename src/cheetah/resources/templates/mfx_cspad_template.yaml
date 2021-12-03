@@ -21,7 +21,7 @@ data_retrieval_layer:
     - "frame_id"
 
 cheetah:
-  processed_directory: {{processed_directory}}
+  processed_directory: {{output_dir}}
   processed_filename_prefix: "{{experiment_id}}-{{run_id}}"
   processed_filename_extension: "cxi"
   write_class_sums: true
@@ -40,10 +40,10 @@ cheetah:
     detector_distance: "/LCLS/detector_1/EncoderValue"
     timestamp: "/LCLS/timestamp"
     peak_list: "/entry_1/result_1"
-    pixel_size: "/entry_1/instrument_1/detector_1/x_pixel_size"
 
 crystallography:
   num_frames_in_event_to_process: 1
+  data_broadcast: false
   data_broadcast_url: null
   responding_url: null
   geometry_file: {{geometry_file}}
