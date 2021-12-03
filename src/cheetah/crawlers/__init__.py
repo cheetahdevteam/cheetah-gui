@@ -1,6 +1,11 @@
 import pathlib
 
-from typing import Any, Dict, Callable, TypedDict, Type
+from typing import Any, Dict, Callable, Type
+
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 from cheetah.crawlers.base import Crawler
 from cheetah.crawlers.crawler_lcls import LclsCrawler

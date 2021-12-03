@@ -1,12 +1,17 @@
 import click  # type: ignore
 import csv
+import os
 import pathlib
 import subprocess
 import sys
 
 from datetime import datetime
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
-from typing import Any, List, Dict, TextIO, Literal
+from typing import Any, List, Dict, TextIO
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
 
 from cheetah.crawlers.base import Crawler, TypeTableRow
 from cheetah.dialogs import setup_dialogs, process_dialogs
@@ -416,9 +421,14 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self._refresh_timer.start(60000)
 
+    def _get_cwd(self) -> None:
+        # Hack to get current directory without resolving links at psana
+        # instead of using pathlib.Path.cwd()
+        return pathlib.Path(os.environ["PWD"])
+
     def _select_experiment(self) -> None:
         if pathlib.Path("./crawler.config").is_file():
-            working_directory: pathlib.Path = pathlib.Path.cwd()
+            working_directory: pathlib.Path = self._get_cwd()
         else:
             dialog: setup_dialogs.ExperimentSelectionDialog = (
                 setup_dialogs.ExperimentSelectionDialog(self)
@@ -436,6 +446,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self._setup_new_experiment(working_directory)
 
     def _setup_new_experiment(self, path: pathlib.Path) -> None:
+        print(path)
         dialog: setup_dialogs.SetupNewExperimentDialog = (
             setup_dialogs.SetupNewExperimentDialog(path, self)
         )

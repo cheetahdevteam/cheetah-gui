@@ -3,7 +3,12 @@ import pathlib
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, TextIO, Dict, TypedDict, Union, cast
+from typing import List, TextIO, Dict,  Union, cast
+
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 
 class TypeProcStatusItem(TypedDict):

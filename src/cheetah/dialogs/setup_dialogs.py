@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
@@ -80,8 +81,11 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
             self.done(1)
 
     def _setup_new_experiment(self) -> None:
+        # Hack to get current directory without resolving links at psana
+        # instead of using pathlib.Path.cwd()
+        cwd: str = os.environ["PWD"]
         directory_selection_dialog: Any = QtWidgets.QFileDialog(
-            self, "Select new experiment directory", "."
+            self, "Select new experiment directory", cwd
         )
         directory_selection_dialog.setFileMode(QtWidgets.QFileDialog.Directory)
         if directory_selection_dialog.exec_():

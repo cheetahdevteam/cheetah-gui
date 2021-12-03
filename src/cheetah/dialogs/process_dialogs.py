@@ -1,7 +1,11 @@
 import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any, Union, Dict, Literal
+from typing import Any, Union, Dict
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
 
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
 from cheetah.experiment import TypeExperimentConfig, TypeProcessingConfig

@@ -10,7 +10,11 @@ from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 import pyqtgraph  # type: ignore
 from random import randrange
 from scipy import constants  # type: ignore
-from typing import Any, List, Dict, TextIO, Union, Tuple, TypedDict, cast
+from typing import Any, List, Dict, TextIO, Union, Tuple, cast
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 from cheetah import __file__ as cheetah_src_path
 

@@ -5,8 +5,11 @@ import shutil
 import stat
 import subprocess
 
-from typing import Callable, TextIO, Union, TypedDict, Literal
-
+from typing import Callable, TextIO, Union
+try:
+    from typing import Literal, TypedDict
+except:
+    from typing_extensions import Literal, TypedDict
 from cheetah.crawlers import facilities
 
 

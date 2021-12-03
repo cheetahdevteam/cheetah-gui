@@ -1,7 +1,13 @@
+import os
 import pathlib
 import shutil
 
-from typing import List, Dict, TextIO, TypedDict, Union, Any
+from typing import List, Dict, TextIO, Union, Any
+
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 from cheetah.crawlers import facilities
 from cheetah.crawlers.base import Crawler
@@ -91,8 +97,12 @@ class CheetahExperiment:
     ) -> pathlib.Path:
         if path.is_absolute():
             return path
-        else:
+        # Hack to not resolve links at psana
+        cwd = pathlib.Path.cwd()
+        if parent_path in cwd.parents:
             return (parent_path / path).resolve()
+        else:
+            return (parent_path / path)
 
     def _load_existing_experiment_oldstyle(
         self, crawler_config: Dict[str, str]
