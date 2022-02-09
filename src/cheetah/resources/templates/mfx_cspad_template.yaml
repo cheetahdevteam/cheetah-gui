@@ -1,10 +1,7 @@
 om:
-  parallelization_layer: mpi
-  parallelization_engine: MpiParallelizationEngine
-  data_retrieval_layer: data_handlers_psana
-  data_event_handler: MfxLclsCspadDataEventHandler
-  processing_layer: cheetah
-  monitor: Cheetah
+  parallelization_engine: MpiParallelization
+  data_retrieval_layer: MfxLclsCspadDataRetrieval
+  processing_layer: CheetahProcessing
 
 data_retrieval_layer:
   calibration: true
