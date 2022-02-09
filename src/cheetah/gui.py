@@ -8,6 +8,7 @@ import sys
 from datetime import datetime
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 from typing import Any, List, Dict, TextIO
+
 try:
     from typing import Literal
 except:
@@ -421,7 +422,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self._refresh_timer.start(60000)
 
-    def _get_cwd(self) -> None:
+    def _get_cwd(self) -> pathlib.Path:
         # Hack to get current directory without resolving links at psana
         # instead of using pathlib.Path.cwd()
         return pathlib.Path(os.environ["PWD"])
@@ -464,9 +465,14 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self.crawler_window.show()
 
 
-@click.command()  # type: ignore
+@click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
 def main() -> None:
-    """ """
+    """
+    Cheetah GUI. This script starts the main Cheetah window. If started from the
+    existing Cheetah experiment directory containing crawler.config file experiment will
+    be loaded automatically. Otherwise, a new experiment selection dialog will be
+    opened.
+    """
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = CheetahGui()
     sys.exit(app.exec_())

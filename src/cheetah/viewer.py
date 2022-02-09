@@ -549,7 +549,9 @@ def main(
     mask_filename,
     mask_hdf5_path,
 ) -> None:
-    """ """
+    """
+    Cheetah Viewer.
+    """
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(
         input_files,

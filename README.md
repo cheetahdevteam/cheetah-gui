@@ -10,6 +10,19 @@ This repository contains new **Cheetah GUI** package which reqiures installation
 
 ## Installation
 
+**Cheetah GUI** requires
+
+* python > 3.7
+* om [(development version)](https://github.com/omdevteam/om/tree/develop)
+* click
+* h5py
+* numpy
+* scipy
+* jinja2
+* PyQt5
+* pyqtgraph
+* typing_extensions 
+
 ```
 $ git clone https://github.com/cheetahdevteam/cheetah-gui.git
 $ pip install .

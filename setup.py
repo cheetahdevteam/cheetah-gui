@@ -45,12 +45,13 @@ setup(
         "h5py",
         "mypy-extensions",
         "numpy",
-        "pyyaml",
+        "jinja2",
         "scipy",
+        "pyqt5",
+        "pyqtgraph",
         "typing_extensions",
     ],
     extras_require={
-        "qt": ["pyqt5", "pyqtgraph"],
         "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],
     },
     entry_points={
