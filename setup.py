@@ -19,10 +19,25 @@ setup(
     license="GNU General Public License v3.0",
     author="Chetah Dev Team",
     author_email="alexandra.tolstikova@desy.de",
-    description="Blah blah blah",
+    description="Cheetah GUI",
     long_description=(
         """
-        Cheetah blah blah blah
+        Cheetah is a set of programs for processing serial diffraction data from free 
+        electron laser sources, which enable taking home only the data with meaningful 
+        content.  Developed for use in our own experiments this is a sanity saver in 
+        many serial imaging experiments.
+
+        Cheetah GUI consists of a table of runs used to coordinate processing and 
+        simplify the viewing and monitoring of output. Looking at your data is the first
+        essential step in analysis so we try to make it as simple as possible. 
+        Similarly, processing multiple runs on the cluster becomes a matter of a few
+        mouse clicks with current processing status updated in the table.
+
+        Cheetah output is in the form of portable, standardised HDF5 and plain text
+        files. Viewers called from the GUI open and display these files. Data is grouped
+        by run ID corresponding to one set of measurements. Careful selection of dataset
+        labels means the table indicates what data goes together and to provide a 
+        convenient result database for the whole experiment.
         """
     ),
     install_requires=[
