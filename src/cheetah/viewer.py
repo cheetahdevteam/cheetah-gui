@@ -11,6 +11,7 @@ import pyqtgraph  # type: ignore
 from random import randrange
 from scipy import constants  # type: ignore
 from typing import Any, List, Dict, TextIO, Union, Tuple, cast
+
 try:
     from typing import TypedDict
 except:
@@ -46,6 +47,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             (pathlib.Path(cheetah_src_path) / "../ui_src/viewer.ui").resolve(), self
         )
         self.setWindowTitle(f"Cheetah Viewer")
+        self.setWindowIcon(
+            QtGui.QIcon(
+                str((pathlib.Path(cheetah_src_path) / "../ui_src/icon.svg").resolve())
+            )
+        )
         self.show()
 
         self._load_geometry(geometry_filename)

@@ -12,7 +12,7 @@ from typing import Any, List, Dict, TextIO
 try:
     from typing import Literal
 except:
-    from typing_extensions import Literal
+    from typing_extensions import Literal  # type: ignore
 
 from cheetah.crawlers.base import Crawler, TypeTableRow
 from cheetah.dialogs import setup_dialogs, process_dialogs
@@ -123,6 +123,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         super(CheetahGui, self).__init__()
         self._ui: Any = uic.loadUi(
             (pathlib.Path(cheetah_src_path) / "../ui_src/cheetahgui.ui").resolve(), self
+        )
+        self.setWindowIcon(
+            QtGui.QIcon(
+                str((pathlib.Path(cheetah_src_path) / "../ui_src/icon.svg").resolve())
+            )
         )
         self.show()
 
