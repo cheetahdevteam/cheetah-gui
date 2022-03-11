@@ -1,3 +1,8 @@
+"""
+Cheetah Viewer.
+
+This module contains Cheetah image viewer.
+"""
 import click  # type: ignore
 import h5py  # type: ignore
 import numpy
@@ -21,7 +26,15 @@ from cheetah import __file__ as cheetah_src_path
 
 
 class TypeEvent(TypedDict):
-    """ """
+    """
+    A dictionary storing information about a single data event in an HDF5 file.
+
+    Attributes:
+
+        filename: The path of the HDF5 file.
+
+        event: The index of the data event in the HDF5 file.
+    """
 
     filename: str
     event: int
@@ -39,9 +52,36 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         geometry_filename: str,
         hdf5_peaks_path: Union[str, None] = None,
         mask_filename: Union[str, None] = None,
-        mask_hdf5_path: Union[str, None] = None,
+        mask_hdf5_path: str = "/data/data",
     ) -> None:
-        """ """
+        """
+        Cheetah Viewer.
+
+        This class implements Cheetah frame viewer. The viewer displays data frames
+        from single- or multi-event HDF5 files applying detector geometry from privided
+        [CrystFEL geometry file][https://www.desy.de/~twhite/crystfel/manual-crystfel_geometry.html].
+        It can also optionally display the position of found peaks and the mask
+        overlaid over the image.
+
+        Arguments:
+
+            input_files: The list of input HDF5 files.
+
+            hdf5_data_path: The path to the images in the HDF5 files.
+
+            geometry_filename: The path of the geometry file.
+
+            hdf5_peaks_path: The path to the peaks dataset in the HDF5 files. If the
+                value of this parameter is None the option of showing peaks will be
+                disabled. Defaults to None.
+
+            mask_filename: The path of the mask file. If the value of this parameter
+                is None and the mask file is not specified in the geometry file, the
+                option of showing mask will be disabled. Defaults to None.
+
+            mask_hdf5_path: The path to the mask dataset in the mask HDF5 file.
+                Defaults to '/data/data'.
+        """
         super(Viewer, self).__init__()
         self._ui: Any = uic.loadUi(
             (pathlib.Path(cheetah_src_path) / "../ui_src/viewer.ui").resolve(), self
@@ -195,6 +235,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.pause_button.setEnabled(False)
 
     def _load_geometry(self, geometry_filename: str) -> None:
+        # Loads CrystFEL goemetry using om.utils module.
         self._geometry: crystfel_geometry.TypeDetector
         beam: crystfel_geometry.TypeBeam
         self._geometry, beam, __ = crystfel_geometry.load_crystfel_geometry(
@@ -285,7 +326,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _draw_resolution_rings(self) -> None:
         # Draws the resolution rings.
-
         if self._resolution_rings_enabled is False:
             return
 
@@ -502,11 +542,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
-@click.argument(  # type: ignore
-    "input_files",
-    nargs=-1,
-    type=click.Path(exists=True),
-)
+@click.argument("input_files", nargs=-1, type=click.Path(exists=True))  # type: ignore
 @click.option(  # type: ignore
     "--geometry",
     "-g",
@@ -514,6 +550,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     nargs=1,
     type=click.Path(exists=True),
     required=True,
+    help="CrystFEL geometry file",
 )
 @click.option(  # type: ignore
     "--hdf5-data-path",
@@ -523,6 +560,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     type=str,
     required=False,
     default="/data/data",
+    help="path to the image dataset in the HDF5 files",
 )
 @click.option(  # type: ignore
     "--hdf5-peaks-path",
@@ -531,6 +569,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     nargs=1,
     type=str,
     required=False,
+    help="path to the peaks dataset in the HDF5 files, default=None",
 )
 @click.option(  # type: ignore
     "--mask",
@@ -539,6 +578,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     nargs=1,
     type=click.Path(exists=True),
     required=False,
+    help="mask HDF5 file, default=None",
 )
 @click.option(  # type: ignore
     "--mask-hdf5-path",
@@ -546,6 +586,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     nargs=1,
     type=str,
     required=False,
+    default="/data/data",
+    help="path to the mask dataset in the mask HDF5 file, default=/data/data",
 )
 def main(
     input_files,
@@ -556,7 +598,11 @@ def main(
     mask_hdf5_path,
 ) -> None:
     """
-    Cheetah Viewer.
+    Cheetah Viewer. The viewer displays images from single- or multi-event HDF5 files
+    applying detector geometry from the privided geometry file in CrystFEL format. The
+    viewer can optionally display positions of the found peaks if the path to the peaks
+    dataset in the HDF5 file is provided. It can also show mask if the mask file is
+    provided either as a command line argument or as an entry in the geometry file.
     """
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(

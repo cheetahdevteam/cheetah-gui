@@ -1,14 +1,17 @@
+"""
+Process dialogs.
+
+This modules contains dialogs which allow setting up processing configuration 
+parameters and launching data processing.
+"""
+
 import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any, Union, Dict
-try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal
+from typing import Any
 
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
-from cheetah.experiment import TypeExperimentConfig, TypeProcessingConfig
+from cheetah.process import TypeProcessingConfig
 
 
 class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
@@ -21,7 +24,21 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         last_config: TypeProcessingConfig,
         parent: Any = None,
     ) -> None:
-        """ """
+        """
+        Run processing dialog.
+
+        This dialog is shown when data processing is triggered from Cheetah GUI. It
+        allows to select Cheetah processing config template file, dataset tag, geometry
+        file and mask file.
+
+        Arguments:
+
+            last_config: A [TypeProcessingConfig][cheetah.process.TypeProcessingConfig]
+                dictionary containing the latest used processing configuration
+                parameteres, which will be used to pre-fill the dialog form.
+
+            parent: Parent QWidget. Defaults to None.
+        """
         super(RunProcessingDialog, self).__init__(parent)
         self.setWindowTitle("Run Cheetah")
         self.resize(800, 250)
@@ -77,6 +94,9 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def _accept(self) -> None:
+        # Checks the dialog form, if all fields are filled correctly, i.e. all
+        # specified files exist, exits with signal 1. Otherwise shows path not found
+        # message.
         self._check_config()
         template_file: pathlib.Path = pathlib.Path(self._config["config_template"])
         if not template_file.is_file():
@@ -98,9 +118,11 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         self.done(1)
 
     def _cancel(self) -> None:
+        # Exits with signal 0.
         self.done(0)
 
     def _check_config(self) -> None:
+        # Checks that all required fields are filled, if not disables "OK" button.
         self._config: TypeProcessingConfig = {
             "config_template": self._template_le.text(),
             "tag": self._tag_le.text(),
@@ -113,6 +135,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             self._button_box.buttons()[0].setEnabled(True)
 
     def _select_config_template(self) -> None:
+        # Opens file selection dialog to select *.yaml file.
         path: pathlib.Path = pathlib.Path(self._template_le.text()).parent
         if not path.exists():
             path = pathlib.Path.cwd()
@@ -126,6 +149,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             self._check_config()
 
     def _select_geometry_file(self) -> None:
+        # Opens file selection dialog to select *.geom file.
         path: pathlib.Path = pathlib.Path(self._geometry_le.text()).parent
         if not path.exists():
             path = pathlib.Path.cwd()
@@ -139,6 +163,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             self._check_config()
 
     def _select_mask_file(self) -> None:
+        # Opens file selection dialog to select *.h5 file.
         path: pathlib.Path = pathlib.Path(self._mask_le.text()).parent
         if not path.exists():
             path = pathlib.Path.cwd()
@@ -154,5 +179,14 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
     def get_config(
         self,
     ) -> TypeProcessingConfig:
-        """ """
+        """
+        Get processing config.
+
+        This function is called when the dialog exits with signal 1, which means that
+        all selected processing configuration parameters are valid.
+
+        Returns:
+            A [TypeProcessingConfig][cheetah.process.TypeProcessingConfig]
+            dictionary containing selected processing configuration parameters.
+        """
         return self._config

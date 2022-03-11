@@ -1,3 +1,11 @@
+"""
+Cheetah Crawlers.
+
+This package contains all facility-, instrument- and detector-dependent code in Cheetah 
+GUI. Function and classes for different facilities are implemented in separate
+modules in this package. 
+"""
+
 import pathlib
 
 from typing import Any, Dict, Callable, Type
@@ -17,8 +25,71 @@ from cheetah.crawlers.functions_lcls import (
 )
 
 
-class TypeFacility(TypedDict):
-    instruments: Dict[str, Any]
+class TypeDetectorInfo(TypedDict):
+    """
+    A dictionary storing information about resources associated with a certain detector.
+
+    Resources associated with each detector include example geometry and mask files,
+    OM config template and processing script template. These files are stored in
+    cheetah_source/resources/ directory and copied to the Cheetah experiment directory
+    when a new experiment is set up.
+
+    Attributes:
+        calib_resources: A dictionary storing information about calibration resources,
+            such as detector geometry and mask. In this dictionary the keys are the
+            names of the resources and the values are corresponding file names.
+
+        om_config_template: The name of the OM config template file.
+
+        process_template: The name of the process script template file.
+    """
+
+    calib_resources: Dict[str, str]
+    om_config_template: str
+    process_template: str
+
+
+class TypeInstrumentInfo(TypedDict):
+    """
+    A dictionary storing information about supported detectors and associated with them
+    resources for a certain facility.
+
+    Attributes:
+
+        detectors: A dictionary storing information about supported detectors. In this
+            dictionary the keys are detector names and the values are
+            [TypeDetectorInfo][cheetah.crawlers.TypeDetectorInfo] dictionaries.
+    """
+
+    detectors: Dict[str, TypeDetectorInfo]
+
+
+class TypeFacilityInfo(TypedDict):
+    """
+    A dictionary storing information about supported instruments and detectors for a
+    certain facility as well as functions and classes associated with the facility.
+
+    Attributes:
+
+        instruments: A dictionary storing information about supported instruments. In
+            this dictionary the keys are instrument names and the values are
+            [TypeInstrumentInfo][cheetah.crawlers.TypeInstrumentInfo] dictionaries.
+
+        guess_raw_directory: A function which guesses raw data directory based on the
+            experiment directory path.
+
+        guess_experiment_id: A function which guesses experiment ID based on the
+            experiment directory path.
+
+        guess_batch_queue: A function which guesses the appropriate batch queue name
+            based on the experiment directory path.
+
+        prepare_om_source: A function which prepares OM data source for data processing.
+
+        crawler: Cheetah Crawler class for the facility.
+    """
+
+    instruments: Dict[str, TypeInstrumentInfo]
     guess_raw_directory: Callable[[pathlib.Path], pathlib.Path]
     guess_experiment_id: Callable[[pathlib.Path], str]
     guess_batch_queue: Callable[[pathlib.Path], str]
@@ -26,7 +97,7 @@ class TypeFacility(TypedDict):
     crawler: Type[Crawler]
 
 
-facilities: Dict[str, TypeFacility] = {
+facilities: Dict[str, TypeFacilityInfo] = {
     "LCLS": {
         "instruments": {
             "MFX": {
@@ -77,3 +148,11 @@ facilities: Dict[str, TypeFacility] = {
         "crawler": LclsCrawler,
     },
 }
+"""
+Supported facilities, instruments and detectors.
+
+This dictionary contains information about supported facilities, instruments and
+detectors and associated with them resources, functions and classes. The keys of the 
+dictionary are the names of the supported facilities and the values are 
+[TypeFacilityInfo][cheetah.crawlers.TypeFacilityInfo] dictionaries.
+"""

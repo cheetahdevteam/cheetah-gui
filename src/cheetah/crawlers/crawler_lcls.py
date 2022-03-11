@@ -1,18 +1,25 @@
+"""
+LCLS Crawler.
+
+This module contains Cheetah Crawler for LCLS.
+"""
 import pathlib
 
 from cheetah.crawlers.base import Crawler, TypeRawStatusItem
-from typing import Any, List, TextIO, Dict
+from typing import List, Dict
 
 
 class LclsCrawler(Crawler):
     """
-    See documentation of the `__init__` function.
-
-    Base class: [`Crawler`][cheetah.crawlers.base]
+    Cheetah Crawler for LCLS.
     """
 
     def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
-        """ """
+        # This function scans raw data directory and returns the list of
+        # TypeRawStatusItem dictionaries containing ID and the status of the raw data
+        # for each run. At LCLS the name of the raw data file starts with "rNNNN-"
+        # where NNNN is the run number, therefore the part of the filename before the
+        # first "-" is used as the raw run ID.
         status: Dict[str, str] = {}
         filename: pathlib.Path
         for filename in self._raw_directory.glob("*.xtc*"):
@@ -30,9 +37,43 @@ class LclsCrawler(Crawler):
         return raw_status
 
     def raw_id_to_table_id(self, raw_id: str) -> str:
-        """ """
+        """
+        Convert raw run ID to table ID.
+
+        This method overrides the corresponding method of the base class: please also
+        refer to the documentation of that class for more information.
+
+        At LCLS the raw run ID has the form of "rNNNN" where NNNN is the run number.
+        The run ID displayed in the Cheetah GUI table is the run number without leading
+        zeros.
+
+        Arguments:
+
+            raw_id: Run ID of the raw data.
+
+        Returns:
+
+            Run ID displayed in the Cheetah GUI table.
+        """
         return str(int(raw_id[1:]))
 
     def table_id_to_raw_id(self, table_id: str) -> str:
-        """ """
+        """
+        Convert table run ID to raw ID.
+
+        This method overrides the corresponding method of the base class: please also
+        refer to the documentation of that class for more information.
+
+        At LCLS the raw run ID has the form of "rNNNN" where NNNN is the run number.
+        The run ID displayed in the Cheetah GUI table is the run number without leading
+        zeros.
+
+        Arguments:
+
+            table_id: Run ID displayed in the Cheetah GUI table.
+
+        Returns:
+
+            Run ID of the raw data.
+        """
         return f"r{int(table_id):04d}"

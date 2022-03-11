@@ -1,3 +1,10 @@
+"""
+Experiment setup dialogs.
+
+This module contains dialogs which allow setting up new or select already existing
+Cheetah experiments.
+"""
+
 import os
 import pathlib
 
@@ -16,7 +23,19 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
     """
 
     def __init__(self, parent: Any = None) -> None:
-        """ """
+        """
+        Experiment selection dialog.
+
+        This dialog is shown when the main Cheetah GUI is started. It allows to either
+        select an experiment which have been opened by the user before, select another
+        experiment already existing on disk or set up new experiment. The list of
+        previously opened experiments is stored in ~/.cheetah-crawler2 file. When the
+        new experiment is loaded it is moved to the top of the list.
+
+        Arguments:
+
+            parent: Parent QWidget. Defaults to None.
+        """
         super(ExperimentSelectionDialog, self).__init__(parent)
         self.setWindowTitle("Cheetah GUI experiment selector")
 
@@ -57,6 +76,10 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
         layout.addLayout(buttons_layout)
 
     def _go_to_selected_experiment(self) -> None:
+        # This function is called when "Go to selected experiment" button is clicked.
+        # It checkes if the selected experiment still exists on disk, i.e. cheetah/gui
+        # directory still contains "crawler.config" file. If it does the dialog exits
+        # with signal 1.
         selected_path: pathlib.Path = pathlib.Path(
             self._previous_experiments_cb.currentText()
         )
@@ -71,6 +94,9 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
             PathDoesNotExistDialog(selected_path, None, self).exec()
 
     def _find_different_experiment(self) -> None:
+        # This function is called when "Find different experiment" button is clicked.
+        # It opens a file selection dialog which allows to select any crawler.config
+        # file. If crawler.config file is selected the dialog exits with signal 1.
         file_selection_dialog: Any = QtWidgets.QFileDialog(self, "Open file", ".")
         file_selection_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
         file_selection_dialog.setNameFilter("crawler.config")
@@ -81,6 +107,10 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
             self.done(1)
 
     def _setup_new_experiment(self) -> None:
+        # This function is called when "Setup new experiment" button is clicked.
+        # It opend a directory selection dialog. If any directory is selected the
+        # dialog exits with signal 1.
+
         # Hack to get current directory without resolving links at psana
         # instead of using pathlib.Path.cwd()
         cwd: str = os.environ["PWD"]
@@ -95,9 +125,13 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
             self.done(1)
 
     def _cancel(self) -> None:
+        # This function is called if "Cancel" button is clicked. In this case the
+        # dialog exits with signal 0.
         self.done(0)
 
     def _get_previous_experiments_list(self) -> List[str]:
+        # This function gets the list of previously opened experiments from
+        # ~/.cheetah-crawler2.
         logfile_path: pathlib.Path = pathlib.Path.expanduser(
             pathlib.Path("~/.cheetah-crawler2")
         )
@@ -109,6 +143,18 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
             return []
 
     def get_experiment(self) -> pathlib.Path:
+        """
+        Get selected experiment directory.
+
+        This function is called when the dialog exits with signal 1. It returns
+        selected experiment directory path. If selected directory does not contain
+        crawler.config file, "Setup new experiment" option was used and the new Cheetah
+        experiment directory has to be set up.
+
+        Returns:
+
+            The path of selected experiment directory.
+        """
         return self._selected_experiment
 
 
@@ -118,7 +164,24 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
     """
 
     def __init__(self, path: pathlib.Path, parent: Any = None) -> None:
-        """ """
+        """
+        Setup new experiment dialog.
+
+        This dialog is shown when new experiment setup is triggered from Cheetah GUI.
+        It allows to select the names of the facility, instrument and detector used in
+        the experiment, raw data directory, output cheetah directory and the experiment
+        ID. Facilities, instruments and detectors supported by Cheetah are specified in
+        the [facilities][cheetah.crawlers.facilities] dictionary.
+
+        Arguments:
+
+            path: The path of the directory where the new Cheetah experiment directory
+                must be created. The path will be used to guess facility and instrument
+                names as well as raw data directory and experiment ID to pre-fill the
+                form when possible.
+
+            parent: Parent QWidget. Defaults to None.
+        """
         super(SetupNewExperimentDialog, self).__init__(parent)
         self.setWindowTitle("Set up new experiment")
         self.resize(800, 300)
@@ -191,12 +254,17 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def _accept(self) -> None:
+        # This function is called when "OK" button is clicked. In this case the dialog
+        # exits with signal 1.
         self.done(1)
 
     def _cancel(self) -> None:
+        # This function is called when "Cancel" button is clicked. In this case the
+        # dialog exits with signal 0.
         self.done(0)
 
     def _check_config(self) -> None:
+        # Checks that all fields in the form are filled. If not disaples "OK" button.
         self._config: TypeExperimentConfig = {
             "facility": self._facility_cb.currentText(),
             "instrument": self._instrument_cb.currentText(),
@@ -212,6 +280,8 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             self._button_box.buttons()[0].setEnabled(True)
 
     def _facility_changed(self) -> None:
+        # This function is called when a different facility is selected. It changes
+        # the selection of available instruments and detectors.
         self._facility: str = self._facility_cb.currentText()
         self._instrument_cb.clear()
         if self._facility:
@@ -235,6 +305,8 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def _guess_cheetah_resources_directory(self) -> Union[pathlib.Path, None]:
+        # Checks that cheetah package source contains resources. If it doesn't the user
+        # must specify resources directory manually.
         path: pathlib.Path = pathlib.Path(cheetah_src_path).parent / "resources"
         if path.is_dir():
             return path
@@ -242,16 +314,17 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             return None
 
     def _guess_experiment_id(self, path: pathlib.Path) -> Union[str, None]:
+        # Tries to guess experiment ID based on the facility and experiment path.
         if self._facility:
             function: Callable[[pathlib.Path], str] = facilities[self._facility][
                 "guess_experiment_id"
             ]
-
             return function(path)
         else:
             return None
 
     def _guess_instrument(self) -> Union[str, None]:
+        # Tries to guess the instrument name based on experiment path.
         instrument: str
         for instrument in facilities[self._facility]["instruments"].keys():
             if "/" + instrument in str(self._path) or "/" + instrument.lower() in str(
@@ -261,6 +334,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         return None
 
     def _guess_raw_data_directory(self) -> Union[pathlib.Path, None]:
+        # Tries to guess raw data directory based on experiment path.
         if self._facility:
             function: Callable[[pathlib.Path], pathlib.Path] = facilities[
                 self._facility
@@ -271,6 +345,8 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             return None
 
     def _instrument_changed(self) -> None:
+        # This function is called when a different instrument is selected. It changes
+        # the selection of available detectors.
         self._instrument: str = self._instrument_cb.currentText()
         self._detector_cb.clear()
         if self._instrument:
@@ -283,6 +359,8 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def _raw_directory_changed(self) -> None:
+        # This function is called when a different raw data directory is selected. It
+        # tries to guess the experiment ID based on the new raw directory.
         raw_directory: str = self._raw_directory_le.text()
         possible_experiment_id: Union[str, None] = self._guess_experiment_id(
             pathlib.Path(raw_directory)
@@ -291,6 +369,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             self._experiment_id_le.setText(possible_experiment_id)
 
     def _select_raw_directory(self) -> None:
+        # Opens raw data directory selection dialog.
         path: str = self._raw_directory_le.text()
         if not path:
             path = str(self._path)
@@ -305,6 +384,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def _select_cheetah_resources(self) -> None:
+        # Opens directory selection dialog for Cheetah resources.
         directory_selection_dialog: Any = QtWidgets.QFileDialog(
             self, "Select directory with Cheetah resources", "~"
         )
@@ -315,5 +395,14 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._check_config()
 
     def get_config(self) -> TypeExperimentConfig:
+        """
+        Get new experiment config.
+
+        This function is called when the dialog exits with signal 1.
+
+        Returns:
+            A [TypeExperimentConfig][cheetah.experiment.TypeExperimentConfig]
+            dictionary containing selected experiment configuration parameters.
+        """
         self._check_config()
         return self._config

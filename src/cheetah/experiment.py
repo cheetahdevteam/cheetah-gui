@@ -1,20 +1,47 @@
-import os
+"""
+Cheetah Experiment.
+
+This module contains classes and functions that provide information related to a 
+particular experiment and control it's data processing.
+"""
 import pathlib
 import shutil
 
-from typing import List, Dict, TextIO, Union, Any
+from typing import List, Dict, TextIO, Union
 
 try:
     from typing import TypedDict
 except:
     from typing_extensions import TypedDict
 
-from cheetah.crawlers import facilities
+from cheetah.crawlers import TypeDetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
 from cheetah.process import CheetahProcess, TypeProcessingConfig
 
 
 class TypeExperimentConfig(TypedDict):
+    """
+    A dictionary storing all information required to set up new Cheetah experiment.
+
+    Attributes:
+
+        facility: The name of the facility.
+
+        instrument: The name of the instrument.
+
+        detector: The name of the detector.
+
+        raw_dir: Raw data directory.
+
+        experiment_id: Experiment ID.
+
+        output_dir: The path to the directory where the new Cheetah experiment
+            directory has to be be created.
+
+        cheetah_resources: Cheetah resources directory (usually
+            cheetah_source/resources).
+    """
+
     facility: str
     instrument: str
     detector: str
@@ -34,7 +61,30 @@ class CheetahExperiment:
         path: pathlib.Path,
         new_experiment_config: Union[None, TypeExperimentConfig] = None,
     ) -> None:
-        """ """
+        """
+        Cheetah Experiment.
+
+        This class stores all information associated with a particular experiment. It
+        can either set up new experiment creating new Cheetah directory on disk or load
+        old experiment data from already existing Cheetah directory. It creates an
+        instance of [Cheetah Crawler][cheetah.crawlers.base.Crawler] class which can
+        scan experiment directories and update the run table in Cheetah GUI.
+        Additionally, it creates an instance of
+        [Cheetah Process][cheetah.process.CheetahProcess] class which can launch
+        processing of selected runs on request.
+
+        Arguments:
+
+            path: When loading already existing experiment - the path to existing
+                cheetah/gui directory containing crawler.config file. When setting up
+                new Cheetah experiment - the path to the current working directory. In
+                the latter case `new_experiment_config` must also be provided.
+
+            new_experiment_config: Either a
+                [TypeExperimentConfig][cheetah.experiment.TypeExperimentConfig]
+                dictionary or None. If the value of this parameter is None `path` must
+                point to already existing cheetah/gui directory.
+        """
         if new_experiment_config:
             self._setup_new_experiment(new_experiment_config)
         else:
@@ -44,7 +94,6 @@ class CheetahExperiment:
         self._crawler: Crawler = facilities[self._facility]["crawler"](
             self._raw_directory,
             self._proc_directory,
-            self._proc_directory,  # TODO: change to indexing directory later
             self._crawler_csv_filename,
         )
         self._cheetah_process: CheetahProcess = CheetahProcess(
@@ -56,6 +105,8 @@ class CheetahExperiment:
         )
 
     def _parse_crawler_config(self) -> Dict[str, str]:
+        # Parses config file where parameters and values are separated by '='. Returns
+        # a dictionary using parameters as keys.
         config: Dict[str, str] = {}
         fh: TextIO
         with open(self._crawler_config_filename, "r") as fh:
@@ -67,6 +118,7 @@ class CheetahExperiment:
         return config
 
     def _write_crawler_config(self) -> None:
+        # Writes crawler config file.
         fh: TextIO
         with open(self._crawler_config_filename, "w") as fh:
             # Write experiment info:
@@ -95,14 +147,18 @@ class CheetahExperiment:
     def _resolve_path(
         self, path: pathlib.Path, parent_path: pathlib.Path
     ) -> pathlib.Path:
+        # Resolves path with respect to parent_path and returns the absolute path.
         if path.is_absolute():
             return path
-        # Hack to not resolve links at psana
+        # Hack to not resolve links at psana:
+        # since raw, calib and scratch directories on psana are often links pointing
+        # to different sources on different machines, one has to keep the paths as
+        # links instead of resolving them.
         cwd = pathlib.Path.cwd()
         if parent_path in cwd.parents:
             return (parent_path / path).resolve()
         else:
-            return (parent_path / path)
+            return parent_path / path
 
     def _load_existing_experiment_oldstyle(
         self, crawler_config: Dict[str, str]
@@ -138,6 +194,8 @@ class CheetahExperiment:
         # TODO: backup old config files and write new ones
 
     def _load_existing_experiment(self, path: pathlib.Path) -> None:
+        # Loads information from crawler.config file. `path` must point to the existing
+        # cheetah/gui directory containing crawler.config file.
         self._gui_directory: pathlib.Path = self._resolve_path(path, pathlib.Path.cwd())
         self._crawler_config_filename: pathlib.Path = (
             self._gui_directory / "crawler.config"
@@ -185,6 +243,9 @@ class CheetahExperiment:
     def _setup_new_experiment(
         self, new_experiment_config: TypeExperimentConfig
     ) -> None:
+        # Sets up new experiment. Creates new Cheetah directory structure, writes
+        # cheetah/gui/crawler.config file and copies required resources to
+        # cheetah/calib and cheetah/process.
         print("Setting up new experiment\n")
         self._facility = new_experiment_config["facility"]
         self._instrument = new_experiment_config["instrument"]
@@ -216,7 +277,7 @@ class CheetahExperiment:
 
         self._process_script = pathlib.Path("cheetah_process.py")
 
-        resources: Dict[str, Any] = facilities[new_experiment_config["facility"]][
+        resources: TypeDetectorInfo = facilities[new_experiment_config["facility"]][
             "instruments"
         ][new_experiment_config["instrument"]]["detectors"][
             new_experiment_config["detector"]
@@ -263,6 +324,8 @@ class CheetahExperiment:
         self._write_crawler_config()
 
     def _update_previous_experiments_list(self) -> None:
+        # Updates the list of experiments in ~/.cheetah-crawler2, setting current
+        # experiment as the most recent one.
         logfile_path: pathlib.Path = pathlib.Path.expanduser(
             pathlib.Path("~/.cheetah-crawler2")
         )
@@ -282,12 +345,47 @@ class CheetahExperiment:
             fh.writelines(previous_experiments)
 
     def crawler_table_id_to_raw_id(self, table_id: str) -> str:
+        """
+        Convert raw run ID to table ID.
+
+        This function uses the method implemented by the facility-specific [Cheetah
+        Crawler][cheetah.crawlers.base.Crawler] to convert unique identifier of the run
+        displayed in the Cheetah GUI run table to the raw data run ID.
+
+        Arguments:
+
+            table_id: Run ID displayed in the Cheetah GUI table.
+
+        Returns:
+
+            Run ID of the raw data.
+        """
         return self._crawler.table_id_to_raw_id(table_id)
 
     def get_crawler_csv_filename(self) -> pathlib.Path:
+        """
+        Get the path of the crawler CSV file.
+
+        This function returns the path of the CSV file where Cheetah crawler writes the
+        data displayed in the Cheetah GUI run table.
+
+        Returns:
+            The path of the crawler CSV file.
+        """
         return self._crawler_csv_filename
 
     def get_last_processing_config(self) -> TypeProcessingConfig:
+        """
+        Get the last processing config.
+
+        This function returns a
+        [TypeProcessingConfig][cheetah.process.TypeProcessingConfig] dictionary
+        containing configuration of the latest launched processing job.
+
+        Returns:
+
+            The last processing config.
+        """
         return {
             "config_template": str(self._last_process_config_filename),
             "tag": self._last_tag,
@@ -296,9 +394,25 @@ class CheetahExperiment:
         }
 
     def get_working_directory(self) -> pathlib.Path:
+        """
+        Get working directory.
+
+        This function returns the path of the Cheetah experiment directory.
+
+        Returns:
+            The path of the Cheetah experiment directory.
+        """
         return (self._gui_directory / "..").resolve()
 
     def get_proc_directory(self) -> pathlib.Path:
+        """
+        Get processed data directory.
+
+        This function returns the path of the directory where processed data is stored.
+
+        Returns:
+            The path of the processed data directory.
+        """
         return self._proc_directory
 
     def process_run(
@@ -308,6 +422,32 @@ class CheetahExperiment:
         queue: Union[str, None] = None,
         n_processes: Union[int, None] = None,
     ) -> None:
+        """
+        Launch processing of a single run.
+
+        This function launches processing of a single run calling
+        [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run] method.
+
+        Arguments:
+
+            run_id: Run ID of the raw data.
+
+            processing_config: Either a
+                [TypeProcessingConfig][cheetah.process.TypeProcessingConfig] dictionary
+                containing processing configuration parameters or None. If the value of
+                this parameter is None the latest used processing configuration will be
+                used again.
+
+            queue: The name of the batch queue where the processing job should be
+                submitted. This parameter will be passed to
+                [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run].
+                Defaults to None.
+
+            n_processes: The number of nodes OM should use to run data processing. This
+                parameter will be passed to
+                [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run].
+                Defaults to None.
+        """
         if processing_config is None:
             processing_config = self.get_last_processing_config()
         else:
@@ -330,4 +470,14 @@ class CheetahExperiment:
         self._write_crawler_config()
 
     def start_crawler(self) -> Crawler:
+        """
+        Start Cheetah crawler.
+
+        This function returns an instance of facility-specific
+        [Cheetah Crawler][cheetah.crawlers.base.Crawler] created when Experiment was
+        initialized.
+
+        Returns:
+            Cheetah crawler.
+        """
         return self._crawler

@@ -1,3 +1,8 @@
+"""
+Cheetah GUI.
+
+This module contains the implementation of the main Cheetah GUI.
+"""
 import click  # type: ignore
 import csv
 import os
@@ -21,16 +26,14 @@ from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
 
 
-class CrawlerRefresher(QtCore.QObject):  # type: ignore
-    """
-    See documentation of the `__init__` function.
-    """
+class _CrawlerRefresher(QtCore.QObject):  # type: ignore
+    # This class is used internally running in a separate Qt thread to periodically
+    # update Cheetah GUI run table information using Cheetah crawler.
 
     finished = QtCore.pyqtSignal()
 
     def __init__(self, crawler: Crawler) -> None:
-        """ """
-        super(CrawlerRefresher, self).__init__()
+        super(_CrawlerRefresher, self).__init__()
         self._crawler: Crawler = crawler
 
     def refresh(self) -> None:
@@ -44,7 +47,25 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
     """
 
     def __init__(self, experiment: CheetahExperiment, parent: Any = None) -> None:
-        """ """
+        """
+        Cheetah Crawler Gui.
+
+        This class implements a graphical user interface for Cheetah Crawler. It stores
+        an instance of [Cheetah Crawler][cheetah.crawlers.base.Crawler] class in a
+        separate Qt thread and periodically calls its
+        [update][cheetah.crawlers.base.Crawler.update] method, which scans raw and
+        processed data directories and saves accumulated information in a CSV file. The
+        GUI also implements a "Refresh" button which can be used to trigger the update
+        manually.
+
+        Arguments:
+
+            experiment: An instance of
+                [CheetahExperiment][cheetah.experiment.Experiment] class which creates
+                the crawler.
+
+            parent: Parent QtWidget. Defaults to None.
+        """
         super(CrawlerGui, self).__init__(parent)
         self.parent: Any = parent
         self.resize(300, 50)
@@ -62,7 +83,7 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         self.setCentralWidget(self._central_widget)
 
         self._experiment: CheetahExperiment = experiment
-        self._refresher = CrawlerRefresher(self._experiment.start_crawler())
+        self._refresher = _CrawlerRefresher(self._experiment.start_crawler())
         self._refresh_thread: Any = QtCore.QThread()
         self._refresher.moveToThread(self._refresh_thread)
 
@@ -76,16 +97,24 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         self._refresh()
 
     def _refresh(self) -> None:
+        # Starts crawler update.
         self._refresh_button.setEnabled(False)
         self._status_label.setText("Scanning files")
         self._refresh_thread.start()
 
     def _refresh_finished(self) -> None:
+        # Finishes crawler update.
         self._refresh_button.setEnabled(True)
         self._status_label.setText("Ready")
         self._refresh_timer.start(60000)
 
     def closeEvent(self, event: Any) -> None:
+        """
+        Let the parent know about the GUI closing.
+
+        This function is called when the GUI window is closed. It lets the parent know
+        about it.
+        """
         self.parent._crawler_gui_closed()
         event.accept()
 
@@ -101,14 +130,40 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         runs: List[str],
         config: TypeProcessingConfig,
     ) -> None:
-        """ """
+        """
+        Process Thread.
+
+        This class is initialized when Cheetah processing is triggered for a list of
+        runs from Cheetah GUI, creating a separate Qt thread. When the thread is
+        started it calls the [run][cheetah.gui.ProcessThread.run] function, which
+        launches processing for each run in the list calling.
+
+        Arguments:
+            experiment: An instance of
+                [CheetahExperiment][cheetah.experiment.Experiment] class which launches
+                data processing.
+
+            runs: A list of run IDs which should be processed.
+
+            config: A [TypeProcessingConfig][cheetah.process.TypeProcessingConfig]
+                dictionary containing processing configuration parameteres. This
+                argument will be passed to
+                [CheetahExperiment.process_run][cheetah.experiment.Experiment.process_run]
+                function.
+        """
         super(ProcessThread, self).__init__()
         self._experiment: CheetahExperiment = experiment
         self._runs: List[str] = runs
         self._config: TypeProcessingConfig = config
 
     def run(self) -> None:
-        """ """
+        """
+        Process runs.
+
+        This function is called when ProcessThread is started. It calls
+        [process_run][cheetah.experiment.Experiment.process_run] function for each run
+        in the list.
+        """
         for run_id in self._runs:
             self._experiment.process_run(run_id, self._config)
 
@@ -119,7 +174,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     """
 
     def __init__(self) -> None:
-        """ """
+        """
+        Cheetah GUI.
+
+        This class implements the main Cheetah GUI window. It consists of a table of
+        runs used to coordinate processing and simplify the viewing and monitoring of
+        output. When started it creates an instance of
+        [CheetahExperiment][cheetah.experiment.Experiment] class which is then used to
+        update the table and launch data processing.
+        """
         super(CheetahGui, self).__init__()
         self._ui: Any = uic.loadUi(
             (pathlib.Path(cheetah_src_path) / "../ui_src/cheetahgui.ui").resolve(), self
@@ -198,16 +261,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_cheetah_autorun.triggered.connect(self._pass)
         self._ui.menu_modify_config_files.triggered.connect(self._pass)
 
-        # CrystFEL actions
-        self._ui.menu_crystfel_index.triggered.connect(self._pass)
-        self._ui.menu_crystfel_view_indexing_results.triggered.connect(self._pass)
-        self._ui.menu_crystfel_view_indexing_pick.triggered.connect(self._pass)
-        self._ui.menu_crystfel_cell_explorer.triggered.connect(self._pass)
-        self._ui.menu_crystfel_cell_explorer_pick.triggered.connect(self._pass)
-        self._ui.menu_crystfel_merge_streams.triggered.connect(self._pass)
-        self._ui.menu_crystfel_list_events.triggered.connect(self._pass)
-        self._ui.menu_crystfel_list_files.triggered.connect(self._pass)
-
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._pass)
         self._ui.menu_mask_combine.triggered.connect(self._pass)
@@ -245,9 +298,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         pass
 
     def _crawler_gui_closed(self) -> None:
-        print("Crawler closed")
+        # Prints a message when Crawler GUI is closed.
+        print("Crawler closed.")
 
     def _view_hits(self) -> None:
+        # Launches Cheetah Viewer showing hits from selected runs.
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )
@@ -275,15 +330,19 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         subprocess.Popen(viewer_command, shell=True)
 
     def _view_sum_hits(self) -> None:
+        # Launches Cheetah Viewer showing the sum of hits.
         self._view_sums(1, "/data/data")
 
     def _view_sum_blanks(self) -> None:
+        # Launches Cheetah Viewer showing the sum of blanks.
         self._view_sums(0, "/data/data")
 
     def _view_powder_hits(self) -> None:
+        # Launches Cheetah Viewer showing the hits peakpowder.
         self._view_sums(1, "/data/peakpowder")
 
     def _view_powder_blanks(self) -> None:
+        # Launches Cheetah Viewer showing the blanks peakpowder.
         self._view_sums(0, "/data/peakpowder")
 
     def _view_sums(
@@ -291,6 +350,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         sum_class: Literal[0, 1],
         hdf5_dataset: Literal["/data/data", "/data/peakpowder"],
     ) -> None:
+        # Launches Cheetah Viewer showing requested sums from selected runs.
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )
@@ -320,6 +380,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         subprocess.Popen(viewer_command, shell=True)
 
     def _enable_commands(self) -> None:
+        # Enables "command operations": starting the crawler and processing runs.
         self._ui.button_run_cheetah.setEnabled(True)
         # self._ui.button_index.setEnabled(True)
         self._ui.menu_file_start_crawler.setEnabled(True)
@@ -328,10 +389,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # self._ui.menu_cheetah_relabel.setEnabled(True)
 
     def _exit(self) -> None:
+        # Prints message on exit
         print("Bye bye.")
         sys.exit(0)
 
     def _process_runs(self) -> None:
+        # Starts a ProcessThread which submits processing of selected runs
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )
@@ -373,14 +436,18 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 )
 
     def _process_thread_started(self) -> None:
+        # Disables launching new processing jobs until the previous jobs are submitted
         self._ui.button_run_cheetah.setEnabled(False)
         self._ui.menu_cheetah_process_selected.setEnabled(False)
 
     def _process_thread_finished(self) -> None:
+        # Enables launching new processing jobs
         self._ui.button_run_cheetah.setEnabled(True)
         self._ui.menu_cheetah_process_selected.setEnabled(True)
 
     def _refresh_table(self) -> None:
+        # Refreshes runs table. This function is run automatically every minute. It can
+        # also be run manually by clicking "Refresh table" button.
         if not self._crawler_csv_filename.exists():
             self._refresh_timer.start(60000)
             return
@@ -433,6 +500,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         return pathlib.Path(os.environ["PWD"])
 
     def _select_experiment(self) -> None:
+        # Creates self.experiment - an instance of CheetahExperiment class - either by
+        # loading already existing Cheetah experiment from disk or creating a new one.
+        # Opens experiment selection dialog if current working directory doesn't have
+        # crawler.config file.
         if pathlib.Path("./crawler.config").is_file():
             working_directory: pathlib.Path = self._get_cwd()
         else:
@@ -452,6 +523,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self._setup_new_experiment(working_directory)
 
     def _setup_new_experiment(self, path: pathlib.Path) -> None:
+        # Sets up new Cheetah experiment.
         print(path)
         dialog: setup_dialogs.SetupNewExperimentDialog = (
             setup_dialogs.SetupNewExperimentDialog(path, self)
@@ -465,6 +537,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             )
 
     def _start_crawler(self) -> None:
+        # Starts new Crawler GUI.
         print("Starting crawler")
         self.crawler_window = CrawlerGui(self.experiment, self)
         self.crawler_window.show()
@@ -474,8 +547,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 def main() -> None:
     """
     Cheetah GUI. This script starts the main Cheetah window. If started from the
-    existing Cheetah experiment directory containing crawler.config file experiment will
-    be loaded automatically. Otherwise, a new experiment selection dialog will be
+    existing Cheetah experiment directory containing crawler.config file experiment
+    will be loaded automatically. Otherwise, a new experiment selection dialog will be
     opened.
     """
     app: Any = QtWidgets.QApplication(sys.argv)
