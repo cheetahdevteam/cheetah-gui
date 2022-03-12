@@ -23,21 +23,8 @@ except:
     from typing_extensions import TypedDict
 
 from cheetah import __file__ as cheetah_src_path
-
-
-class TypeEvent(TypedDict):
-    """
-    A dictionary storing information about a single data event in an HDF5 file.
-
-    Attributes:
-
-        filename: The path of the HDF5 file.
-
-        event: The index of the data event in the HDF5 file.
-    """
-
-    filename: str
-    event: int
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
+from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 
 
 class Viewer(QtWidgets.QMainWindow):  # type: ignore
@@ -47,10 +34,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def __init__(
         self,
-        input_files: List[str],
-        hdf5_data_path: str,
+        frame_retrieval: CheetahFrameRetrieval,
         geometry_filename: str,
-        hdf5_peaks_path: Union[str, None] = None,
         mask_filename: Union[str, None] = None,
         mask_hdf5_path: str = "/data/data",
     ) -> None:
@@ -58,22 +43,18 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         Cheetah Viewer.
 
         This class implements Cheetah frame viewer. The viewer displays data frames
-        from single- or multi-event HDF5 files applying detector geometry from privided
+        retrieved by Cheetah Frame Retrieval applying detector geometry from privided
         [CrystFEL geometry file][https://www.desy.de/~twhite/crystfel/manual-crystfel_geometry.html].
-        It can also optionally display the position of found peaks and the mask
+        It can also optionally display positions of the detected peaks and the mask
         overlaid over the image.
 
         Arguments:
 
-            input_files: The list of input HDF5 files.
-
-            hdf5_data_path: The path to the images in the HDF5 files.
+            frame_retrieval: An instance of
+            [CheetaFrameRetrieval][cheetah.frame_retrieval.base.CheetahFrameRetrieval]
+            class.
 
             geometry_filename: The path of the geometry file.
-
-            hdf5_peaks_path: The path to the peaks dataset in the HDF5 files. If the
-                value of this parameter is None the option of showing peaks will be
-                disabled. Defaults to None.
 
             mask_filename: The path of the mask file. If the value of this parameter
                 is None and the mask file is not specified in the geometry file, the
@@ -94,9 +75,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         )
         self.show()
 
+        self._frame_retrieval: CheetahFrameRetrieval = frame_retrieval
+
         self._load_geometry(geometry_filename)
-        if hdf5_data_path:
-            self._hdf5_data_path: str = hdf5_data_path
         if mask_filename:
             self._mask_filename: str = mask_filename
             if mask_hdf5_path:
@@ -132,29 +113,19 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         else:
             self._ui.show_mask_cb.setEnabled(False)
 
-        self._input_files: Dict[str, Any] = {}
-        self._events: List[TypeEvent] = []
-        filename: str
-        for filename in input_files:
-            self._input_files[filename] = h5py.File(filename, "r")
-            data = self._input_files[filename][self._hdf5_data_path]
-            if len(data.shape) == 2:
-                self._events.append({"filename": filename, "event": -1})
-            else:
-                i: int
-                self._events.extend(
-                    [{"filename": filename, "event": i} for i in range(data.shape[0])]
-                )
+        self._events: List[str] = self._frame_retrieval.get_event_list()
+        self._num_events: int = len(self._events)
+        self._current_event_index: int = 0
+        self._retrieve_current_data()
 
-        self._num_events = len(self._events)
-        self._current_event = 0
-        self._hdf5_peaks_path = hdf5_peaks_path
-        if not self._hdf5_peaks_path:
-            self._ui.show_peaks_cb.setEnabled(False)
+        self._ui.show_peaks_cb.setEnabled(False)
 
-        self._data_shape: Tuple[int, int] = (data.shape[-2], data.shape[-1])
+        self._data_shape: Tuple[int, int] = (
+            self._current_event_data["data"].shape[-2],
+            self._current_event_data["data"].shape[-1],
+        )
         self._frame_data_img: numpy.typing.NDArray[Any] = numpy.zeros(
-            self._visual_img_shape, dtype=data.dtype
+            self._visual_img_shape, dtype=self._current_event_data["data"].dtype
         )
 
         pyqtgraph.setConfigOption("background", 0.2)
@@ -245,9 +216,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             crystfel_geometry.compute_pix_maps(geometry=self._geometry)
         )
 
-        first_panel: crystfel_geometry.TypePanel = list(
-            self._geometry["panels"].keys()
-        )[0]
+        first_panel: str = list(self._geometry["panels"].keys())[0]
         self._pixel_size: float = self._geometry["panels"][first_panel]["res"]
         self._clen_from: str = self._geometry["panels"][first_panel]["clen_from"]
         if self._clen_from == "":
@@ -256,7 +225,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._photon_energy_from: str = beam["photon_energy_from"]
         if self._photon_energy_from == "":
             self._photon_energy: float = beam["photon_energy"]
-        self._hdf5_data_path = self._geometry["panels"][first_panel]["data"]
         self._mask_filename = self._geometry["panels"][first_panel]["mask_file"]
         self._mask_hdf5_path = self._geometry["panels"][first_panel]["mask"]
 
@@ -330,28 +298,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             return
 
         try:
-            filename: str = self._events[self._current_event]["filename"]
-            indx: int = self._events[self._current_event]["event"]
             if self._clen_from:
-                if indx == -1:
-                    detector_distance: float = self._input_files[filename][
-                        self._clen_from
-                    ]
-                else:
-                    detector_distance = self._input_files[filename][self._clen_from][
-                        indx
-                    ]
+                detector_distance: float = self._current_event_data["clen"] * 1e3
             else:
                 detector_distance = self._clen * 1e3
             if self._photon_energy_from:
-                if indx == -1:
-                    photon_energy: float = self._input_files[filename][
-                        self._photon_energy_from
-                    ]
-                else:
-                    photon_energy = self._input_files[filename][
-                        self._photon_energy_from
-                    ][indx]
+                photon_energy: float = self._current_event_data["photon_energy"]
             else:
                 photon_energy = self._photon_energy
             lambda_: float = constants.h * constants.c / (photon_energy * constants.e)
@@ -422,22 +374,30 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             value = numpy.nan
         self._ui.intensity_label.setText(f"Intensity = {value:.2f}")
 
+    def _retrieve_current_data(self) -> None:
+        self._current_event_data: TypeEventData = self._frame_retrieval.get_data(
+            self._current_event_index
+        )
+
     def _next_pattern(self) -> None:
-        if self._current_event < self._num_events - 1:
-            self._current_event += 1
+        if self._current_event_index < self._num_events - 1:
+            self._current_event_index += 1
         else:
-            self._current_event = 0
+            self._current_event_index = 0
+        self._retrieve_current_data()
         self._update_image_and_peaks()
 
     def _previous_pattern(self) -> None:
-        if self._current_event > 0:
-            self._current_event -= 1
+        if self._current_event_index > 0:
+            self._current_event_index -= 1
         else:
-            self._current_event = self._num_events - 1
+            self._current_event_index = self._num_events - 1
+        self._retrieve_current_data()
         self._update_image_and_peaks()
 
     def _random_pattern(self) -> None:
-        self._current_event = randrange(self._num_events)
+        self._current_event_index = randrange(self._num_events)
+        self._retrieve_current_data()
         self._update_image_and_peaks()
 
     def _play(self) -> None:
@@ -459,14 +419,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_image_and_peaks(self) -> None:
         # Updates the image and Bragg peaks shown by the viewer.
-        filename: str = self._events[self._current_event]["filename"]
-        indx: int = self._events[self._current_event]["event"]
-        if indx == -1:
-            data: numpy.typing.NDArray[Any] = self._input_files[filename][
-                self._hdf5_data_path
-            ][()]
-        else:
-            data = self._input_files[filename][self._hdf5_data_path][indx]
+        data: numpy.typing.NDArray[Any] = self._current_event_data["data"]
 
         self._frame_data_img[
             self._visual_pixelmap_y, self._visual_pixelmap_x
@@ -490,7 +443,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         )
 
         self._update_peaks()
-        self.statusBar().showMessage("Showing {0}, event {1}".format(filename, indx))
+        self.statusBar().showMessage(f"{self._events[self._current_event_index]}")
 
     def _update_mask_image(self) -> None:
         if self._ui.show_mask_cb.isChecked():
@@ -502,26 +455,21 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_peaks(self) -> None:
         # Updates the Bragg peaks shown by the viewer.
+        if "peaks" not in self._current_event_data.keys():
+            self._ui.show_peaks_cb.setEnabled(False)
+        else:
+            self._ui.show_peaks_cb.setEnabled(True)
         peak_list_y_in_frame: List[float] = []
         peak_list_x_in_frame: List[float] = []
-        if self._ui.show_peaks_cb.isChecked():
-            filename: str = self._events[self._current_event]["filename"]
-            indx: int = self._events[self._current_event]["event"]
-            if self._hdf5_peaks_path not in self._input_files[filename]:
-                print(f"Peaks dataset {self._hdf5_peaks_path} not found in {filename}")
-                return
-            num_peaks: int = self._input_files[filename][self._hdf5_peaks_path][
-                "nPeaks"
-            ][indx]
+        if (
+            self._ui.show_peaks_cb.isChecked()
+            and "peaks" in self._current_event_data.keys()
+        ):
             peak_fs: float
             peak_ss: float
             for peak_fs, peak_ss in zip(
-                self._input_files[filename][self._hdf5_peaks_path]["peakXPosRaw"][indx][
-                    :num_peaks
-                ],
-                self._input_files[filename][self._hdf5_peaks_path]["peakYPosRaw"][indx][
-                    :num_peaks
-                ],
+                self._current_event_data["peaks"]["fs"],
+                self._current_event_data["peaks"]["ss"],
             ):
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
@@ -539,6 +487,22 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             pen=self._ring_pen,
             pxMode=False,
         )
+
+
+def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
+    # This function is used internally to get parameters for hdf5 data retrieval from
+    # the geometry file.
+    geometry: crystfel_geometry.TypeDetector
+    beam: crystfel_geometry.TypeBeam
+    geometry, beam, __ = crystfel_geometry.load_crystfel_geometry(
+        filename=geometry_filename
+    )
+    first_panel: str = list(geometry["panels"].keys())[0]
+    return {
+        "hdf5_data_path": geometry["panels"][first_panel]["data"],
+        "clen_path": geometry["panels"][first_panel]["clen_from"],
+        "photon_energy_path": beam["photon_energy_from"],
+    }
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
@@ -604,12 +568,22 @@ def main(
     dataset in the HDF5 file is provided. It can also show mask if the mask file is
     provided either as a command line argument or as an entry in the geometry file.
     """
+
+    if input_files[0].endswith(".h5") or input_files[0].endswith(".cxi"):
+        print("Activating frame retrieval from HDF5 files.")
+        parameters: Dict[str, Any] = _get_hdf5_retrieval_parameters(geometry_filename)
+        if hdf5_data_path:
+            parameters["hdf5_data_path"] = hdf5_data_path
+        if hdf5_peaks_path:
+            parameters["hdf5_peaks_path"] = hdf5_peaks_path
+        frame_retrieval: CheetahFrameRetrieval = H5FilesRetrieval(
+            input_files, parameters
+        )
+
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(
-        input_files,
-        hdf5_data_path,
+        frame_retrieval,
         geometry_filename,
-        hdf5_peaks_path,
         mask_filename,
         mask_hdf5_path,
     )
