@@ -15,16 +15,12 @@ from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 import pyqtgraph  # type: ignore
 from random import randrange
 from scipy import constants  # type: ignore
-from typing import Any, List, Dict, TextIO, Union, Tuple, cast
-
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
+from typing import Any, List, Dict, Union, Tuple, cast
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
+from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
 
 
 class Viewer(QtWidgets.QMainWindow):  # type: ignore
@@ -506,7 +502,7 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
-@click.argument("input_files", nargs=-1, type=click.Path(exists=True))  # type: ignore
+@click.argument("input_files", nargs=-1, type=click.Path(exists=True), required=True, metavar="INPUT_FILE(S)")  # type: ignore
 @click.option(  # type: ignore
     "--geometry",
     "-g",
@@ -517,14 +513,32 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     help="CrystFEL geometry file",
 )
 @click.option(  # type: ignore
+    "--mask",
+    "-m",
+    "mask_filename",
+    nargs=1,
+    type=click.Path(exists=True),
+    required=False,
+    help="mask HDF5 file, default: None",
+)
+@click.option(  # type: ignore
+    "--mask-hdf5-path",
+    "hdf5_mask_path",
+    nargs=1,
+    type=str,
+    required=False,
+    default="/data/data",
+    help="path to the mask dataset in the mask HDF5 file, default: /data/data",
+)
+@click.option(  # type: ignore
     "--hdf5-data-path",
     "-d",
     "hdf5_data_path",
     nargs=1,
     type=str,
     required=False,
-    default="/data/data",
-    help="path to the image dataset in the HDF5 files",
+    help="path to the image dataset in the input HDF5 files, default: HDF5 data path "
+    "specified in the geometry file",
 )
 @click.option(  # type: ignore
     "--hdf5-peaks-path",
@@ -533,59 +547,117 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     nargs=1,
     type=str,
     required=False,
-    help="path to the peaks dataset in the HDF5 files, default=None",
+    help="path to the peaks dataset in the input HDF5 files, default: None",
 )
 @click.option(  # type: ignore
-    "--mask",
-    "-m",
-    "mask_filename",
-    nargs=1,
-    type=click.Path(exists=True),
-    required=False,
-    help="mask HDF5 file, default=None",
+    "--om-events", "-o", "om_events", is_flag=True, help="retrieve frame data from OM"
 )
 @click.option(  # type: ignore
-    "--mask-hdf5-path",
-    "mask_hdf5_path",
+    "--om-source",
+    "-s",
+    "om_source",
     nargs=1,
     type=str,
     required=False,
-    default="/data/data",
-    help="path to the mask dataset in the mask HDF5 file, default=/data/data",
+    default="",
+    help="OM source string, default: ''",
+)
+@click.option(  # type: ignore
+    "--om-config",
+    "-c",
+    "om_config",
+    nargs=1,
+    type=click.Path(),
+    required=False,
+    default="monitor.yaml",
+    help="OM configuration file, default: monitor.yaml",
+)
+@click.option(  # type: ignore
+    "--om-peaks-file",
+    nargs=1,
+    type=click.Path(exists=True),
+    required=False,
+    help="peak list file written by Cheetah processing layer in OM, default: None",
 )
 def main(
-    input_files,
-    hdf5_data_path,
-    geometry_filename,
-    hdf5_peaks_path,
-    mask_filename,
-    mask_hdf5_path,
+    input_files: List[str],
+    geometry_filename: str,
+    mask_filename: Union[str, None],
+    hdf5_mask_path: str,
+    hdf5_data_path: Union[str, None],
+    hdf5_peaks_path: Union[str, None],
+    om_events: bool,
+    om_source: str,
+    om_config: str,
+    om_peaks_file: Union[str, None],
 ) -> None:
     """
-    Cheetah Viewer. The viewer displays images from single- or multi-event HDF5 files
-    applying detector geometry from the privided geometry file in CrystFEL format. The
-    viewer can optionally display positions of the found peaks if the path to the peaks
-    dataset in the HDF5 file is provided. It can also show mask if the mask file is
-    provided either as a command line argument or as an entry in the geometry file.
+    Cheetah Viewer. The viewer displays images from various sources applying detector
+    geometry from the provided geometry file in CrystFEL format. The viewer can
+    optionally display positions of the detected peaks when they are available. It can
+    also show mask if the mask file is provided either as a command line argument or as
+    an entry in the geometry file.
+
+    The viewer can retrieve images from the following sources:
+
+    1) HDF5 files. To display images stored in single- or multi-event HDF5 files
+    one or several .h5 or .cxi files must be provided as INPUT_FILE(S).
+    Additionally, '--hdf5-data-path' / '-p' option may be used to specify where
+    the images are stored in the HDF5 files. Otherwise, the path specified in
+    the geometry file will be used. '--hdf5-peaks-path' / '-p' option may be
+    used to specify where the peaks dataset is stored in the HDF5 files. If this
+    option is not set, detected peak positions won't be shown.
+
+    \b
+    Usage example: cheetah_viewer.py data_*.h5 -g current.geom -d /data/data -p /data/peaks
+
+    2) OM data retrieval layer. To display images retrieved by OM '--om-events' / '-o'
+    flag must be set and one text file containing a list of OM event IDs must be
+    provided as INPUT_FILE. Both OM source string ('--om-source / '-s') and OM config
+    file ('--om-config' / '-c') must also be provided. Additionally, Cheetah peak list
+    file ('--om-peaks-file') can be used to retrieve information about detected peaks.
+    If peak list file is not specified, peaks will be detected using peakfinder8
+    parameters from the provided config file.
+
+    \b
+    Usage example: cheetah_viewer.py hits.lst -g current.geom -s exp=mfxlz0420:run=141 -c monitor.yaml --om-peaks-file=peaks.txt
     """
+    if om_events:
+        print("Activating frame retrieval from OM data retrieval layer.")
+        if not pathlib.Path(om_config).is_file():
+            sys.exit(
+                f"Error: Invalid value for '--om-config' / '-c': Path {om_config} "
+                f"does not exist."
+            )
+        input_file: str = input_files[0]
+        parameters: Dict[str, Any] = {
+            "om_sources": {input_file: om_source},
+            "om_configs": {input_file: om_config},
+        }
+        if om_peaks_file:
+            parameters["peak_lists"] = {input_file: om_peaks_file}
+        frame_retrieval: CheetahFrameRetrieval = OmRetrieval(
+            [
+                input_file,
+            ],
+            parameters,
+        )
 
     if input_files[0].endswith(".h5") or input_files[0].endswith(".cxi"):
         print("Activating frame retrieval from HDF5 files.")
-        parameters: Dict[str, Any] = _get_hdf5_retrieval_parameters(geometry_filename)
+        parameters = _get_hdf5_retrieval_parameters(geometry_filename)
         if hdf5_data_path:
             parameters["hdf5_data_path"] = hdf5_data_path
         if hdf5_peaks_path:
             parameters["hdf5_peaks_path"] = hdf5_peaks_path
-        frame_retrieval: CheetahFrameRetrieval = H5FilesRetrieval(
-            input_files, parameters
-        )
+        frame_retrieval = H5FilesRetrieval(input_files, parameters)
 
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(
         frame_retrieval,
         geometry_filename,
         mask_filename,
-        mask_hdf5_path,
+        hdf5_mask_path,
     )
     sys.exit(app.exec_())
 

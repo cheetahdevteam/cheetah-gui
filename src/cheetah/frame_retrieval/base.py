@@ -79,7 +79,7 @@ class CheetahFrameRetrieval(ABC):
         """
         Get the list of events.
 
-        This function retiurns a list of all event IDs which can be retrieved from the
+        This function returns a list of all event IDs which can be retrieved from the
         sources list.
 
         Returns:

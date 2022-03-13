@@ -101,7 +101,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
                 # Keep multi-event files open
                 self._multi_event_files[filename] = fh
 
-        self._num_events = len(self._events)
+        self._num_events: int = len(self._events)
 
     def get_event_list(self) -> List[str]:
         """
@@ -110,7 +110,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
         This method overrides the corresponding method of the base class: please also
         refer to the documentation of that class for more information.
 
-        This function retiurns a list of all event IDs which can be retrieved from the
+        This function returns a list of all event IDs which can be retrieved from the
         list of source files. Event IDs for events retrieved from HDF5 files are
         constructed by joining the following elements separated by the "//" symbol:
 
