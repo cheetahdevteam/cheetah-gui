@@ -76,7 +76,7 @@ class OmRetrieval(CheetahFrameRetrieval):
         """
         self._om_retrievals: Dict[str, OmFrameDataRetrieval] = {}
         self._events: List[_TypeOmEvent] = []
-        self._peak_lists: Dict[str, TypePeakList] = {}
+        self._peak_lists: Dict[str, Dict[str, TypePeakList]] = {}
         self._peakfinders: Dict[str, Peakfinder8PeakDetection] = {}
         filename: str
         for filename in sources:
@@ -113,8 +113,9 @@ class OmRetrieval(CheetahFrameRetrieval):
                         "peak_lists" in parameters.keys()
                         and filename in parameters["peak_lists"].keys()
                     ):
-                        # TODO: load peaks from file
-                        pass
+                        self._peak_lists[filename] = self._load_peaks_from_file(
+                            parameters["peak_lists"][filename]
+                        )
                     else:
                         pixelmaps: TypePixelMaps = pixel_maps_from_geometry_file(
                             filename=monitor_params.get_parameter(
@@ -134,6 +135,28 @@ class OmRetrieval(CheetahFrameRetrieval):
                         )
 
         self._num_events: int = len(self._events)
+
+    def _load_peaks_from_file(self, filename: str) -> Dict[str, TypePeakList]:
+        # Loads peaks from the peak list file written by Cheetah processing
+        peaks: Dict[str, TypePeakList] = {}
+        previous_id: str = ""
+        fh: TextIO
+        with open(filename) as fh:
+            fh.readline()
+            line: str
+            for line in fh:
+                split_items: List[str] = line.split(",")
+                event_id = split_items[0].strip()
+                if event_id != previous_id:
+                    peaks[event_id] = {
+                        "num_peaks": int(split_items[1]),
+                        "fs": [],
+                        "ss": [],
+                    }
+                    previous_id = event_id
+                peaks[event_id]["fs"].append(float(split_items[2]))
+                peaks[event_id]["ss"].append(float(split_items[3]))
+        return peaks
 
     def get_event_list(self) -> List[str]:
         """
@@ -187,7 +210,7 @@ class OmRetrieval(CheetahFrameRetrieval):
         event_data["clen"] = data["detector_distance"]
 
         if filename in self._peak_lists.keys():
-            event_data["peaks"] = self._peak_lists[filename]
+            event_data["peaks"] = self._peak_lists[filename][event_id]
         elif filename in self._peakfinders.keys():
             peak_list: OmTypePeakList = self._peakfinders[filename].find_peaks(
                 data=event_data["data"]
