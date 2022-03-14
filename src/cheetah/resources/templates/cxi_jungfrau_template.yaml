@@ -1,5 +1,5 @@
 om:
-  parallelization_engine: MpiParallelization
+  parallelization_layer: MpiParallelization
   data_retrieval_layer: CxiLclsDataRetrieval
   processing_layer: CheetahProcessing
 
