@@ -203,8 +203,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._table: Any = self._ui.table_status
         self._table_data: List[Dict[str, Any]] = []
         self._table_column_names: List[str] = list(TypeTableRow.__annotations__.keys())
+        self._table.setColumnCount(len(self._table_column_names))
+        self._table.setHorizontalHeaderLabels(self._table_column_names)
         self._table.horizontalHeader().setDefaultSectionSize(
-            self.width() // self._table.columnCount()
+            self.width() // len(self._table_column_names)
         )
         self._table.setSortingEnabled(True)
         self._table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)

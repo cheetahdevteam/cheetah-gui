@@ -8,12 +8,12 @@ import pathlib
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, TextIO, Dict, Union, cast, Literal
+from typing import List, TextIO, Dict, Union, cast
 
 try:
-    from typing import TypedDict
+    from typing import TypedDict, Literal
 except:
-    from typing_extensions import TypedDict
+    from typing_extensions import TypedDict, Literal
 
 
 class TypeProcStatusItem(TypedDict):

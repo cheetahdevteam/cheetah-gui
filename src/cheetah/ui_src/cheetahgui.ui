@@ -265,11 +265,6 @@
         </column>
         <column>
          <property name="text">
-          <string>CrystFEL</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
           <string>H5Directory</string>
          </property>
         </column>
@@ -318,7 +313,7 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>23</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
