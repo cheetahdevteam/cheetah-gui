@@ -4,8 +4,12 @@ Frame retrieval base classes.
 import numpy.typing
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List
 
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 class TypePeakList(TypedDict):
     """
