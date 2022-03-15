@@ -111,6 +111,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._events: List[str] = self._frame_retrieval.get_event_list()
         self._num_events: int = len(self._events)
+        if self._num_events == 0:
+            sys.exit("No images can be retrieved from the input sources.")
+
         self._current_event_index: int = 0
         self._retrieve_current_data()
 
@@ -642,8 +645,7 @@ def main(
             ],
             parameters,
         )
-
-    if input_files[0].endswith(".h5") or input_files[0].endswith(".cxi"):
+    elif input_files[0].endswith(".h5") or input_files[0].endswith(".cxi"):
         print("Activating frame retrieval from HDF5 files.")
         parameters = _get_hdf5_retrieval_parameters(geometry_filename)
         if hdf5_data_path:
