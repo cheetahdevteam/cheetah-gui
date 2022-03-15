@@ -20,28 +20,9 @@ except:
 from cheetah.crawlers import facilities
 
 
-class TypeOmConfigTemplateData(TypedDict, total=False):
-    """
-    A dictionary storing information required to fill OM config template, which can be
-    used to process data from a single run.
-
-    Attributes:
-
-        psana_calib_dir: The path of psana calibration directory (only for LCLS
-            experiments).
-
-        output_dir: The path of the processed run directory.
-
-        experiment_id: Experiment ID.
-
-        run_id: Run ID of the processed data.
-
-        filename_prefix: Prefix of the data file name (for Eiger 16M files).
-
-        geometry_file: The path to the geometry file.
-
-        mask_file: The path to the mask file or 'null'.
-    """
+class _TypeOmConfigTemplateData(TypedDict, total=False):
+    # A dictionary used internally to store information required to fill OM config
+    #  template, which can be used to process data from a single run.
 
     psana_calib_dir: pathlib.Path
     output_dir: pathlib.Path
@@ -52,24 +33,9 @@ class TypeOmConfigTemplateData(TypedDict, total=False):
     mask_file: Union[pathlib.Path, Literal["null"]]
 
 
-class TypeProcessScriptTemplateData(TypedDict):
-    """
-    A dictionary storing information required to fill process script template, which
-    can be used to process data from a single run.
-
-    Attributes:
-
-        queue: The name of the batch queue which should be used to submit processing
-            job.
-
-        job_name: The name of the batch job.
-
-        n_processes: The number of nodes OM should use for processing.
-
-        om_source: OM data source string.
-
-        om_config: The path of OM config file.
-    """
+class _TypeProcessScriptTemplateData(TypedDict):
+    # A dictionary used internally to store information required to fill process script
+    # template, which can be used to process data from a single run.
 
     queue: str
     job_name: str
@@ -232,7 +198,7 @@ class CheetahProcess:
         with open(om_config_template_file) as fh:
             om_config_template: jinja2.Template = jinja2.Template(fh.read())
 
-        om_config_data: TypeOmConfigTemplateData = {
+        om_config_data: _TypeOmConfigTemplateData = {
             "psana_calib_dir": self._raw_directory.parent / "calib",
             "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
@@ -253,7 +219,7 @@ class CheetahProcess:
             queue = facilities[self._facility]["guess_batch_queue"](self._raw_directory)
         if not n_processes:
             n_processes = 12
-        process_script_data: TypeProcessScriptTemplateData = {
+        process_script_data: _TypeProcessScriptTemplateData = {
             "queue": queue,
             "job_name": output_directory_name,
             "n_processes": n_processes,
