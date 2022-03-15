@@ -24,6 +24,14 @@ from cheetah.crawlers.functions_lcls import (
     prepare_om_source_lcls,
 )
 
+from cheetah.crawlers.crawler_p11 import P11EigerCrawler
+from cheetah.crawlers.functions_p11 import (
+    guess_batch_queue_desy,
+    guess_experiment_id_desy,
+    guess_raw_directory_desy,
+    prepare_om_source_p11_eiger,
+)
+
 
 class TypeDetectorInfo(TypedDict):
     """
@@ -108,7 +116,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                             "mask": "mask_epix10k2M.h5",
                         },
                         "om_config_template": "mfx_epix_template.yaml",
-                        "process_template": "slurm_template.sh",
+                        "process_template": "lcls_slurm_template.sh",
                     },
                     "cspad": {
                         "calib_resources": {
@@ -116,7 +124,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                             "mask": "mask_cspad.h5",
                         },
                         "om_config_template": "mfx_cspad_template.yaml",
-                        "process_template": "slurm_template.sh",
+                        "process_template": "lcls_slurm_template.sh",
                     },
                 },
             },
@@ -128,7 +136,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                             "mask": "mask_jungfrau4M.h5",
                         },
                         "om_config_template": "cxi_jungfrau_template.yaml",
-                        "process_template": "slurm_template.sh",
+                        "process_template": "lcls_slurm_template.sh",
                     },
                     "cspad": {
                         "calib_resources": {
@@ -136,7 +144,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                             "mask": "mask_cspad.h5",
                         },
                         "om_config_template": "cxi_cspad_template.yaml",
-                        "process_template": "slurm_template.sh",
+                        "process_template": "lcls_slurm_template.sh",
                     },
                 },
             },
@@ -146,6 +154,27 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "prepare_om_source": prepare_om_source_lcls,
         "guess_batch_queue": guess_batch_queue_lcls,
         "crawler": LclsCrawler,
+    },
+    "PETRA III": {
+        "instruments": {
+            "P11": {
+                "detectors": {
+                    "Eiger16M": {
+                        "calib_resources": {
+                            "geometry": "eiger16M.geom",
+                            "mask": "mask_eiger16M.h5",
+                        },
+                        "om_config_template": "p11_eiger_template.yaml",
+                        "process_template": "desy_slurm_template.sh",
+                    }
+                }
+            }
+        },
+        "guess_raw_directory": guess_raw_directory_desy,
+        "guess_experiment_id": guess_experiment_id_desy,
+        "prepare_om_source": prepare_om_source_p11_eiger,
+        "guess_batch_queue": guess_batch_queue_desy,
+        "crawler": P11EigerCrawler,
     },
 }
 """

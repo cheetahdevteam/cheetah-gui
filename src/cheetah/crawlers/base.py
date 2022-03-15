@@ -13,7 +13,7 @@ from typing import List, TextIO, Dict, Union, cast
 try:
     from typing import TypedDict, Literal
 except:
-    from typing_extensions import TypedDict, Literal
+    from typing_extensions import TypedDict, Literal  # type: ignore
 
 
 class TypeProcStatusItem(TypedDict):
@@ -214,10 +214,10 @@ class Crawler(ABC):
         # list of TypeProcStatusItem dictionaries containing information of the data
         # processing status for each processing run.
         hdf5_status: List[TypeProcStatusItem] = []
-        run_directory: pathlib.Path
-        for run_directory in self._proc_directory.glob("*"):
-            status_file: pathlib.Path = run_directory / "status.txt"
-            run_name: str = run_directory.name
+        status_file: pathlib.Path
+        for status_file in self._proc_directory.rglob("status.txt"):
+            run_directory: pathlib.Path = status_file.parent
+            run_name: str = str(run_directory.relative_to(self._proc_directory))
             split_items: List[str] = run_name.split("-")
             run_id: str = split_items[0]
             tag: str = "-".join(split_items[1:])
@@ -291,7 +291,7 @@ class Crawler(ABC):
         proc_status: List[TypeProcStatusItem] = self._scan_proc_directory()
         raw_status_item: TypeRawStatusItem
         table_rows: List[TypeTableRow] = []
-        for raw_status_item in sorted(raw_status, key=lambda i: i["run_id"]):
+        for raw_status_item in raw_status:
             raw_id: str = raw_status_item["run_id"]
             proc_id: str = self.raw_id_to_proc_id(raw_id)
             latest_update_time: float = -1

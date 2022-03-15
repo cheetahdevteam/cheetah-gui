@@ -103,7 +103,7 @@ def prepare_om_source_lcls(
     """
     Prepare OM data source for the data processing at LCLS.
 
-    The OM data source string for data retrieval at LCLS is the same as psana data
+    The OM data source string for the data retrieval at LCLS is the same as psana data
     source. This function creates psana data source string from the experiment ID, run
     number and raw data directory.
 

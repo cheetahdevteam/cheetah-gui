@@ -16,7 +16,7 @@ from typing import Callable, TextIO, Union
 try:
     from typing import Literal, TypedDict
 except:
-    from typing_extensions import Literal, TypedDict
+    from typing_extensions import Literal, TypedDict  # type: ignore
 from cheetah.crawlers import facilities
 
 
@@ -34,18 +34,20 @@ class TypeOmConfigTemplateData(TypedDict, total=False):
 
         experiment_id: Experiment ID.
 
-        run_id: Run ID of the processed data (usually the same as the name of the
-            processed run directory).
+        run_id: Run ID of the processed data.
 
-        geometry_file: The path of the geometry file.
+        filename_prefix: Prefix of the data file name (for Eiger 16M files).
 
-        mask_file: The path of the mask file or 'null'.
+        geometry_file: The path to the geometry file.
+
+        mask_file: The path to the mask file or 'null'.
     """
 
     psana_calib_dir: pathlib.Path
     output_dir: pathlib.Path
     experiment_id: str
     run_id: str
+    filename_prefix: str
     geometry_file: pathlib.Path
     mask_file: Union[pathlib.Path, Literal["null"]]
 
@@ -221,7 +223,7 @@ class CheetahProcess:
             shutil.rmtree(output_directory)
         else:
             print(f"Creating hdf5 data directory {output_directory}")
-        output_directory.mkdir()
+        output_directory.mkdir(parents=True)
 
         print(f"Copying configuration file: {om_config_template_file}")
         om_config_file: pathlib.Path = output_directory / "monitor.yaml"
@@ -232,6 +234,7 @@ class CheetahProcess:
 
         om_config_data: TypeOmConfigTemplateData = {
             "psana_calib_dir": self._raw_directory.parent / "calib",
+            "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
             "experiment_id": self._experiment_id,
             "run_id": proc_id,

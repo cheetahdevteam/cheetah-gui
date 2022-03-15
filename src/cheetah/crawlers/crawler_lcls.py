@@ -17,8 +17,8 @@ class LclsCrawler(Crawler):
     def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
         # This function scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing ID and the status of the raw data
-        # for each run. At LCLS the name of the raw data file starts with "rNNNN-"
-        # where NNNN is the run number, therefore the part of the filename before the
+        # for each run. At LCLS the name of the raw data file starts with "r{NNNN}-"
+        # where {NNNN} is the run number, therefore the part of the filename before the
         # first "-" is used as the raw run ID.
         status: Dict[str, str] = {}
         filename: pathlib.Path
@@ -32,7 +32,7 @@ class LclsCrawler(Crawler):
                 status[run_id] = "Restoring"
 
         raw_status: List[TypeRawStatusItem] = []
-        for run_id in status:
+        for run_id in sorted(status):
             raw_status.append({"run_id": run_id, "status": status[run_id]})
         return raw_status
 
@@ -43,9 +43,9 @@ class LclsCrawler(Crawler):
         This method overrides the corresponding method of the base class: please also
         refer to the documentation of that class for more information.
 
-        At LCLS the raw run ID has the form of "rNNNN" where NNNN is the run number.
-        The run ID displayed in the Cheetah GUI table is the run number without leading
-        zeros.
+        At LCLS the raw run ID has the form of "r{NNNN}" where {NNNN} is the run
+        number. The run ID displayed in the Cheetah GUI table is the run number without
+        leading zeros.
 
         Arguments:
 
