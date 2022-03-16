@@ -313,7 +313,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _enable_commands(self) -> None:
         # Enables "command operations": starting the crawler and processing runs.
         self._ui.button_run_cheetah.setEnabled(True)
-        # self._ui.button_index.setEnabled(True)
         self._ui.menu_file_start_crawler.setEnabled(True)
         self._ui.menu_cheetah_process_selected.setEnabled(True)
         # self._ui.menu_cheetah_autorun.setEnabled(True)
@@ -338,8 +337,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             line: str
             for line in fh:
                 split_items: List[str] = line.split(separator)
-                if len(split_items) == 2:
-                    config[split_items[0].strip()] = split_items[1].strip()
+                if len(split_items) > 1:
+                    config[split_items[0].strip()] = (
+                        separator.join(split_items[1:])
+                    ).strip()
         return config
 
     def _process_runs(self) -> None:
@@ -506,6 +507,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         dir: pathlib.Path
         for dir in selected_directories:
             process_config: pathlib.Path = dir / "process_config.txt"
+            print(process_config)
             if process_config.is_file():
                 config: Dict[str, str] = self._parse_config_file(process_config)
                 om_source: str = config["om_source"]
