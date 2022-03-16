@@ -564,7 +564,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._frame_retrieval_init_thread.start()
 
     def _view_hits_from_frame_retrieval(self, frame_retrieval: OmRetrieval) -> None:
-        self._ui.button_view_hits.setEnabled(False)
+        self._ui.button_view_hits.setEnabled(True)
         if len(frame_retrieval.get_event_list()) == 0:
             print(
                 "Couldn't retrieve any images from selected runs using OM frame "
