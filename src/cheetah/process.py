@@ -22,7 +22,7 @@ from cheetah.crawlers import facilities
 
 class _TypeOmConfigTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill OM config
-    #  template, which can be used to process data from a single run.
+    # template, which can be used to process data from a single run.
 
     psana_calib_dir: pathlib.Path
     output_dir: pathlib.Path
@@ -116,12 +116,23 @@ class CheetahProcess:
         return raw_id.replace("-", "_")
 
     def _write_process_config_file(
-        self, output_directory: pathlib.Path, config: TypeProcessingConfig
+        self,
+        output_directory: pathlib.Path,
+        config: TypeProcessingConfig,
+        process_template_data: _TypeProcessScriptTemplateData,
+        om_config_template_data: _TypeOmConfigTemplateData,
     ) -> None:
         # Writes process_config.txt file in the output run directory.
         fh: TextIO
         with open(output_directory / "process_config.txt", "w") as fh:
+            fh.write("Processing config:\n")
             for key, value in config.items():
+                fh.write(f"{key}: {value}\n")
+            fh.write("\nProcess script template data:\n")
+            for key, value in process_template_data.items():
+                fh.write(f"{key}: {value}\n")
+            fh.write("\nOM config template data:\n")
+            for key, value in om_config_template_data.items():
                 fh.write(f"{key}: {value}\n")
 
     def _write_status_file(self, output_directory: pathlib.Path) -> None:
@@ -232,7 +243,9 @@ class CheetahProcess:
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
         subprocess.run(f"{process_script}", cwd=output_directory)
         self._write_status_file(output_directory)
-        self._write_process_config_file(output_directory, config)
+        self._write_process_config_file(
+            output_directory, config, process_script_data, om_config_data
+        )
 
 
 @click.command()  # type: ignore

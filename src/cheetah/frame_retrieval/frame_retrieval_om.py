@@ -99,13 +99,17 @@ class OmRetrieval(CheetahFrameRetrieval):
                 line: str
                 event_ids: List[str] = [line.strip() for line in fh]
                 if len(event_ids) > 0:
-                    monitor_params: MonitorParams = MonitorParams(
-                        parameters["om_configs"][filename]
-                    )
-                    self._om_retrievals[filename] = OmFrameDataRetrieval(
-                        source=parameters["om_sources"][filename],
-                        monitor_parameters=monitor_params,
-                    )
+                    try:
+                        monitor_params: MonitorParams = MonitorParams(
+                            parameters["om_configs"][filename]
+                        )
+                        self._om_retrievals[filename] = OmFrameDataRetrieval(
+                            source=parameters["om_sources"][filename],
+                            monitor_parameters=monitor_params,
+                        )
+                    except Exception as e:
+                        print(e)
+                        continue
                     self._events.extend(
                         [{"filename": filename, "event_id": eid} for eid in event_ids]
                     )

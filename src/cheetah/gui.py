@@ -3,6 +3,7 @@ Cheetah GUI.
 
 This module contains the implementation of the main Cheetah GUI.
 """
+from concurrent.futures import process
 import click  # type: ignore
 import csv
 import os
@@ -12,7 +13,7 @@ import sys
 
 from datetime import datetime
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
-from typing import Any, List, Dict, TextIO
+from typing import Any, List, Dict, Text, TextIO
 
 try:
     from typing import Literal
@@ -24,6 +25,10 @@ from cheetah.dialogs import setup_dialogs, process_dialogs
 from cheetah import __file__ as cheetah_src_path
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
+from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
+from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
+from cheetah.viewer import Viewer
 
 
 class _CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -200,6 +205,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self.experiment.get_crawler_csv_filename()
         )
 
+        self._viewer_windows: List[Viewer] = []
+
         self._table: Any = self._ui.table_status
         self._table_data: List[Dict[str, Any]] = []
         self._table_column_names: List[str] = list(TypeTableRow.__annotations__.keys())
@@ -303,84 +310,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Prints a message when Crawler GUI is closed.
         print("Crawler closed.")
 
-    def _view_hits(self) -> None:
-        # Launches Cheetah Viewer showing hits from selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
-        selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
-            for row in selected_rows
-        ]
-        cxi_files: List[str] = []
-        dir: pathlib.Path
-        for dir in selected_directories:
-            if len(list(dir.glob("*.cxi"))) > 0:
-                cxi_files.append(f"{dir}/*.cxi")
-        if len(cxi_files) == 0:
-            print("There's no .cxi files in the selected directories yet.")
-            return
-        input_str: str = " ".join(cxi_files)
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
-        viewer_command: str = (
-            f"cheetah_viewer.py {input_str} -d /entry_1/data_1/data "
-            f"-p /entry_1/result_1 -g {geometry}"
-        )
-        print(viewer_command)
-        subprocess.Popen(viewer_command, shell=True)
-
-    def _view_sum_hits(self) -> None:
-        # Launches Cheetah Viewer showing the sum of hits.
-        self._view_sums(1, "/data/data")
-
-    def _view_sum_blanks(self) -> None:
-        # Launches Cheetah Viewer showing the sum of blanks.
-        self._view_sums(0, "/data/data")
-
-    def _view_powder_hits(self) -> None:
-        # Launches Cheetah Viewer showing the hits peakpowder.
-        self._view_sums(1, "/data/peakpowder")
-
-    def _view_powder_blanks(self) -> None:
-        # Launches Cheetah Viewer showing the blanks peakpowder.
-        self._view_sums(0, "/data/peakpowder")
-
-    def _view_sums(
-        self,
-        sum_class: Literal[0, 1],
-        hdf5_dataset: Literal["/data/data", "/data/peakpowder"],
-    ) -> None:
-        # Launches Cheetah Viewer showing requested sums from selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
-        selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
-            for row in selected_rows
-        ]
-        sum_files: List[str] = []
-        dir: pathlib.Path
-        for dir in selected_directories:
-            file: pathlib.Path
-            for file in dir.glob(f"*-class{sum_class}-sum.h5"):
-                sum_files.append(str(file))
-        if len(sum_files) == 0:
-            print(
-                f"There's no class{sum_class} sum files in the selected directories yet."
-            )
-            return
-        input_str: str = " ".join(sum_files)
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
-        viewer_command: str = (
-            f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry}"
-        )
-        print(viewer_command)
-        subprocess.Popen(viewer_command, shell=True)
-
     def _enable_commands(self) -> None:
         # Enables "command operations": starting the crawler and processing runs.
         self._ui.button_run_cheetah.setEnabled(True)
@@ -394,6 +323,24 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Prints message on exit
         print("Bye bye.")
         sys.exit(0)
+
+    def _get_cwd(self) -> pathlib.Path:
+        # Hack to get current directory without resolving links at psana
+        # instead of using pathlib.Path.cwd()
+        return pathlib.Path(os.environ["PWD"])
+
+    def _parse_config_file(
+        self, filename: pathlib.Path, separator: str = ":"
+    ) -> Dict[str, str]:
+        fh: TextIO
+        config: Dict[str, str] = {}
+        with open(filename) as fh:
+            line: str
+            for line in fh:
+                split_items: List[str] = line.split(separator)
+                if len(split_items) == 2:
+                    config[split_items[0].strip()] = split_items[1].strip()
+        return config
 
     def _process_runs(self) -> None:
         # Starts a ProcessThread which submits processing of selected runs
@@ -496,11 +443,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self._refresh_timer.start(60000)
 
-    def _get_cwd(self) -> pathlib.Path:
-        # Hack to get current directory without resolving links at psana
-        # instead of using pathlib.Path.cwd()
-        return pathlib.Path(os.environ["PWD"])
-
     def _select_experiment(self) -> None:
         # Creates self.experiment - an instance of CheetahExperiment class - either by
         # loading already existing Cheetah experiment from disk or creating a new one.
@@ -543,6 +485,156 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         print("Starting crawler")
         self.crawler_window = CrawlerGui(self.experiment, self)
         self.crawler_window.show()
+
+    def _view_hits(self) -> None:
+        # Launches Cheetah Viewer showing hits from selected runs.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        sources: List[str] = []
+        parameters: Dict[str, Any] = {
+            "om_sources": {},
+            "om_configs": {},
+            "peak_lists": {},
+        }
+        dir: pathlib.Path
+        for dir in selected_directories:
+            process_config: pathlib.Path = dir / "process_config.txt"
+            if process_config.is_file():
+                config: Dict[str, str] = self._parse_config_file(process_config)
+                om_source: str = config["om_source"]
+                om_config: pathlib.Path = pathlib.Path(config["om_config"])
+            else:
+                continue
+
+            hits_file: pathlib.Path = dir / "hits.lst"
+            peaks_file: pathlib.Path = dir / "peaks.txt"
+
+            if om_config.is_file() and hits_file.is_file() and peaks_file.is_file():
+                sources.append(str(hits_file))
+                parameters["om_sources"][str(hits_file)] = om_source
+                parameters["om_configs"][str(hits_file)] = om_config
+                parameters["peak_lists"][str(hits_file)] = peaks_file
+
+        if len(sources) > 0:
+            print("Loading hits from the following files:")
+            filename: str
+            for filename in sources:
+                print(filename)
+
+        frame_retrieval: CheetahFrameRetrieval = OmRetrieval(sources, parameters)
+        if len(frame_retrieval.get_event_list()) == 0:
+            print(
+                "Couldn't retrieve any images from selected runs using OM frame "
+                "retrieval. Trying to load images from HDF5 files."
+            )
+            self._view_hits_from_h5_files()
+            return
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        self._viewer_windows.append(Viewer(frame_retrieval, geometry))
+        self._viewer_windows[-1].show()
+
+    def _view_hits_from_h5_files(self) -> None:
+        # Launches Cheetah Viewer showing hits from selected runs reading data from h5
+        # files.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        dir: pathlib.Path
+        h5_files: List[str] = []
+        for dir in selected_directories:
+            filename: pathlib.Path
+            for filename in dir.glob("*"):
+                if filename.suffix in (".h5", ".cxi") and not filename.name.endswith(
+                    "sum.h5"
+                ):
+                    h5_files.append(str(filename))
+        if len(h5_files) == 0:
+            print("There's no .h5 or .cxi files in the selected directories yet.")
+            return
+        input_str: str = " ".join(h5_files)
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        viewer_command: str = (
+            f"cheetah_viewer.py {input_str} -d /entry_1/data_1/data "
+            f"-p /entry_1/result_1 -g {geometry}"
+        )
+        print(viewer_command)
+        subprocess.Popen(viewer_command, shell=True)
+
+    def _view_powder_hits(self) -> None:
+        # Launches Cheetah Viewer showing the hits peakpowder.
+        self._view_sums(1, "/data/peakpowder")
+
+    def _view_powder_blanks(self) -> None:
+        # Launches Cheetah Viewer showing the blanks peakpowder.
+        self._view_sums(0, "/data/peakpowder")
+
+    def _view_sum_hits(self) -> None:
+        # Launches Cheetah Viewer showing the sum of hits.
+        self._view_sums(1, "/data/data")
+
+    def _view_sum_blanks(self) -> None:
+        # Launches Cheetah Viewer showing the sum of blanks.
+        self._view_sums(0, "/data/data")
+
+    def _view_sums(
+        self,
+        sum_class: Literal[0, 1],
+        hdf5_dataset: Literal["/data/data", "/data/peakpowder"],
+    ) -> None:
+        # Launches Cheetah Viewer showing requested sums from selected runs.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        sum_files: List[str] = []
+        dir: pathlib.Path
+        for dir in selected_directories:
+            file: pathlib.Path
+            for file in dir.glob(f"*-class{sum_class}-sum.h5"):
+                sum_files.append(str(file))
+        if len(sum_files) == 0:
+            print(
+                f"There's no class{sum_class} sum files in the selected directories yet."
+            )
+            return
+        input_str: str = " ".join(sum_files)
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        viewer_command: str = (
+            f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry}"
+        )
+        print(viewer_command)
+        subprocess.Popen(viewer_command, shell=True)
+
+    def closeEvent(self, event: Any) -> None:
+        """
+        Close all Cheetah GUI windows.
+
+        This function is called when the main GUI is closed. It closes all child Viewer
+        windows.
+        """
+        viewer: Viewer
+        for viewer in self._viewer_windows:
+            viewer.close()
+        print("Bye bye.")
+        event.accept()
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore

@@ -87,6 +87,12 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
         filename: str
         for filename in sources:
             fh: Any = h5py.File(filename, "r")
+            if self._hdf5_data_path not in fh:
+                print(
+                    f"Could not find {self._hdf5_data_path} dataset in {filename}. "
+                    f"Skipping this file."
+                )
+                continue
             data = fh[self._hdf5_data_path]
             if len(data.shape) == 2:
                 # Close single-event files to let Cheetah update them while the viewer
