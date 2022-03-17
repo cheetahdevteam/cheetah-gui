@@ -120,6 +120,7 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         This function is called when the GUI window is closed. It lets the parent know
         about it.
         """
+        self._refresh_timer.stop()
         self.parent._crawler_gui_closed()
         event.accept()
 
@@ -171,69 +172,6 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         """
         for run_id in self._runs:
             self._experiment.process_run(run_id, self._config)
-
-
-class _FrameRetrievalInit(QtCore.QObject):  # type: ignore
-    # This class is used internally running in a separate Qt thread to initialize
-    # Cheetah frame retrieval.
-
-    finished: Any = QtCore.pyqtSignal(object)
-
-    def __init__(self, selected_directories: List[pathlib.Path]) -> None:
-        super(_FrameRetrievalInit, self).__init__()
-        self.selected_directories: List[pathlib.Path] = selected_directories
-
-    def _parse_config_file(
-        self, filename: pathlib.Path, separator: str = ":"
-    ) -> Dict[str, str]:
-        fh: TextIO
-        config: Dict[str, str] = {}
-        with open(filename) as fh:
-            line: str
-            for line in fh:
-                split_items: List[str] = line.split(separator)
-                if len(split_items) > 1:
-                    config[split_items[0].strip()] = (
-                        separator.join(split_items[1:])
-                    ).strip()
-        return config
-
-    def run(self) -> None:
-        # This function initializes OM frame retrieval of images from selected
-        # directories and passes it back to the main GUI through 'finished' signal.
-        sources: List[str] = []
-        parameters: Dict[str, Any] = {
-            "om_sources": {},
-            "om_configs": {},
-            "peak_lists": {},
-        }
-        dir: pathlib.Path
-        for dir in self.selected_directories:
-            process_config: pathlib.Path = dir / "process_config.txt"
-            if process_config.is_file():
-                config: Dict[str, str] = self._parse_config_file(process_config)
-                om_source: str = config["om_source"]
-                om_config: pathlib.Path = pathlib.Path(config["om_config"])
-            else:
-                continue
-
-            hits_file: pathlib.Path = dir / "hits.lst"
-            peaks_file: pathlib.Path = dir / "peaks.txt"
-
-            if om_config.is_file() and hits_file.is_file() and peaks_file.is_file():
-                sources.append(str(hits_file))
-                parameters["om_sources"][str(hits_file)] = om_source
-                parameters["om_configs"][str(hits_file)] = om_config
-                parameters["peak_lists"][str(hits_file)] = peaks_file
-
-        if len(sources) > 0:
-            print("Loading hits from the following files:")
-            filename: str
-            for filename in sources:
-                print(filename)
-
-        frame_retrieval: CheetahFrameRetrieval = OmRetrieval(sources, parameters)
-        self.finished.emit(frame_retrieval)
 
 
 class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
@@ -537,74 +475,19 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _view_hits(self) -> None:
         # Launches Cheetah Viewer showing hits from selected runs.
-        self._ui.button_view_hits.setEnabled(False)
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )
         proc_dir_column: int = self._table_column_names.index("H5Directory")
         proc_dir: pathlib.Path = self.experiment.get_proc_directory()
-        selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
+        selected_directories: List[str] = [
+            str(proc_dir / self._table.item(row, proc_dir_column).text())
             for row in selected_rows
         ]
-        self._frame_retrieval_init: _FrameRetrievalInit = _FrameRetrievalInit(
-            selected_directories
-        )
-        self._frame_retrieval_init_thread: Any = QtCore.QThread()
-        self._frame_retrieval_init.moveToThread(self._frame_retrieval_init_thread)
-        self._frame_retrieval_init_thread.started.connect(
-            self._frame_retrieval_init.run
-        )
-        self._frame_retrieval_init.finished.connect(
-            self._view_hits_from_frame_retrieval
-        )
-        self._frame_retrieval_init.finished.connect(
-            self._frame_retrieval_init_thread.quit
-        )
-        self._frame_retrieval_init_thread.start()
-
-    def _view_hits_from_frame_retrieval(self, frame_retrieval: OmRetrieval) -> None:
-        self._ui.button_view_hits.setEnabled(True)
-        if len(frame_retrieval.get_event_list()) == 0:
-            print(
-                "Couldn't retrieve any images from selected runs using OM frame "
-                "retrieval. Trying to load images from HDF5 files."
-            )
-            self._view_hits_from_h5_files()
-            return
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
-        self._viewer_windows.append(Viewer(frame_retrieval, geometry))
-        self._viewer_windows[-1].show()
-
-    def _view_hits_from_h5_files(self) -> None:
-        # Launches Cheetah Viewer showing hits from selected runs reading data from h5
-        # files.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
-        selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
-            for row in selected_rows
-        ]
-        dir: pathlib.Path
-        h5_files: List[str] = []
-        for dir in selected_directories:
-            filename: pathlib.Path
-            for filename in dir.glob("*"):
-                if filename.suffix in (".h5", ".cxi") and not filename.name.endswith(
-                    "sum.h5"
-                ):
-                    h5_files.append(str(filename))
-        if len(h5_files) == 0:
-            print("There's no .h5 or .cxi files in the selected directories yet.")
-            return
-        input_str: str = " ".join(h5_files)
+        input_str: str = " ".join(selected_directories)
         geometry: str = self.experiment.get_last_processing_config()["geometry"]
         viewer_command: str = (
-            f"cheetah_viewer.py {input_str} -d /entry_1/data_1/data "
-            f"-p /entry_1/result_1 -g {geometry}"
+            f"cheetah_viewer.py {input_str} -i cheetah_directories -g {geometry}"
         )
         print(viewer_command)
         subprocess.Popen(viewer_command, shell=True)

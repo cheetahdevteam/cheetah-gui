@@ -108,6 +108,11 @@ class OmRetrieval(CheetahFrameRetrieval):
                             monitor_parameters=monitor_params,
                         )
                     except Exception as e:
+                        print(
+                            f"Couldn't initialize OM frame retrieval from "
+                            f"{parameters['om_sources'][filename]} source using "
+                            f"{parameters['om_configs'][filename]} config file: "
+                        )
                         print(e)
                         continue
                     self._events.extend(

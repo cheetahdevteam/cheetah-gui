@@ -15,7 +15,7 @@ from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 import pyqtgraph  # type: ignore
 from random import randrange
 from scipy import constants  # type: ignore
-from typing import Any, List, Dict, Union, Tuple, cast
+from typing import Any, List, Dict, Union, Tuple, TextIO, cast
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
@@ -504,8 +504,39 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     }
 
 
+def _parse_config_file(filename: pathlib.Path, separator: str = ":") -> Dict[str, str]:
+    fh: TextIO
+    config: Dict[str, str] = {}
+    with open(filename) as fh:
+        line: str
+        for line in fh:
+            split_items: List[str] = line.split(separator)
+            if len(split_items) > 1:
+                config[split_items[0].strip()] = (
+                    separator.join(split_items[1:])
+                ).strip()
+    return config
+
+
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
-@click.argument("input_files", nargs=-1, type=click.Path(exists=True), required=True, metavar="INPUT_FILE(S)")  # type: ignore
+@click.argument(  # type: ignore
+    "input_files",
+    nargs=-1,
+    type=click.Path(exists=True),
+    required=True,
+    metavar="INPUT_FILE(S)",
+)
+@click.option(  # type: ignore
+    "--input-type",
+    "-i",
+    "input_type",
+    type=click.Choice(
+        ["hdf5_files", "om_events", "cheetah_directories"],
+        case_sensitive=False,
+    ),
+    default="hdf5_files",
+    help="type of the input sources, default: hdf5_files",
+)
 @click.option(  # type: ignore
     "--geometry",
     "-g",
@@ -553,9 +584,6 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     help="path to the peaks dataset in the input HDF5 files, default: None",
 )
 @click.option(  # type: ignore
-    "--om-events", "-o", "om_events", is_flag=True, help="retrieve frame data from OM"
-)
-@click.option(  # type: ignore
     "--om-source",
     "-s",
     "om_source",
@@ -584,12 +612,12 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
 )
 def main(
     input_files: List[str],
+    input_type: str,
     geometry_filename: str,
     mask_filename: Union[str, None],
     hdf5_mask_path: str,
     hdf5_data_path: Union[str, None],
     hdf5_peaks_path: Union[str, None],
-    om_events: bool,
     om_source: str,
     om_config: str,
     om_peaks_file: Union[str, None],
@@ -603,29 +631,37 @@ def main(
 
     The viewer can retrieve images from the following sources:
 
-    1) HDF5 files. To display images stored in single- or multi-event HDF5 files
-    one or several .h5 or .cxi files must be provided as INPUT_FILE(S).
-    Additionally, '--hdf5-data-path' / '-p' option may be used to specify where
-    the images are stored in the HDF5 files. Otherwise, the path specified in
-    the geometry file will be used. '--hdf5-peaks-path' / '-p' option may be
-    used to specify where the peaks dataset is stored in the HDF5 files. If this
+    1) HDF5 files ('--input-type=hdf5_files'). To display images stored in single- or
+    multi-event HDF5 files one or several .h5 or .cxi files must be provided as
+    INPUT_FILE(S). Additionally, '--hdf5-data-path' / '-p' option may be used to
+    specify where the images are stored in the HDF5 files. Otherwise, the path
+    specified in the geometry file will be used. '--hdf5-peaks-path' / '-p' option may
+    be used to specify where the peaks dataset is stored in the HDF5 files. If this
     option is not set, detected peak positions won't be shown.
 
     \b
     Usage example: cheetah_viewer.py data_*.h5 -g current.geom -d /data/data -p /data/peaks
 
-    2) OM data retrieval layer. To display images retrieved by OM '--om-events' / '-o'
-    flag must be set and one text file containing a list of OM event IDs must be
-    provided as INPUT_FILE. Both OM source string ('--om-source / '-s') and OM config
-    file ('--om-config' / '-c') must also be provided. Additionally, Cheetah peak list
-    file ('--om-peaks-file') can be used to retrieve information about detected peaks.
-    If peak list file is not specified, peaks will be detected using peakfinder8
+    2) OM data retrieval layer ('--input-type=om_events'). To display images retrieved
+    by OM one text file containing a list of OM event IDs must be provided as
+    INPUT_FILE. Both OM source string ('--om-source / '-s') and OM config file
+    ('--om-config' / '-c') must also be provided. Additionally, Cheetah peak list file
+    ('--om-peaks-file') can be used to retrieve information about detected peaks. If
+    peak list file is not specified, peaks will be detected using peakfinder8
     parameters from the provided config file.
 
     \b
-    Usage example: cheetah_viewer.py hits.lst -g current.geom -s exp=mfxlz0420:run=141 -c monitor.yaml --om-peaks-file=peaks.txt
+    Usage example: cheetah_viewer.py -i om_events hits.lst -g current.geom -s exp=mfxlz0420:run=141 -c monitor.yaml --om-peaks-file=peaks.txt
+
+    3) Cheetah hdf5 directories ('--input-type=cheetah_directories'). To display images
+    from one or several runs processed by Cheetah, hdf5 directories of these runs must
+    be provided as INPUT_FILE(S).
+
+    \b
+    Usage example: cheetah_viewer.py -i cheetah_directories cheetah/hdf5/r*-lyso -g current.geom
+
     """
-    if om_events:
+    if input_type == "om_events":
         print("Activating frame retrieval from OM data retrieval layer.")
         if not pathlib.Path(om_config).is_file():
             sys.exit(
@@ -645,6 +681,69 @@ def main(
             ],
             parameters,
         )
+    elif input_type == "cheetah_directories":
+        sources: List[str] = []
+        parameters = {
+            "om_sources": {},
+            "om_configs": {},
+            "peak_lists": {},
+        }
+        h5_files: List[str] = []
+        input_path: str
+        for input_path in input_files:
+            dir: pathlib.Path = pathlib.Path(input_path)
+            if not dir.is_dir():
+                print(f"Skipping input source {dir}: is not a directory.")
+                continue
+            process_config: pathlib.Path = dir / "process_config.txt"
+            if process_config.is_file():
+                config: Dict[str, str] = _parse_config_file(process_config)
+                source_string: str = config["om_source"]
+                config_file: pathlib.Path = pathlib.Path(config["om_config"])
+            else:
+                print(f"Skipping input source {dir}: {process_config} file not found.")
+                continue
+
+            hits_file: pathlib.Path = dir / "hits.lst"
+            peaks_file: pathlib.Path = dir / "peaks.txt"
+
+            if config_file.is_file() and hits_file.is_file() and peaks_file.is_file():
+                sources.append(str(hits_file))
+                parameters["om_sources"][str(hits_file)] = source_string
+                parameters["om_configs"][str(hits_file)] = config_file
+                parameters["peak_lists"][str(hits_file)] = peaks_file
+
+            filename: pathlib.Path
+            for filename in dir.glob("*"):
+                if filename.suffix in (".h5", ".cxi") and not filename.name.endswith(
+                    "sum.h5"
+                ):
+                    h5_files.append(str(filename))
+
+        if len(sources) > 0:
+            print("Loading hits from the following files:")
+            source: str
+            for source in sources:
+                print(source)
+
+        frame_retrieval = OmRetrieval(sources, parameters)
+        if len(frame_retrieval.get_event_list()) == 0:
+            if len(h5_files) > 0:
+                print(
+                    "Couldn't retrieve any images from selected runs using OM frame "
+                    "retrieval. Trying to load images from HDF5 files."
+                )
+                parameters = _get_hdf5_retrieval_parameters(geometry_filename)
+                # TODO: get peaks path from the geometry file or monitor.yaml
+                parameters["hdf5_peaks_path"] = "/entry_1/result_1"
+                frame_retrieval = H5FilesRetrieval(h5_files, parameters)
+            else:
+                print(
+                    "Couldn't retrieve any images from selected runs using OM frame "
+                    "retrieval and there's no .h5 or .cxi files in the selected "
+                    "directories yet."
+                )
+
     elif input_files[0].endswith(".h5") or input_files[0].endswith(".cxi"):
         print("Activating frame retrieval from HDF5 files.")
         parameters = _get_hdf5_retrieval_parameters(geometry_filename)
