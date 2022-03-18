@@ -3,6 +3,8 @@ Cheetah Viewer.
 
 This module contains Cheetah image viewer.
 """
+from re import S
+from turtle import st
 import click  # type: ignore
 import h5py  # type: ignore
 import numpy
@@ -18,9 +20,14 @@ from scipy import constants  # type: ignore
 from typing import Any, List, Dict, Union, Tuple, TextIO, cast
 
 from cheetah import __file__ as cheetah_src_path
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
+from cheetah.frame_retrieval.base import (
+    CheetahFrameRetrieval,
+    TypeEventData,
+    TypePeakList,
+)
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
+from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
 
 
 class Viewer(QtWidgets.QMainWindow):  # type: ignore
@@ -31,7 +38,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def __init__(
         self,
         frame_retrieval: CheetahFrameRetrieval,
-        geometry_filename: str,
+        geometry_lines: List[str],
         mask_filename: Union[str, None] = None,
         mask_hdf5_path: str = "/data/data",
     ) -> None:
@@ -50,7 +57,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             [CheetaFrameRetrieval][cheetah.frame_retrieval.base.CheetahFrameRetrieval]
             class.
 
-            geometry_filename: The path of the geometry file.
+            geometry_lines: A list of lines from the geometry file.
 
             mask_filename: The path of the mask file. If the value of this parameter
                 is None and the mask file is not specified in the geometry file, the
@@ -73,7 +80,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._frame_retrieval: CheetahFrameRetrieval = frame_retrieval
 
-        self._load_geometry(geometry_filename)
+        self._load_geometry(geometry_lines)
         if mask_filename:
             self._mask_filename: str = mask_filename
             if mask_hdf5_path:
@@ -81,9 +88,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             else:
                 self._mask_hdf5_path = "/data/data"
 
-        if self._mask_filename and self._mask_hdf5_path:
+        if (
+            self._mask_filename
+            and self._mask_hdf5_path
+            and pathlib.Path(self._mask_filename).is_file()
+        ):
             mask_file: Any
-            # TODO: check if mask file exists if it's from geometry
             with h5py.File(self._mask_filename) as mask_file:
                 if self._mask_hdf5_path not in mask_file:
                     print(
@@ -137,7 +147,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._image_hist.sigLevelsChanged.connect(self._hist_range_changed)
         self._levels_range: Tuple[Union[int, float], Union[int, float]] = (0, 1)
         self._ui.auto_range_cb.setChecked(True)
-        self._ui.auto_range_cb.stateChanged.connect(self._update_image_and_peaks)
+        self._ui.auto_range_cb.stateChanged.connect(self._update_image)
 
         self._ui.min_range_le.editingFinished.connect(self._change_levels)
         self._ui.max_range_le.editingFinished.connect(self._change_levels)
@@ -145,6 +155,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ring_pen: Any = pyqtgraph.mkPen("r", width=2)
         self._peak_canvas: Any = pyqtgraph.ScatterPlotItem()
         self._image_view.getView().addItem(self._peak_canvas)
+
+        self._refl_canvas: Any = pyqtgraph.ScatterPlotItem()
+        self._image_view.getView().addItem(self._refl_canvas)
 
         self._resolution_rings_in_a: List[float] = [
             10.0,
@@ -190,7 +203,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._image_view.getView().addItem(self._mask_image)
         self._ui.show_mask_cb.stateChanged.connect(self._update_mask_image)
 
-        self._ui.show_peaks_cb.stateChanged.connect(self._update_image_and_peaks)
+        self._ui.show_peaks_cb.stateChanged.connect(self._update_peaks)
         self._ui.next_button.clicked.connect(self._next_pattern)
         self._ui.previous_button.clicked.connect(self._previous_pattern)
         self._ui.random_button.clicked.connect(self._random_pattern)
@@ -199,17 +212,25 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.shuffle_button.setCheckable(True)
         self._ui.shuffle_button.clicked.connect(self._shuffle_changed)
 
+        self._ui.next_crystal_button.clicked.connect(self._next_crystal)
+        self._ui.previous_crystal_button.clicked.connect(self._previous_crystal)
+        self._ui.next_crystal_button.setEnabled(False)
+        self._ui.previous_crystal_button.setEnabled(False)
+        self._ui.show_no_crystals_rb.toggled.connect(self._update_reflections)
+        self._ui.show_one_crystal_rb.toggled.connect(self._update_reflections)
+        self._ui.show_all_crystals_rb.toggled.connect(self._update_reflections)
+
         self._update_image_and_peaks()
         self._refresh_timer: Any = QtCore.QTimer()
         self._refresh_timer.timeout.connect(self._next_pattern)
         self._ui.pause_button.setEnabled(False)
 
-    def _load_geometry(self, geometry_filename: str) -> None:
+    def _load_geometry(self, geometry_lines: List[str]) -> None:
         # Loads CrystFEL goemetry using om.utils module.
         self._geometry: crystfel_geometry.TypeDetector
         beam: crystfel_geometry.TypeBeam
-        self._geometry, beam, __ = crystfel_geometry.load_crystfel_geometry(
-            filename=geometry_filename
+        self._geometry, beam, __ = crystfel_geometry.read_crystfel_geometry(
+            text_lines=geometry_lines
         )
         self._pixelmaps: crystfel_geometry.TypePixelMaps = (
             crystfel_geometry.compute_pix_maps(geometry=self._geometry)
@@ -360,7 +381,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             )
             self._ui.max_range_le.setText(self._ui.min_range_le.text())
         self._ui.auto_range_cb.setChecked(False)
-        self._update_image_and_peaks()
+        self._update_image()
 
     def _mouse_moved(self, pos: Any) -> None:
         data: numpy.typing.NDArray[Any] = self._image_view.image
@@ -416,8 +437,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.pause_button.setEnabled(False)
         self._ui.play_button.setEnabled(True)
 
-    def _update_image_and_peaks(self) -> None:
-        # Updates the image and Bragg peaks shown by the viewer.
+    def _update_image(self) -> None:
         data: numpy.typing.NDArray[Any] = self._current_event_data["data"]
 
         self._frame_data_img[
@@ -441,8 +461,20 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             autoHistogramRange=False,
         )
 
+    def _update_image_and_peaks(self) -> None:
+        # Updates the image and peaks shown by the viewer.
+        self._update_image()
         self._update_peaks()
-        self.statusBar().showMessage(f"{self._events[self._current_event_index]}")
+        self._crystal_to_show: int = 0
+        self._update_reflections()
+        if "source" in self._current_event_data:
+            status_message: str = (
+                f"{self._events[self._current_event_index]}: "
+                f"{self._current_event_data['source']}"
+            )
+        else:
+            status_message = f"{self._events[self._current_event_index]}"
+        self.statusBar().showMessage(status_message)
 
     def _update_mask_image(self) -> None:
         if self._ui.show_mask_cb.isChecked():
@@ -453,7 +485,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._mask_image.clear()
 
     def _update_peaks(self) -> None:
-        # Updates the Bragg peaks shown by the viewer.
+        # Updates peaks shown by the viewer.
         if "peaks" not in self._current_event_data.keys():
             self._ui.show_peaks_cb.setEnabled(False)
         else:
@@ -484,6 +516,88 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             brush=(255, 255, 255, 0),
             size=[5] * len(peak_list_x_in_frame),
             pen=self._ring_pen,
+            pxMode=False,
+        )
+
+    def _next_crystal(self) -> None:
+        n_crystals: int = len(self._current_event_data["crystals"])
+        if self._crystal_to_show == n_crystals - 1:
+            self._crystal_to_show = 0
+        else:
+            self._crystal_to_show += 1
+        self._update_reflections()
+
+    def _previous_crystal(self) -> None:
+        n_crystals: int = len(self._current_event_data["crystals"])
+        if self._crystal_to_show == 0:
+            self._crystal_to_show = n_crystals - 1
+        else:
+            self._crystal_to_show -= 1
+        self._update_reflections()
+
+    def _update_reflections(self) -> None:
+        # Updates reflections peaks shown by the viewer.
+        self._ui.next_crystal_button.setEnabled(False)
+        self._ui.previous_crystal_button.setEnabled(False)
+        if "crystals" not in self._current_event_data.keys():
+            self._ui.show_crystals_widget.hide()
+            return
+        else:
+            self._ui.show_crystals_widget.show()
+
+        self._refl_canvas.clear()
+        n_crystals: int = len(self._current_event_data["crystals"])
+        if n_crystals == 0:
+            return
+
+        if self._ui.show_no_crystals_rb.isChecked():
+            crystals: List[int] = []
+        elif self._ui.show_one_crystal_rb.isChecked():
+            crystals = [self._crystal_to_show]
+            if n_crystals > 1:
+                self._ui.next_crystal_button.setEnabled(True)
+                self._ui.previous_crystal_button.setEnabled(True)
+        else:
+            crystals = list(range(n_crystals))
+
+        index: int
+        peak_list_y_in_frame: List[float] = []
+        peak_list_x_in_frame: List[float] = []
+        pen_list: List[Any] = []
+        for index in crystals:
+            peak_fs: float
+            peak_ss: float
+            for peak_fs, peak_ss in zip(
+                self._current_event_data["crystals"][index]["fs"],
+                self._current_event_data["crystals"][index]["ss"],
+            ):
+                peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
+                    1
+                ] + int(round(peak_fs))
+                y_in_frame: float = self._visual_pixelmap_y[peak_index_in_slab]
+                x_in_frame: float = self._visual_pixelmap_x[peak_index_in_slab]
+                peak_list_x_in_frame.append(y_in_frame)
+                peak_list_y_in_frame.append(x_in_frame)
+            pen: Any = pyqtgraph.mkPen(
+                pyqtgraph.intColor(
+                    index + 1,
+                    n_crystals + 1,
+                ),
+                width=2,
+            )
+            pen_list.extend(
+                [
+                    pen,
+                ]
+                * self._current_event_data["crystals"][index]["num_peaks"]
+            )
+        self._refl_canvas.setData(
+            x=peak_list_y_in_frame,
+            y=peak_list_x_in_frame,
+            symbol="s",
+            brush=(255, 255, 255, 0),
+            size=5,
+            pen=pen_list,
             pxMode=False,
         )
 
@@ -518,6 +632,23 @@ def _parse_config_file(filename: pathlib.Path, separator: str = ":") -> Dict[str
     return config
 
 
+def _get_geometry_file_contents(stream_filename: str) -> List[str]:
+    # Gets contents of the geometry file from stream file.
+    geometry_lines: List[str] = []
+    reading_geometry: bool = False
+    fh: TextIO
+    with open(stream_filename, "r") as fh:
+        line: str
+        for line in fh:
+            if line.startswith("----- End geometry file -----"):
+                break
+            elif reading_geometry:
+                geometry_lines.append(line)
+            elif line.startswith("----- Begin geometry file -----"):
+                reading_geometry = True
+    return geometry_lines
+
+
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
 @click.argument(  # type: ignore
     "input_files",
@@ -531,11 +662,11 @@ def _parse_config_file(filename: pathlib.Path, separator: str = ":") -> Dict[str
     "-i",
     "input_type",
     type=click.Choice(
-        ["hdf5_files", "om_events", "cheetah_directories"],
+        ["hdf5", "om", "dir", "stream"],
         case_sensitive=False,
     ),
-    default="hdf5_files",
-    help="type of the input sources, default: hdf5_files",
+    default="hdf5",
+    help="type of the input sources, default: hdf5",
 )
 @click.option(  # type: ignore
     "--geometry",
@@ -543,8 +674,8 @@ def _parse_config_file(filename: pathlib.Path, separator: str = ":") -> Dict[str
     "geometry_filename",
     nargs=1,
     type=click.Path(exists=True),
-    required=True,
-    help="CrystFEL geometry file",
+    required=False,
+    help="CrystFEL geometry file, required for all input types except stream files",
 )
 @click.option(  # type: ignore
     "--mask",
@@ -631,10 +762,11 @@ def main(
 
     The viewer can retrieve images from the following sources:
 
-    1) HDF5 files ('--input-type=hdf5_files'). To display images stored in single- or
-    multi-event HDF5 files one or several .h5 or .cxi files must be provided as
-    INPUT_FILE(S). Additionally, '--hdf5-data-path' / '-p' option may be used to
-    specify where the images are stored in the HDF5 files. Otherwise, the path
+    1) HDF5 files ('--input-type=hdf5', default option). To display images stored in
+    single- or multi-event HDF5 files one or several .h5 or .cxi files must be provided
+    as INPUT_FILE(S). Geometry file ('--geometry' / '-g') must also be provided.
+    Additionally, '--hdf5-data-path' / '-p' option may be used to specify the dataset
+    name where the images are stored within the HDF5 files. Otherwise, the path
     specified in the geometry file will be used. '--hdf5-peaks-path' / '-p' option may
     be used to specify where the peaks dataset is stored in the HDF5 files. If this
     option is not set, detected peak positions won't be shown.
@@ -642,26 +774,41 @@ def main(
     \b
     Usage example: cheetah_viewer.py data_*.h5 -g current.geom -d /data/data -p /data/peaks
 
-    2) OM data retrieval layer ('--input-type=om_events'). To display images retrieved
-    by OM one text file containing a list of OM event IDs must be provided as
-    INPUT_FILE. Both OM source string ('--om-source / '-s') and OM config file
-    ('--om-config' / '-c') must also be provided. Additionally, Cheetah peak list file
-    ('--om-peaks-file') can be used to retrieve information about detected peaks. If
-    peak list file is not specified, peaks will be detected using peakfinder8
-    parameters from the provided config file.
+    2) OM data retrieval layer ('--input-type=om'). To display images retrieved by OM
+    one text file containing a list of OM event IDs must be provided as INPUT_FILE.
+    Geometry file ('--geometry' / '-g') and both OM source string ('--om-source / '-s')
+    and OM config file ('--om-config' / '-c') must also be provided. Additionally,
+    Cheetah peak list file ('--om-peaks-file') can be used to retrieve information
+    about detected peaks. If peak list file is not specified, peaks will be detected
+    using peakfinder8 parameters from the provided config file.
 
     \b
-    Usage example: cheetah_viewer.py -i om_events hits.lst -g current.geom -s exp=mfxlz0420:run=141 -c monitor.yaml --om-peaks-file=peaks.txt
+    Usage example: cheetah_viewer.py -i om hits.lst -g current.geom -s exp=mfxlz0420:run=141 -c monitor.yaml --om-peaks-file=peaks.txt
 
-    3) Cheetah hdf5 directories ('--input-type=cheetah_directories'). To display images
-    from one or several runs processed by Cheetah, hdf5 directories of these runs must
-    be provided as INPUT_FILE(S).
+    3) Cheetah hdf5 directories ('--input-type=dir'). To display images from one or
+    several runs processed by Cheetah, hdf5 directories of these runs must be provided
+    as INPUT_FILE(S). Geometry file ('--geometry' / '-g') must also be provided.
 
     \b
-    Usage example: cheetah_viewer.py -i cheetah_directories cheetah/hdf5/r*-lyso -g current.geom
+    Usage example: cheetah_viewer.py -i dir cheetah/hdf5/r*-lyso -g current.geom
 
+    4) CrystFEL stream files ('--input-type=stream'). To display images processed by
+    CrystFEL program indexamajig, as well as detected peaks and predicted reflection
+    positions, one or several CrystFEL stream files must be provided as INPUT_FILE(S).
+    Geometry file ('--geometry' / '-g') may be provided but is not required - when not
+    provided the contents of the geometry file will be extracted from the input stream
+    file.
+
+    \b
+    Usage example: cheetah_viewer.py -i stream lyso_*.stream
     """
-    if input_type == "om_events":
+    if input_type != "stream" and geometry_filename is None:
+        sys.exit(
+            f"Error: Missing option '--geometry' / '-g'.\n"
+            f"Geometry file is required for input type '{input_type}'."
+        )
+
+    if input_type == "om":
         print("Activating frame retrieval from OM data retrieval layer.")
         if not pathlib.Path(om_config).is_file():
             sys.exit(
@@ -681,7 +828,7 @@ def main(
             ],
             parameters,
         )
-    elif input_type == "cheetah_directories":
+    elif input_type == "dir":
         sources: List[str] = []
         parameters = {
             "om_sources": {},
@@ -743,8 +890,23 @@ def main(
                     "retrieval and there's no .h5 or .cxi files in the selected "
                     "directories yet."
                 )
+    elif input_type == "stream":
+        print("Activating frame retrieval from CrystFEL stream files.")
+        stream_filename: str
+        if geometry_filename is None:
+            for stream_filename in input_files:
+                geometry_lines = _get_geometry_file_contents(stream_filename)
+                if len(geometry_lines) > 0:
+                    print(f"Using geometry file contents from {stream_filename}.")
+                    break
+            if len(geometry_lines) == 0:
+                sys.exit(
+                    "Couldn't extract geometry file contents from the input stream "
+                    "files. Please provide a geometry file ('--geometry' / '-g')."
+                )
 
-    elif input_files[0].endswith(".h5") or input_files[0].endswith(".cxi"):
+        frame_retrieval = StreamRetrieval(input_files, {})
+    else:
         print("Activating frame retrieval from HDF5 files.")
         parameters = _get_hdf5_retrieval_parameters(geometry_filename)
         if hdf5_data_path:
@@ -753,10 +915,15 @@ def main(
             parameters["hdf5_peaks_path"] = hdf5_peaks_path
         frame_retrieval = H5FilesRetrieval(input_files, parameters)
 
+    if geometry_filename:
+        fh: TextIO
+        with open(geometry_filename) as fh:
+            geometry_lines = fh.readlines()
+
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(
         frame_retrieval,
-        geometry_filename,
+        geometry_lines,
         mask_filename,
         hdf5_mask_path,
     )

@@ -11,6 +11,7 @@ try:
 except:
     from typing_extensions import TypedDict
 
+
 class TypePeakList(TypedDict):
     """
     A typed dictionary which stores information about positions of detected peaks in a
@@ -40,18 +41,27 @@ class TypeEventData(TypedDict, total=False):
 
         data: Detector data as a numpy array (required).
 
+        source: Source of the detector data, for example image filename and event index
+            for events extracted from a stream file (optional).
+
         peaks: A [TypePeakList][cheetah.frame_retrieval.TypePeakList] dictionary
             containing information about detected peaks (optional).
 
         photon_energy: Photon energy in eV (optional).
 
         clen: Detector distance in meters (optional).
+
+        crystals: A list of [TypePeakList][cheetah.frame_retrieval.TypePeakList]
+            dictionaries containing information about predicted reflections for each
+            indexed crystal (optional).
     """
 
     data: numpy.typing.NDArray[Any]
+    source: str
     peaks: TypePeakList
     photon_energy: float
     clen: float
+    crystals: List[TypePeakList]
 
 
 class CheetahFrameRetrieval(ABC):
