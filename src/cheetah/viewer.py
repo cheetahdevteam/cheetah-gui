@@ -127,6 +127,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._current_event_index: int = 0
         self._retrieve_current_data()
 
+        self._show_pixel_values: bool = False
+        self._pixel_value_labels: Dict[Tuple[int, int], Any] = {}
+
         self._ui.show_peaks_cb.setEnabled(False)
 
         self._data_shape: Tuple[int, int] = (
@@ -139,11 +142,16 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         pyqtgraph.setConfigOption("background", 0.2)
 
-        self._image_view: Any = self._ui.image_view
-        self._image_view.ui.menuBtn.hide()
-        self._image_view.ui.roiBtn.hide()
-        self._image_view.scene.sigMouseMoved.connect(self._mouse_moved)
-        self._image_hist = self._image_view.getHistogramWidget()
+        self._image_widget: Any = self._ui.image_view
+        self._image_view: Any = self._image_widget.getView()
+        self._image_item: Any = self._image_widget.getImageItem()
+        self._image_widget.ui.menuBtn.hide()
+        self._image_widget.ui.roiBtn.hide()
+
+        self._image_widget.scene.sigMouseMoved.connect(self._mouse_moved)
+        self._image_view.sigRangeChanged.connect(self._visible_image_range_changed)
+
+        self._image_hist = self._image_widget.getHistogramWidget()
         self._image_hist.sigLevelsChanged.connect(self._hist_range_changed)
         self._levels_range: Tuple[Union[int, float], Union[int, float]] = (0, 1)
         self._ui.auto_range_cb.setChecked(True)
@@ -154,10 +162,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._ring_pen: Any = pyqtgraph.mkPen("r", width=2)
         self._peak_canvas: Any = pyqtgraph.ScatterPlotItem()
-        self._image_view.getView().addItem(self._peak_canvas)
+        self._image_view.addItem(self._peak_canvas)
 
         self._refl_canvas: Any = pyqtgraph.ScatterPlotItem()
-        self._image_view.getView().addItem(self._refl_canvas)
+        self._image_view.addItem(self._refl_canvas)
 
         self._resolution_rings_in_a: List[float] = [
             10.0,
@@ -176,7 +184,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._resolution_rings_enabled: bool = False
         self._resolution_rings_pen: Any = pyqtgraph.mkPen("g", width=1)
         self._resolution_rings_canvas: Any = pyqtgraph.ScatterPlotItem()
-        self._image_view.getView().addItem(self._resolution_rings_canvas)
+        self._image_view.addItem(self._resolution_rings_canvas)
 
         self._resolution_rings_regex: Any = QtCore.QRegExp(r"[0-9.,]+")
         self._resolution_rings_validator: Any = QtGui.QRegExpValidator()
@@ -200,7 +208,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_image: Any = pyqtgraph.ImageItem()
         self._mask_image.setZValue(1)
         self._mask_image.setOpacity(0.5)
-        self._image_view.getView().addItem(self._mask_image)
+        self._image_view.addItem(self._mask_image)
         self._ui.show_mask_cb.stateChanged.connect(self._update_mask_image)
 
         self._ui.show_peaks_cb.stateChanged.connect(self._update_peaks)
@@ -279,12 +287,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if self._resolution_rings_enabled is True and new_state is False:
             text_item: Any
             for text_item in self._resolution_rings_textitems:
-                self._image_view.scene.removeItem(text_item)
+                self._image_widget.scene.removeItem(text_item)
             self._resolution_rings_canvas.setData([], [])
             self._resolution_rings_enabled = False
         if self._resolution_rings_enabled is False and new_state is True:
             for text_item in self._resolution_rings_textitems:
-                self._image_view.getView().addItem(text_item)
+                self._image_view.addItem(text_item)
             self._resolution_rings_enabled = True
             self._draw_resolution_rings()
 
@@ -384,15 +392,15 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._update_image()
 
     def _mouse_moved(self, pos: Any) -> None:
-        data: numpy.typing.NDArray[Any] = self._image_view.image
-        scene_pos: Any = self._image_view.getImageItem().mapFromScene(pos)
+        data: numpy.typing.NDArray[Any] = self._image_widget.image
+        scene_pos: Any = self._image_item.mapFromScene(pos)
         row: int = int(scene_pos.x())
         col: int = int(scene_pos.y())
         if (0 <= row < data.shape[0]) and (0 <= col < data.shape[1]):
             value: Any = data[row, col]
         else:
             value = numpy.nan
-        self._ui.intensity_label.setText(f"Intensity = {value:.2f}")
+        self._ui.intensity_label.setText(f"Intensity = {value:.4g}")
 
     def _retrieve_current_data(self) -> None:
         self._current_event_data: TypeEventData = self._frame_retrieval.get_data(
@@ -453,13 +461,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 values[nvalues - nvalues // 100],
             )
 
-        self._image_view.setImage(
+        self._image_widget.setImage(
             self._frame_data_img.T,
             autoLevels=False,
             levels=self._levels_range,
             autoRange=False,
             autoHistogramRange=False,
         )
+        self._update_pixel_values()
 
     def _update_image_and_peaks(self) -> None:
         # Updates the image and peaks shown by the viewer.
@@ -600,6 +609,44 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             pen=pen_list,
             pxMode=False,
         )
+
+    def _update_pixel_values(self) -> None:
+        if not self._show_pixel_values:
+            return
+        data: numpy.typing.NDArray[Any] = self._image_widget.image
+        view_range = self._image_view.viewRange()
+        pos: Tuple[int, int]
+        for pos in self._pixel_value_labels:
+            x: int = int(numpy.floor(view_range[0][0]) + pos[0])
+            y: int = int(numpy.floor(view_range[1][0]) + pos[1])
+            if int(x) < data.shape[0] and int(y) < data.shape[1]:
+                pixel_value: str = f"{data[int(x)][int(y)]:.3g}"
+            else:
+                pixel_value = ""
+            self._pixel_value_labels[pos].setText(pixel_value)
+            self._pixel_value_labels[pos].setPos(x + 0.5, y + 0.5)
+
+    def _visible_image_range_changed(self) -> None:
+        pixel_size: float = self._image_item.pixelSize()[0]
+        label: Any
+        for label in self._pixel_value_labels.values():
+            self._image_view.removeItem(label)
+        self._pixel_value_labels = {}
+        if pixel_size >= 50:
+            self._show_pixel_values = True
+            view_range = self._image_view.viewRange()
+            i: int
+            j: int
+            for i in range(int(view_range[0][1] - view_range[0][0]) + 1):
+                for j in range(int(view_range[1][1] - view_range[1][0]) + 1):
+                    self._pixel_value_labels[(i, j)] = pyqtgraph.TextItem(
+                        anchor=(0.5, 0.5), color="g"
+                    )
+                    self._image_view.addItem(self._pixel_value_labels[(i, j)])
+
+        else:
+            self._show_pixel_values = False
+        self._update_pixel_values()
 
 
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
@@ -822,6 +869,7 @@ def main(
         }
         if om_peaks_file:
             parameters["peak_lists"] = {input_file: om_peaks_file}
+
         frame_retrieval: CheetahFrameRetrieval = OmRetrieval(
             [
                 input_file,
@@ -913,6 +961,7 @@ def main(
             parameters["hdf5_data_path"] = hdf5_data_path
         if hdf5_peaks_path:
             parameters["hdf5_peaks_path"] = hdf5_peaks_path
+
         frame_retrieval = H5FilesRetrieval(input_files, parameters)
 
     if geometry_filename:
