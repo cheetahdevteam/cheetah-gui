@@ -531,7 +531,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             y=peak_list_x_in_frame,
             symbol="o",
             brush=(255, 255, 255, 0),
-            size=10,
+            size=8,
             pen=self._ring_pen,
             pxMode=True,
         )
@@ -613,7 +613,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             y=peak_list_x_in_frame,
             symbol="s",
             brush=(255, 255, 255, 0),
-            size=10,
+            size=8,
             pen=pen_list,
             pxMode=True,
         )
