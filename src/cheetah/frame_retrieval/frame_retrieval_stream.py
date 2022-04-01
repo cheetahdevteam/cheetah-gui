@@ -11,6 +11,7 @@ try:
 except:
     from typing_extensions import TypedDict
 
+from om.algorithms.generic import Binning  # type: ignore
 from om.data_retrieval_layer import OmFrameDataRetrieval  # type: ignore
 from om.utils.parameters import MonitorParams  # type: ignore
 
@@ -70,6 +71,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
         self._streams: Dict[str, TextIO] = {}
         self._events: List[_TypeStreamEvent] = []
         self._om_retrievals: Dict[Tuple[str, str], OmFrameDataRetrieval] = {}
+        self._om_binning: Union[Binning, None] = None
         filename: str
         for filename in sources:
             offsets: List[int] = self._get_index(pathlib.Path(filename))
@@ -258,11 +260,31 @@ class StreamRetrieval(CheetahFrameRetrieval):
                         f"{chunk_data['om_config']} config file: "
                     )
                     print(e)
+                if (
+                    chunk_data["om_source"],
+                    chunk_data["om_config"],
+                ) in self._om_retrievals and len(self._om_retrievals) == 1:
+                    # Initialize binning algorithm once to be applied to all frames
+                    if monitor_params.get_parameter(
+                        group="crystallography",
+                        parameter="binning",
+                        parameter_type=bool,
+                    ):
+                        self._binning = Binning(
+                            parameters=monitor_params.get_parameter_group(
+                                group="binning"
+                            ),
+                        )
             try:
                 om_data: Dict[str, Any] = self._om_retrievals[
                     (chunk_data["om_source"], chunk_data["om_config"])
                 ].retrieve_frame_data(event_id=chunk_data["om_event_id"], frame_id="0")
-                event_data["data"] = om_data["detector_data"]
+                if self._binning is not None:
+                    event_data["data"] = self._binning.bin_detector_data(
+                        data=om_data["detector_data"]
+                    )
+                else:
+                    event_data["data"] = om_data["detector_data"]
                 event_data["source"] = chunk_data["om_event_id"]
             except Exception as e:
                 print(
