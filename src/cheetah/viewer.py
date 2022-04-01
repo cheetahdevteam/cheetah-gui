@@ -132,12 +132,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._ui.show_peaks_cb.setEnabled(False)
 
-        self._data_shape: Tuple[int, int] = (
-            self._current_event_data["data"].shape[-2],
-            self._current_event_data["data"].shape[-1],
-        )
+        self._empty_frame: numpy.typing.NDArray[Any] = numpy.empty(self._data_shape)
+        self._empty_frame[:] = numpy.nan
+
         self._frame_data_img: numpy.typing.NDArray[Any] = numpy.zeros(
-            self._visual_img_shape, dtype=self._current_event_data["data"].dtype
+            self._visual_img_shape
         )
 
         pyqtgraph.setConfigOption("background", 0.2)
@@ -266,6 +265,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             * int(max(abs(self._pixelmaps["x"].max()), abs(self._pixelmaps["x"].min())))
             + 2
         )
+        self._data_shape: Tuple[int, int] = self._pixelmaps["x"].shape
         self._visual_img_shape: Tuple[int, int] = (y_minimum, x_minimum)
         self._img_center_x: int = int(self._visual_img_shape[1] / 2)
         self._img_center_y: int = int(self._visual_img_shape[0] / 2)
@@ -374,22 +374,28 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _hist_range_changed(self) -> None:
         self._levels_range = self._image_hist.getLevels()
-        self._ui.min_range_le.setText(f"{int(self._levels_range[0])}")
-        self._ui.max_range_le.setText(f"{int(self._levels_range[1])}")
+        try:
+            self._ui.min_range_le.setText(f"{int(self._levels_range[0])}")
+            self._ui.max_range_le.setText(f"{int(self._levels_range[1])}")
+        except ValueError:
+            pass
 
     def _change_levels(self) -> None:
-        self._levels_range = (
-            float(self._ui.min_range_le.text()),
-            float(self._ui.max_range_le.text()),
-        )
-        if self._levels_range[1] < self._levels_range[0]:
+        try:
             self._levels_range = (
                 float(self._ui.min_range_le.text()),
-                float(self._ui.min_range_le.text()),
+                float(self._ui.max_range_le.text()),
             )
-            self._ui.max_range_le.setText(self._ui.min_range_le.text())
-        self._ui.auto_range_cb.setChecked(False)
-        self._update_image()
+            if self._levels_range[1] < self._levels_range[0]:
+                self._levels_range = (
+                    float(self._ui.min_range_le.text()),
+                    float(self._ui.min_range_le.text()),
+                )
+                self._ui.max_range_le.setText(self._ui.min_range_le.text())
+            self._ui.auto_range_cb.setChecked(False)
+            self._update_image()
+        except ValueError:
+            pass
 
     def _mouse_moved(self, pos: Any) -> None:
         data: numpy.typing.NDArray[Any] = self._image_widget.image
@@ -446,8 +452,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.play_button.setEnabled(True)
 
     def _update_image(self) -> None:
-        data: numpy.typing.NDArray[Any] = self._current_event_data["data"]
-
+        if "data" in self._current_event_data:
+            data: numpy.typing.NDArray[Any] = self._current_event_data["data"]
+        else:
+            data = self._empty_frame
         self._frame_data_img[
             self._visual_pixelmap_y, self._visual_pixelmap_x
         ] = data.ravel().astype(self._frame_data_img.dtype)
@@ -523,9 +531,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             y=peak_list_x_in_frame,
             symbol="o",
             brush=(255, 255, 255, 0),
-            size=[5] * len(peak_list_x_in_frame),
+            size=10,
             pen=self._ring_pen,
-            pxMode=False,
+            pxMode=True,
         )
 
     def _next_crystal(self) -> None:
@@ -605,9 +613,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             y=peak_list_x_in_frame,
             symbol="s",
             brush=(255, 255, 255, 0),
-            size=5,
+            size=10,
             pen=pen_list,
-            pxMode=False,
+            pxMode=True,
         )
 
     def _update_pixel_values(self) -> None:

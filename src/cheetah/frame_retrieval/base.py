@@ -39,7 +39,7 @@ class TypeEventData(TypedDict, total=False):
 
     Attributes:
 
-        data: Detector data as a numpy array (required).
+        data: Detector data as a numpy array (optional).
 
         source: Source of the detector data, for example image filename and event index
             for events extracted from a stream file (optional).
