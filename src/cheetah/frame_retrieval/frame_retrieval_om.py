@@ -122,8 +122,21 @@ class OmRetrieval(CheetahFrameRetrieval):
                         "peak_lists" in parameters.keys()
                         and filename in parameters["peak_lists"].keys()
                     ):
+                        if monitor_params.get_parameter(
+                            group="crystallography",
+                            parameter="binning",
+                            parameter_type=bool,
+                        ):
+                            bin_size: int = monitor_params.get_parameter(
+                                group="binning",
+                                parameter="bin_size",
+                                parameter_type=int,
+                                required=True,
+                            )
+                        else:
+                            bin_size = 1
                         self._peak_lists[filename] = self._load_peaks_from_file(
-                            parameters["peak_lists"][filename]
+                            parameters["peak_lists"][filename], bin_size
                         )
                     else:
                         pixelmaps: TypePixelMaps = pixel_maps_from_geometry_file(
@@ -145,8 +158,12 @@ class OmRetrieval(CheetahFrameRetrieval):
 
         self._num_events: int = len(self._events)
 
-    def _load_peaks_from_file(self, filename: str) -> Dict[str, TypePeakList]:
-        # Loads peaks from the peak list file written by Cheetah processing
+    def _load_peaks_from_file(
+        self, filename: str, bin_size: int = 1
+    ) -> Dict[str, TypePeakList]:
+        # Loads peaks from the peak list file written by Cheetah processing.
+        # If binning was used (bin_size > 1) transforms peak positions to match the
+        # original image size.
         peaks: Dict[str, TypePeakList] = {}
         previous_id: str = ""
         fh: TextIO
@@ -163,8 +180,12 @@ class OmRetrieval(CheetahFrameRetrieval):
                         "ss": [],
                     }
                     previous_id = event_id
-                peaks[event_id]["fs"].append(float(split_items[2]))
-                peaks[event_id]["ss"].append(float(split_items[3]))
+                peaks[event_id]["fs"].append(
+                    (float(split_items[2]) + 0.5) * bin_size - 0.5
+                )
+                peaks[event_id]["ss"].append(
+                    (float(split_items[3]) + 0.5) * bin_size - 0.5
+                )
         return peaks
 
     def get_event_list(self) -> List[str]:
