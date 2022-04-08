@@ -124,6 +124,13 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if self._num_events == 0:
             sys.exit("No images can be retrieved from the input sources.")
 
+        self._ui.total_number_label.setText(f"/{self._num_events}")
+        self._index_regex: Any = QtCore.QRegExp(r"[1-9]\d*")
+        self._index_validator: Any = QtGui.QRegExpValidator()
+        self._index_validator.setRegExp(self._index_regex)
+        self._ui.current_event_index_le.setValidator(self._index_validator)
+        self._ui.current_event_index_le.editingFinished.connect(self._go_to_pattern)
+
         self._current_event_index: int = 0
         self._retrieve_current_data()
 
@@ -155,6 +162,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._levels_range: Tuple[Union[int, float], Union[int, float]] = (0, 1)
         self._ui.auto_range_cb.setChecked(True)
         self._ui.auto_range_cb.stateChanged.connect(self._update_image)
+
+        self._level_regex: Any = QtCore.QRegExp(r"-?\d+\.?\d*")
+        self._level_validator: Any = QtGui.QRegExpValidator()
+        self._level_validator.setRegExp(self._level_regex)
+        self._ui.min_range_le.setValidator(self._level_validator)
+        self._ui.max_range_le.setValidator(self._level_validator)
 
         self._ui.min_range_le.editingFinished.connect(self._change_levels)
         self._ui.max_range_le.editingFinished.connect(self._change_levels)
@@ -413,6 +426,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._current_event_index
         )
 
+    def _go_to_pattern(self) -> None:
+        requested_event_index: int = int(self._ui.current_event_index_le.text()) - 1
+        if requested_event_index > self._num_events - 1:
+            requested_event_index = self._num_events - 1
+        self._current_event_index = requested_event_index
+        self._retrieve_current_data()
+        self._update_image_and_peaks()
+
     def _next_pattern(self) -> None:
         if self._current_event_index < self._num_events - 1:
             self._current_event_index += 1
@@ -480,6 +501,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_image_and_peaks(self) -> None:
         # Updates the image and peaks shown by the viewer.
+        self._ui.current_event_index_le.setText(f"{self._current_event_index + 1}")
         self._update_image()
         self._update_peaks()
         self._crystal_to_show: int = 0

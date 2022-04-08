@@ -223,6 +223,13 @@ class StreamRetrieval(CheetahFrameRetrieval):
         This method overrides the corresponding method of the base class: please also
         refer to the documentation of that class for more information.
 
+        This function retrieves all available data related to the requested event in
+        the CrystFEL stream file. It tries to extract detector data either from HDF5
+        file or using OM frame retrieval (if the data was initially streamed from OM to
+        CrystFEL for indexing). Additionally, it extracts photon energy in eV, detector
+        distance in meters, and a list of detected peaks and predicted reflection
+        positions for each of the indexed crystals from the stream file itself.
+
         Arguments:
 
             event_index: Index of the event in the list of events.

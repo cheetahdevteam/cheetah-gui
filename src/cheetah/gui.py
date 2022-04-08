@@ -486,9 +486,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         ]
         input_str: str = " ".join(selected_directories)
         geometry: str = self.experiment.get_last_processing_config()["geometry"]
-        viewer_command: str = (
-            f"cheetah_viewer.py {input_str} -i cheetah_directories -g {geometry}"
-        )
+        viewer_command: str = f"cheetah_viewer.py {input_str} -i dir -g {geometry}"
         print(viewer_command)
         subprocess.Popen(viewer_command, shell=True)
 
