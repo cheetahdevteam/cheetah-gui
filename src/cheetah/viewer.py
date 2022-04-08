@@ -3,8 +3,6 @@ Cheetah Viewer.
 
 This module contains Cheetah image viewer.
 """
-from re import S
-from turtle import st
 import click  # type: ignore
 import h5py  # type: ignore
 import numpy
@@ -23,7 +21,6 @@ from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,
-    TypePeakList,
 )
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval

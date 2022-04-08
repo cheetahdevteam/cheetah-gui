@@ -3,7 +3,6 @@ Cheetah GUI.
 
 This module contains the implementation of the main Cheetah GUI.
 """
-from concurrent.futures import process
 import click  # type: ignore
 import csv
 import os
@@ -25,9 +24,6 @@ from cheetah.dialogs import setup_dialogs, process_dialogs
 from cheetah import __file__ as cheetah_src_path
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
-from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
-from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
 from cheetah.viewer import Viewer
 
 
