@@ -101,7 +101,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                 if len(event_ids) > 0:
                     try:
                         monitor_params: MonitorParams = MonitorParams(
-                            parameters["om_configs"][filename]
+                            config=parameters["om_configs"][filename]
                         )
                         self._om_retrievals[filename] = OmFrameDataRetrieval(
                             source=parameters["om_sources"][filename],
