@@ -11,9 +11,9 @@ try:
 except:
     from typing_extensions import TypedDict
 
-from om.algorithms.generic import Binning  # type: ignore
-from om.data_retrieval_layer import OmFrameDataRetrieval  # type: ignore
-from om.utils.parameters import MonitorParams  # type: ignore
+from om.algorithms.generic import Binning
+from om.data_retrieval_layer import OmFrameDataRetrieval
+from om.utils.parameters import MonitorParams
 
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
@@ -252,7 +252,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
             ) not in self._om_retrievals:
                 try:
                     monitor_params: MonitorParams = MonitorParams(
-                        chunk_data["om_config"]
+                        config=chunk_data["om_config"]
                     )
                     self._om_retrievals[
                         (chunk_data["om_source"], chunk_data["om_config"])

@@ -10,7 +10,7 @@ import numpy.typing
 import pathlib
 import sys
 
-from om.utils import crystfel_geometry  # type: ignore
+from om.utils import crystfel_geometry
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 import pyqtgraph  # type: ignore
 from random import randrange

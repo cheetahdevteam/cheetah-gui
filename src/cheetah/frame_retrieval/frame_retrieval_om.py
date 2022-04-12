@@ -10,11 +10,11 @@ try:
 except:
     from typing_extensions import TypedDict
 
-from om.algorithms.crystallography import Peakfinder8PeakDetection  # type: ignore
+from om.algorithms.crystallography import Peakfinder8PeakDetection
 from om.algorithms.crystallography import TypePeakList as OmTypePeakList
-from om.data_retrieval_layer import OmFrameDataRetrieval  # type: ignore
-from om.utils.parameters import MonitorParams  # type: ignore
-from om.utils.crystfel_geometry import TypePixelMaps, pixel_maps_from_geometry_file  # type: ignore
+from om.data_retrieval_layer import OmFrameDataRetrieval
+from om.utils.parameters import MonitorParams
+from om.utils.crystfel_geometry import TypePixelMaps, pixel_maps_from_geometry_file
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,

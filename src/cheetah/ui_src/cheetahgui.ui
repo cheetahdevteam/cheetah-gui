@@ -379,27 +379,8 @@
     <addaction name="menu_log_cheetah"/>
     <addaction name="menu_log_cheetah_status"/>
    </widget>
-   <widget class="QMenu" name="menuCrystFEL">
-    <property name="enabled">
-     <bool>false</bool>
-    </property>
-    <property name="title">
-     <string>CrystFEL</string>
-    </property>
-    <addaction name="menu_crystfel_index"/>
-    <addaction name="separator"/>
-    <addaction name="menu_crystfel_view_indexing_results"/>
-    <addaction name="menu_crystfel_cell_explorer"/>
-    <addaction name="menu_crystfel_view_indexing_pick"/>
-    <addaction name="menu_crystfel_cell_explorer_pick"/>
-    <addaction name="separator"/>
-    <addaction name="menu_crystfel_merge_streams"/>
-    <addaction name="menu_crystfel_list_files"/>
-    <addaction name="menu_crystfel_list_events"/>
-   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuCheetah"/>
-   <addaction name="menuCrystFEL"/>
    <addaction name="menu_masks"/>
    <addaction name="menuPowder"/>
    <addaction name="menuAnalysis"/>
@@ -538,52 +519,6 @@
   <action name="menu_powder_copydarkcal">
    <property name="text">
     <string>Copy darkcal.h5 to calib/darkcal</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_cell_explorer">
-   <property name="text">
-    <string>Cell explorer (selected run)</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_view_indexing_results">
-   <property name="text">
-    <string>View indexing (selected run)</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_merge_streams">
-   <property name="text">
-    <string>Merge stream files</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_list_events">
-   <property name="enabled">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>List events</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_index">
-   <property name="text">
-    <string>Run indexamajig</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_cell_explorer_pick">
-   <property name="text">
-    <string>Cell explorer (pick stream file)</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_view_indexing_pick">
-   <property name="text">
-    <string>View indexing (pick stream file)</string>
-   </property>
-  </action>
-  <action name="menu_crystfel_list_files">
-   <property name="enabled">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>List files</string>
    </property>
   </action>
   <action name="menu_file_modify_beamline_configuration">
