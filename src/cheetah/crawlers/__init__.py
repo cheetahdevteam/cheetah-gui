@@ -17,19 +17,21 @@ except:
 
 from cheetah.crawlers.base import Crawler
 from cheetah.crawlers.crawler_lcls import LclsCrawler
+from cheetah.crawlers.crawler_p11 import P11EigerCrawler
+from cheetah.crawlers.crawler_biocars import BioCarsMccdCrawler
+
 from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
     guess_experiment_id_lcls,
     guess_raw_directory_lcls,
     prepare_om_source_lcls,
 )
-
-from cheetah.crawlers.crawler_p11 import P11EigerCrawler
-from cheetah.crawlers.functions_p11 import (
+from cheetah.crawlers.functions_desy import (
     guess_batch_queue_desy,
     guess_experiment_id_desy,
     guess_raw_directory_desy,
     prepare_om_source_p11_eiger,
+    prepare_om_source_biocars_mccd,
 )
 
 
@@ -155,7 +157,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "guess_batch_queue": guess_batch_queue_lcls,
         "crawler": LclsCrawler,
     },
-    "PETRA III": {
+    "DESY (PETRA III)": {
         "instruments": {
             "P11": {
                 "detectors": {
@@ -175,6 +177,27 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "prepare_om_source": prepare_om_source_p11_eiger,
         "guess_batch_queue": guess_batch_queue_desy,
         "crawler": P11EigerCrawler,
+    },
+    "DESY (external beamtime)": {
+        "instruments": {
+            "APS/BioCARS": {
+                "detectors": {
+                    "RayonixMccd16M": {
+                        "calib_resources": {
+                            "geometry": "mccd16M.geom",
+                            "mask": "mask_mccd16M.h5",
+                        },
+                        "om_config_template": "biocars_mccd_template.yaml",
+                        "process_template": "desy_slurm_template.sh",
+                    }
+                }
+            }
+        },
+        "guess_raw_directory": guess_raw_directory_desy,
+        "guess_experiment_id": guess_experiment_id_desy,
+        "prepare_om_source": prepare_om_source_biocars_mccd,
+        "guess_batch_queue": guess_batch_queue_desy,
+        "crawler": BioCarsMccdCrawler,
     },
 }
 """
