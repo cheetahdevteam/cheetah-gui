@@ -78,7 +78,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         mask_layout: Any = QtWidgets.QHBoxLayout()
         mask_layout.addWidget(self._mask_le)
         mask_layout.addWidget(self._mask_button)
-        form_layout.addRow("Cheetah config file: ", mask_layout)
+        form_layout.addRow("Mask file: ", mask_layout)
 
         self._button_box: Any = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok
