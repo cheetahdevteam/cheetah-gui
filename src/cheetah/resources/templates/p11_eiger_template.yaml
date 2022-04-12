@@ -5,8 +5,8 @@ om:
 
 data_retrieval_layer:
   calibration: false
-  fallback_detector_distance: 200
-  fallback_beam_energy: 20000
+  fallback_detector_distance_in_mm: 200
+  fallback_beam_energy_in_eV: 20000
   required_data:
     - "detector_data"
     - "beam_energy"

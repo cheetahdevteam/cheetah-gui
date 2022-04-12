@@ -189,7 +189,10 @@ class CheetahProcess:
             mask_file = "null"
 
         proc_id: str = self._raw_id_to_proc_id(run_id)
-        output_directory_name: str = f"{proc_id}-{tag}"
+        if tag:
+            output_directory_name: str = f"{proc_id}-{tag}"
+        else:
+            output_directory_name = proc_id
         output_directory: pathlib.Path = self._proc_directory / output_directory_name
 
         if output_directory.is_dir():
