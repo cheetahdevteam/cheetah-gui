@@ -72,19 +72,37 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         self.resize(300, 50)
         self.setWindowTitle("Cheetah Crawler")
 
+        self._experiment: CheetahExperiment = experiment
+        self._crawler: Crawler = self._experiment.start_crawler()
+
+        self._raw_scan_enable_button: Any = QtWidgets.QCheckBox("Scan raw directory")
+        self._raw_scan_enable_button.setChecked(
+            self._crawler.raw_directory_scan_is_enabled()
+        )
+        self._raw_scan_enable_button.stateChanged.connect(self._update_crawler_config)
+
+        self._proc_scan_enable_button: Any = QtWidgets.QCheckBox("Scan hdf5 directory")
+        self._proc_scan_enable_button.setChecked(
+            self._crawler.proc_directory_scan_is_enabled()
+        )
+        self._proc_scan_enable_button.stateChanged.connect(self._update_crawler_config)
+
         self._refresh_button: Any = QtWidgets.QPushButton("Refresh")
         self._refresh_button.clicked.connect(self._refresh)
         self._status_label: Any = QtWidgets.QLabel()
 
-        layout: Any = QtWidgets.QHBoxLayout()
-        layout.addWidget(self._refresh_button)
-        layout.addWidget(self._status_label)
+        hlayout: Any = QtWidgets.QHBoxLayout()
+        hlayout.addWidget(self._refresh_button)
+        hlayout.addWidget(self._status_label)
+        layout: Any = QtWidgets.QVBoxLayout()
+        layout.addWidget(self._raw_scan_enable_button)
+        layout.addWidget(self._proc_scan_enable_button)
+        layout.addLayout(hlayout)
         self._central_widget = QtWidgets.QWidget()
         self._central_widget.setLayout(layout)
         self.setCentralWidget(self._central_widget)
 
-        self._experiment: CheetahExperiment = experiment
-        self._refresher = _CrawlerRefresher(self._experiment.start_crawler())
+        self._refresher = _CrawlerRefresher(self._crawler)
         self._refresh_thread: Any = QtCore.QThread()
         self._refresher.moveToThread(self._refresh_thread)
 
@@ -96,6 +114,16 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         self._refresh_timer.timeout.connect(self._refresh)
 
         self._refresh()
+
+    def _update_crawler_config(self) -> None:
+        # Changes crawler scanning parameters and updates crawler.config file.
+        self._crawler.set_raw_directory_scan_enabled(
+            self._raw_scan_enable_button.isChecked()
+        )
+        self._crawler.set_proc_directory_scan_enabled(
+            self._proc_scan_enable_button.isChecked()
+        )
+        self._experiment.write_crawler_config()
 
     def _refresh(self) -> None:
         # Starts crawler update.
@@ -111,10 +139,10 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
 
     def closeEvent(self, event: Any) -> None:
         """
-        Let the parent know about the GUI closing.
+        Let the parent know about the GUI closing and accept.
 
-        This function is called when the GUI window is closed. It lets the parent know
-        about it.
+        This function is called when the GUI window is closed. It lets the main Cheetah
+        GUI window know about it.
         """
         self._refresh_timer.stop()
         self.parent._crawler_gui_closed()

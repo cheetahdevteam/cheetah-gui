@@ -2,7 +2,7 @@
 Cheetah Experiment.
 
 This module contains classes and functions that provide information related to a 
-particular experiment and control it's data processing.
+particular experiment and control its data processing.
 """
 import pathlib
 import shutil
@@ -95,6 +95,8 @@ class CheetahExperiment:
             self._raw_directory,
             self._proc_directory,
             self._crawler_csv_filename,
+            self._crawler_scan_raw_dir,
+            self._crawler_scan_proc_dir,
         )
         self._cheetah_process: CheetahProcess = CheetahProcess(
             self._facility,
@@ -117,8 +119,13 @@ class CheetahExperiment:
                     config[line_items[0].strip()] = line_items[1].strip()
         return config
 
-    def _write_crawler_config(self) -> None:
-        # Writes crawler config file.
+    def write_crawler_config(self) -> None:
+        """
+        Write crawler config file.
+
+        This function writes all experiment and crawler configuration parameters to the
+        crawler.txt file in cheetah/gui directory.
+        """
         fh: TextIO
         with open(self._crawler_config_filename, "w") as fh:
             # Write experiment info:
@@ -135,6 +142,12 @@ class CheetahExperiment:
                 f"hdf5_dir={self._proc_directory.relative_to(self._base_path)}\n"
                 f"process_dir={self._process_directory.relative_to(self._base_path)}\n\n"
             )
+            # Write crawler scan config:
+            fh.write(
+                f"crawler_scan_raw_dir={self._crawler.raw_directory_scan_is_enabled()}\n"
+                f"crawler_scan_proc_dir={self._crawler.proc_directory_scan_is_enabled()}\n\n"
+            )
+
             # Write processing config info:
             fh.write(f"geometry={self._last_geometry.relative_to(self._base_path)}\n")
             if self._last_mask:
@@ -226,6 +239,21 @@ class CheetahExperiment:
             pathlib.Path(crawler_config["process_dir"]), self._base_path
         )
         self._calib_directory = self._gui_directory.parent / "calib"
+
+        if (
+            "crawler_scan_raw_dir" in crawler_config.keys()
+            and crawler_config["crawler_scan_raw_dir"] == "False"
+        ):
+            self._crawler_scan_raw_dir: bool = False
+        else:
+            self._crawler_scan_raw_dir = True
+        if (
+            "crawler_scan_proc_dir" in crawler_config.keys()
+            and crawler_config["crawler_scan_proc_dir"] == "False"
+        ):
+            self._crawler_scan_proc_dir: bool = False
+        else:
+            self._crawler_scan_proc_dir = True
 
         self._last_process_config_filename = self._resolve_path(
             pathlib.Path(crawler_config["cheetah_config"]), self._base_path
@@ -321,7 +349,7 @@ class CheetahExperiment:
         self._last_process_config_filename = self._process_directory / "template.yaml"
         self._last_tag = ""
 
-        self._write_crawler_config()
+        self.write_crawler_config()
 
     def _update_previous_experiments_list(self) -> None:
         # Updates the list of experiments in ~/.cheetah-crawler2, setting current
@@ -467,7 +495,7 @@ class CheetahExperiment:
             queue,
             n_processes,
         )
-        self._write_crawler_config()
+        self.write_crawler_config()
 
     def start_crawler(self) -> Crawler:
         """

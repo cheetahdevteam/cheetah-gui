@@ -5,10 +5,11 @@ This module contains base classes for Cheetah Crawlers.
 """
 import csv
 import pathlib
+import time
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, TextIO, Dict, Union, cast
+from typing import List, TextIO, Tuple, Dict, Union, cast
 
 try:
     from typing import TypedDict, Literal
@@ -116,6 +117,8 @@ class Crawler(ABC):
         raw_directory: pathlib.Path,
         proc_directory: pathlib.Path,
         output_filename: pathlib.Path,
+        raw_directory_scan_enabled: bool = True,
+        proc_directory_scan_enabled: bool = True,
     ) -> None:
         """
         Base class for Cheetah Crawler.
@@ -145,6 +148,8 @@ class Crawler(ABC):
         self._raw_directory: pathlib.Path = raw_directory
         self._proc_directory: pathlib.Path = proc_directory
         self._output_filename: pathlib.Path = output_filename
+        self._raw_directory_scan_enabled: bool = raw_directory_scan_enabled
+        self._proc_directory_scan_enabled: bool = proc_directory_scan_enabled
 
     @abstractmethod
     def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
@@ -209,10 +214,10 @@ class Crawler(ABC):
         return raw_id.replace("-", "_")
 
     def _scan_proc_directory(self) -> List[TypeProcStatusItem]:
-        # This function is called every time crawler updates the the run table
-        # displayed in Cheetah GUI. It scans processed data directory and returns the
-        # list of TypeProcStatusItem dictionaries containing information of the data
-        # processing status for each processing run.
+        # This function is called every time crawler updates the run table displayed
+        # in Cheetah GUI. It scans processed data directory and returns the list of
+        # TypeProcStatusItem dictionaries containing information of the data processing
+        # status for each processing run.
         hdf5_status: List[TypeProcStatusItem] = []
         status_file: pathlib.Path
         for status_file in self._proc_directory.rglob("status.txt"):
@@ -273,6 +278,114 @@ class Crawler(ABC):
                     status[line_items[0].strip()] = ":".join(line_items[1:]).strip()
         return status
 
+    def _read_table(self) -> Tuple[List[TypeRawStatusItem], List[TypeProcStatusItem]]:
+        # Reads data from the crawler CSV file.
+        raw_status: List[TypeRawStatusItem] = []
+        proc_status: List[TypeProcStatusItem] = []
+        if self._output_filename.exists():
+            csvfile: TextIO
+            with open(self._output_filename, "r") as csvfile:
+                reader: csv.DictReader[str] = csv.DictReader(csvfile)
+                table_row: Dict[str, str]
+                for table_row in reader:
+                    raw_status.append(
+                        {
+                            "run_id": self.table_id_to_raw_id(table_row["Run"]),
+                            "status": table_row["Rawdata"],
+                        }
+                    )
+                    if table_row["H5Directory"] != "---":
+                        split_items: List[str] = table_row["H5Directory"].split("-")
+                        run_id: str = split_items[0]
+                        tag: str = "-".join(split_items[1:])
+                        update_time: float = time.time()
+                        proc_status.append(
+                            {
+                                "run_name": table_row["H5Directory"],
+                                "run_id": run_id,
+                                "tag": tag,
+                                "status": table_row["Cheetah"],
+                                "update_time": update_time,
+                                "processed": int(table_row["Nprocessed"]),
+                                "hits": int(table_row["Nhits"]),
+                                "recipe": table_row["Recipe"],
+                            }
+                        )
+        return raw_status, proc_status
+
+    def _write_table(self, table_rows: List[TypeTableRow]) -> None:
+        # Writes a list of TypeTableRow dictionaries to the output CSV file using the
+        # keys of TypeTableRow as column names.
+        csvfile: TextIO
+        with open(self._output_filename, "w", newline="") as csvfile:
+            writer: csv.DictWriter[str] = csv.DictWriter(
+                csvfile, fieldnames=list(TypeTableRow.__annotations__.keys())
+            )
+            writer.writeheader()
+            row: TypeTableRow
+            for row in table_rows:
+                writer.writerow(row)
+
+    def raw_directory_scan_is_enabled(self) -> bool:
+        """
+        Checks if raw directory scan is enabled.
+
+        When raw directory scan is enabled it is performed every time
+        [`update`][cheetah.crawlers.base.Crawler.update] function is called. When raw
+        directory scan is disabled the status of the raw data is retrieved from the
+        crawler CSV file instead.
+
+        Returns:
+
+            True if raw directory scan is enabled, False if disabled.
+        """
+        return self._raw_directory_scan_enabled
+
+    def proc_directory_scan_is_enabled(self) -> bool:
+        """
+        Checks if processed directory scan is enabled.
+
+        When processed directory scan is enabled it is performed every time
+        [`update`][cheetah.crawlers.base.Crawler.update] function is called. When
+        processed directory scan is disabled the status of the raw data is retrieved
+        from the crawler CSV file instead.
+
+        Returns:
+
+            True if processed directory scan is enabled, False if disabled.
+        """
+        return self._proc_directory_scan_enabled
+
+    def set_raw_directory_scan_enabled(self, enable: bool = True) -> None:
+        """
+        Enables or disables raw directory scan.
+
+        When raw directory scan is enabled it is performed every time
+        [`update`][cheetah.crawlers.base.Crawler.update] function is called. When raw
+        directory scan is disabled the status of the raw data is retrieved from the
+        crawler CSV file instead.
+
+        Arguments:
+
+            enable: Whether to enable raw directory scanning. Defaults to True.
+        """
+        self._raw_directory_scan_enabled = enable
+
+    def set_proc_directory_scan_enabled(self, enable: bool = True) -> None:
+        """
+        Enables or disables processed directory scan.
+
+        When processed directory scan is enabled it is performed every time
+        [`update`][cheetah.crawlers.base.Crawler.update] function is called. When
+        processed directory scan is disabled the status of the raw data is retrieved
+        from the crawler CSV file instead.
+
+        Arguments:
+
+            enable: Whether to enable raw directory scanning. Defaults to True.
+        """
+        self._proc_directory_scan_enabled = enable
+
     def update(self) -> None:
         """
         Updates CSV file containing information for the Cheetah GUI run table.
@@ -285,10 +398,23 @@ class Crawler(ABC):
         then writes the accumulated data to the output CSV file using the keys of
         [TypeTableRow][cheetah.crawlers.base.TypeTableRow] dictionary as column names.
         """
-        print("Crawler: scanning raw directory")
-        raw_status: List[TypeRawStatusItem] = self._scan_raw_directory()
-        print("Crawler: scanning hdf5 directory")
-        proc_status: List[TypeProcStatusItem] = self._scan_proc_directory()
+        if (
+            self._raw_directory_scan_enabled is False
+            and self._proc_directory_scan_enabled is False
+        ):
+            print(
+                "Crawler: both raw and hdf5 directory scanning is disabled, "
+                "doing nothing."
+            )
+        raw_status: List[TypeRawStatusItem]
+        proc_status: List[TypeProcStatusItem]
+        raw_status, proc_status = self._read_table()
+        if self._raw_directory_scan_enabled:
+            print("Crawler: scanning raw directory")
+            raw_status = self._scan_raw_directory()
+        if self._proc_directory_scan_enabled:
+            print("Crawler: scanning hdf5 directory")
+            proc_status = self._scan_proc_directory()
         raw_status_item: TypeRawStatusItem
         table_rows: List[TypeTableRow] = []
         for raw_status_item in raw_status:
@@ -327,14 +453,3 @@ class Crawler(ABC):
 
             table_rows.append(row)
         self._write_table(table_rows)
-
-    def _write_table(self, table_rows: List[TypeTableRow]) -> None:
-        # Writes a list of TypeTableRow dictionaries to the output CSV file using the
-        # keys of TypeTableRow as column names.
-        with open(self._output_filename, "w", newline="") as csvfile:
-            writer = csv.DictWriter(
-                csvfile, fieldnames=list(TypeTableRow.__annotations__.keys())
-            )
-            writer.writeheader()
-            for row in table_rows:
-                writer.writerow(row)
