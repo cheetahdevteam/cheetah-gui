@@ -27,7 +27,7 @@ class BioCarsMccdCrawler(Crawler):
 
         raw_status: List[TypeRawStatusItem] = []
         child_directory: pathlib.Path
-        for child_directory in self._raw_directory.glob("**/"):
+        for child_directory in sorted(self._raw_directory.glob("**/")):
             # Check if there're mccd files in the child directory
             if next(child_directory.glob("*.mccd"), None) is None:
                 continue
