@@ -3,7 +3,7 @@
 #
 #
 """
-setup.py file for Cheetah GUI
+setup.py file for Cheetah GUI.
 """
 
 from setuptools import find_packages, setup
@@ -59,6 +59,7 @@ setup(
         "gui_scripts": [
             "cheetah_gui.py=cheetah.gui:main",
             "cheetah_viewer.py=cheetah.viewer:main",
+            "cheetah_peakogram.py=cheetah.peakogram:main",
         ],
     },
     packages=find_packages(where="src"),
