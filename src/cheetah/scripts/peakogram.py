@@ -29,6 +29,12 @@ class _TypePeak(TypedDict):
     intensity: float
 
 
+class _TypePeakogramData(TypedDict):
+    # This typed dictionary is used internally to store peakogram data.
+    peakogram: NDArray[numpy.float_]
+    npeaks: int
+
+
 class _PeaksReader(FileReader):
     # This class is used interntally to read data from a list of peaks.txt files
     # written by Cheetah. It constructs a peakogram and transmits it to the main
@@ -219,7 +225,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         self._stop_reader_thread.connect(self._peak_reader.stop)
         self._peak_reader_thread.start()
 
-    def _update_peakogram(self, data: Dict[str, Any]) -> None:
+    def _update_peakogram(self, data: _TypePeakogramData) -> None:
         # Updates the peakogram.
         self._peakogram_plot_widget.setTitle(
             f"Peakogram: {data['npeaks']} peaks loaded."
@@ -267,7 +273,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
     nargs=1,
     type=click.Path(exists=True),
     required=True,
-    help="CrystFEL geometry file, required for all input types",
+    help="CrystFEL geometry file",
 )
 @click.option(  # type: ignore
     "--radius-bin-size",
