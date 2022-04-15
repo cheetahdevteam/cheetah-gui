@@ -27,7 +27,7 @@ class BioCarsMccdCrawler(Crawler):
 
         raw_status: List[TypeRawStatusItem] = []
         child_directory: pathlib.Path
-        for child_directory in sorted(self._raw_directory.glob("**/")):
+        for child_directory in self._raw_directory.glob("**/"):
             # Check if there're mccd files in the child directory
             if next(child_directory.glob("*.mccd"), None) is None:
                 continue
@@ -46,7 +46,7 @@ class BioCarsMccdCrawler(Crawler):
                 status = "In progress"
             raw_status.append({"run_id": run_id, "status": status})
 
-        return raw_status
+        return sorted(raw_status, key=lambda s: s["run_id"])
 
     def raw_id_to_table_id(self, raw_id: str) -> str:
         """
