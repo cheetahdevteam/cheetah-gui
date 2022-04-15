@@ -338,14 +338,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         # File menu actions
         self._ui.menu_file_start_crawler.triggered.connect(self._start_crawler)
-        self._ui.menu_file_new_geometry.triggered.connect(self._pass)
-        self._ui.menu_file_modify_beamline_configuration.triggered.connect(self._pass)
 
         # Cheetah menu actions
         self._ui.menu_cheetah_process_selected.triggered.connect(self._process_runs)
-        self._ui.menu_cheetah_relabel.triggered.connect(self._pass)
         self._ui.menu_cheetah_autorun.triggered.connect(self._pass)
-        self._ui.menu_modify_config_files.triggered.connect(self._pass)
 
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._pass)
@@ -371,7 +367,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_start_crawler.setEnabled(False)
         self._ui.menu_cheetah_process_selected.setEnabled(False)
         self._ui.menu_cheetah_autorun.setEnabled(False)
-        self._ui.menu_cheetah_relabel.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
     def _pass(self) -> None:
@@ -387,7 +382,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_start_crawler.setEnabled(True)
         self._ui.menu_cheetah_process_selected.setEnabled(True)
         # self._ui.menu_cheetah_autorun.setEnabled(True)
-        # self._ui.menu_cheetah_relabel.setEnabled(True)
 
     def _exit(self) -> None:
         # Prints message on exit

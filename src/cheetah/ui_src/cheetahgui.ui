@@ -295,7 +295,6 @@
     </property>
     <addaction name="menu_file_command"/>
     <addaction name="menu_file_start_crawler"/>
-    <addaction name="menu_file_new_geometry"/>
     <addaction name="separator"/>
     <addaction name="menu_file_quit"/>
    </widget>
@@ -304,9 +303,7 @@
      <string>Cheetah</string>
     </property>
     <addaction name="menu_cheetah_process_selected"/>
-    <addaction name="menu_cheetah_relabel"/>
     <addaction name="menu_cheetah_autorun"/>
-    <addaction name="menu_modify_config_files"/>
    </widget>
    <widget class="QMenu" name="menuAnalysis">
     <property name="enabled">
@@ -385,14 +382,6 @@
     <string>Process selected runs</string>
    </property>
   </action>
-  <action name="menu_cheetah_relabel">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>Label or relabel dataset</string>
-   </property>
-  </action>
   <action name="menu_cheetah_autorun">
    <property name="enabled">
     <bool>false</bool>
@@ -465,14 +454,6 @@
   <action name="menu_mask_view">
    <property name="text">
     <string>View mask file</string>
-   </property>
-  </action>
-  <action name="menu_file_new_geometry">
-   <property name="enabled">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>Change geometry file</string>
    </property>
   </action>
   <action name="menu_powder_copydarkcal">

@@ -33,7 +33,6 @@ class _FramesReader(FileReader):
         super(_FramesReader, self).__init__(
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
-
         self._running_average_window_size: int = parameters[
             "running_average_window_size"
         ]
@@ -67,11 +66,9 @@ class _FramesReader(FileReader):
                     size=self._running_average_window_size,
                     output=float,
                 )
-                / self._running_average_window_size
                 * 100
             )
         self._num_new_events = 0
-        print(hitrate.keys())
         return hitrate
 
 
