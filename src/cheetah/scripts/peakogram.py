@@ -1,9 +1,10 @@
 """
-Cheetah Peakogram.
+Peakogram GUI.
 
-This module contains Cheetah Peakogram GUI.
+This module contains Cheetah peakogram GUI.
 """
 import click  # type: ignore
+import pathlib
 import sys
 from typing import Any, List, Dict, Union, cast
 
@@ -16,10 +17,11 @@ import numpy
 from numpy.typing import NDArray
 
 from om.utils import crystfel_geometry
-from PyQt5 import QtCore, QtWidgets  # type: ignore
+from PyQt5 import QtGui, QtCore, QtWidgets  # type: ignore
 import pyqtgraph  # type: ignore
 
 from cheetah.utils.file_reader_base import FileReader
+from cheetah import __file__ as cheetah_src_path
 
 
 class _TypePeak(TypedDict):
@@ -44,7 +46,7 @@ class _PeaksReader(FileReader):
         self,
         filenames: List[str],
         parameters: Dict[str, Any],
-    ):
+    ) -> None:
         super(_PeaksReader, self).__init__(
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
@@ -181,6 +183,11 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
                 direction in ADU.
         """
         super(PeakogramGui, self).__init__()
+        self.setWindowIcon(
+            QtGui.QIcon(
+                str((pathlib.Path(cheetah_src_path) / "../ui_src/icon.svg").resolve())
+            )
+        )
         self._peakogram_radius_bin_size: float = radius_bin_size
         self._peakogram_intensity_bin_size: float = intensity_bin_size
         self._peakogram: NDArray[numpy.float_] = numpy.zeros((1, 1))

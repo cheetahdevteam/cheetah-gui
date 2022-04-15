@@ -70,28 +70,6 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="button_index">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Index hits</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QPushButton" name="button_view_hits">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -173,7 +151,7 @@
         <item>
          <widget class="QPushButton" name="button_peakogram">
           <property name="enabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -280,11 +258,6 @@
         </column>
         <column>
          <property name="text">
-          <string>Nindex</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
           <string>Hitrate%</string>
          </property>
         </column>
@@ -313,7 +286,7 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>20</height>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -323,7 +296,6 @@
     <addaction name="menu_file_command"/>
     <addaction name="menu_file_start_crawler"/>
     <addaction name="menu_file_new_geometry"/>
-    <addaction name="menu_file_modify_beamline_configuration"/>
     <addaction name="separator"/>
     <addaction name="menu_file_quit"/>
    </widget>
@@ -338,14 +310,12 @@
    </widget>
    <widget class="QMenu" name="menuAnalysis">
     <property name="enabled">
-     <bool>false</bool>
+     <bool>true</bool>
     </property>
     <property name="title">
      <string>Analysis</string>
     </property>
     <addaction name="menu_analysis_hitrate"/>
-    <addaction name="menu_analysis_resolution"/>
-    <addaction name="menu_analysis_saturation"/>
     <addaction name="menu_analysis_peakogram"/>
    </widget>
    <widget class="QMenu" name="menu_masks">
@@ -370,13 +340,12 @@
    </widget>
    <widget class="QMenu" name="menuLogs">
     <property name="enabled">
-     <bool>false</bool>
+     <bool>true</bool>
     </property>
     <property name="title">
      <string>Logs</string>
     </property>
     <addaction name="menu_log_batch"/>
-    <addaction name="menu_log_cheetah"/>
     <addaction name="menu_log_cheetah_status"/>
    </widget>
    <addaction name="menuFile"/>
@@ -442,19 +411,9 @@
     <string>Peakogram</string>
    </property>
   </action>
-  <action name="menu_analysis_saturation">
-   <property name="text">
-    <string>Saturation check</string>
-   </property>
-  </action>
   <action name="menu_analysis_hitrate">
    <property name="text">
-    <string>Hit rate plot</string>
-   </property>
-  </action>
-  <action name="menu_analysis_resolution">
-   <property name="text">
-    <string>Resolution plot</string>
+    <string>Hitrate plot</string>
    </property>
   </action>
   <action name="menu_powder_hits_sum">
@@ -492,7 +451,7 @@
   </action>
   <action name="menu_log_cheetah_status">
    <property name="enabled">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="text">
     <string>Cheetah status file</string>

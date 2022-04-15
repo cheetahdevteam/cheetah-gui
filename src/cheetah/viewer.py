@@ -275,7 +275,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             * int(max(abs(self._pixelmaps["x"].max()), abs(self._pixelmaps["x"].min())))
             + 2
         )
-        self._data_shape: Tuple[int, int] = self._pixelmaps["x"].shape
+        self._data_shape: Tuple[int, ...] = self._pixelmaps["x"].shape
         self._visual_img_shape: Tuple[int, int] = (y_minimum, x_minimum)
         self._img_center_x: int = int(self._visual_img_shape[1] / 2)
         self._img_center_y: int = int(self._visual_img_shape[0] / 2)

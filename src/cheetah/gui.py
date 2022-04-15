@@ -12,7 +12,7 @@ import sys
 
 from datetime import datetime
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
-from typing import Any, List, Dict, Text, TextIO
+from typing import Any, List, Dict, Union, TextIO
 
 try:
     from typing import Literal
@@ -24,7 +24,6 @@ from cheetah.dialogs import setup_dialogs, process_dialogs
 from cheetah import __file__ as cheetah_src_path
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
-from cheetah.viewer import Viewer
 
 
 class _CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -198,6 +197,62 @@ class ProcessThread(QtCore.QThread):  # type: ignore
             self._experiment.process_run(run_id, self._config)
 
 
+class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
+    """
+    See documentation of the `__init__` function.
+    """
+
+    def __init__(self, filename: str, parent: Any = None) -> None:
+        """
+        Text File Viewer.
+
+        This class implements a simple text file viewer. It is called by the main
+        Cheetah GUI to display contents of the log files.
+
+        Arguments:
+
+            filename: The name of the text file to display.
+
+            parent: Parent QtWidget. Defaults to None
+
+        """
+        super(TextFileViewer, self).__init__(parent)
+        self.setWindowIcon(
+            QtGui.QIcon(
+                str((pathlib.Path(cheetah_src_path) / "../ui_src/icon.svg").resolve())
+            )
+        )
+        self.setWindowTitle(f"{filename}")
+        self.parent: Any = parent
+
+        self._filename: pathlib.Path = pathlib.Path(filename)
+
+        self._reload_button: Any = QtWidgets.QPushButton("Reload")
+        self._reload_button.clicked.connect(self._update)
+        self._text_edit: Any = QtWidgets.QPlainTextEdit()
+        self._text_edit.setReadOnly(True)
+
+        layout: Any = QtWidgets.QVBoxLayout()
+        layout.addWidget(self._text_edit)
+        layout.addWidget(self._reload_button)
+        self._central_widget = QtWidgets.QWidget()
+        self._central_widget.setLayout(layout)
+        self.setCentralWidget(self._central_widget)
+        self.resize(800, 600)
+        self._update()
+        self.show()
+
+    def _update(self) -> None:
+        # Displays contents of the input file.
+        self._text_edit.clear()
+        if pathlib.Path(self._filename).exists():
+            fh: TextIO
+            with open(self._filename, "r") as fh:
+                self._text_edit.appendPlainText(fh.read())
+        else:
+            self._text_edit.appendPlainText(f"File {self._filename} doesn't exist.")
+
+
 class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     """
     See documentation of the `__init__` function.
@@ -229,8 +284,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._crawler_csv_filename: pathlib.Path = (
             self.experiment.get_crawler_csv_filename()
         )
-
-        self._viewer_windows: List[Viewer] = []
 
         self._table: Any = self._ui.table_status
         self._table_data: List[Dict[str, Any]] = []
@@ -277,12 +330,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Connect front panel buttons to actions
         self._ui.button_refresh.clicked.connect(self._refresh_table)
         self._ui.button_run_cheetah.clicked.connect(self._process_runs)
-        self._ui.button_index.clicked.connect(self._pass)
         self._ui.button_view_hits.clicked.connect(self._view_hits)
         self._ui.button_sum_blanks.clicked.connect(self._view_sum_blanks)
         self._ui.button_sum_hits.clicked.connect(self._view_sum_hits)
         self._ui.button_peak_powder.clicked.connect(self._view_powder_hits)
-        self._ui.button_peakogram.clicked.connect(self._pass)
+        self._ui.button_peakogram.clicked.connect(self._view_peakogram)
 
         # File menu actions
         self._ui.menu_file_start_crawler.triggered.connect(self._start_crawler)
@@ -301,10 +353,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_mask_view.triggered.connect(self._pass)
 
         # Analysis menu items
-        self._ui.menu_analysis_hitrate.triggered.connect(self._pass)
-        self._ui.menu_analysis_peakogram.triggered.connect(self._pass)
-        self._ui.menu_analysis_resolution.triggered.connect(self._pass)
-        self._ui.menu_analysis_saturation.triggered.connect(self._pass)
+        self._ui.menu_analysis_hitrate.triggered.connect(self._view_hitrate)
+        self._ui.menu_analysis_peakogram.triggered.connect(self._view_peakogram)
 
         # Powder menu actions
         self._ui.menu_powder_hits_sum.triggered.connect(self._view_sum_hits)
@@ -313,15 +363,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_powder_peaks_blanks.triggered.connect(self._view_powder_blanks)
 
         # Log menu actions
-        self._ui.menu_log_batch.triggered.connect(self._pass)
-        self._ui.menu_log_cheetah.triggered.connect(self._pass)
-        self._ui.menu_log_cheetah_status.triggered.connect(self._pass)
-        self._ui.menu_log_cheetah.setEnabled(False)
-        self._ui.menu_log_cheetah_status.setEnabled(False)
+        self._ui.menu_log_batch.triggered.connect(self._view_batch_log)
+        self._ui.menu_log_cheetah_status.triggered.connect(self._view_status_file)
 
         # Disable action commands until enabled
         self._ui.button_run_cheetah.setEnabled(False)
-        self._ui.button_index.setEnabled(False)
         self._ui.menu_file_start_crawler.setEnabled(False)
         self._ui.menu_cheetah_process_selected.setEnabled(False)
         self._ui.menu_cheetah_autorun.setEnabled(False)
@@ -497,6 +543,40 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self.crawler_window = CrawlerGui(self.experiment, self)
         self.crawler_window.show()
 
+    def _view_batch_log(self) -> None:
+        # Shows the contents of batch.out file from the first of the selected runs in
+        # a TextFileGui window.
+        selected_row: int = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )[0]
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        batch_file: pathlib.Path = (
+            self.experiment.get_proc_directory()
+            / self._table.item(selected_row, proc_dir_column).text()
+            / "batch.out"
+        )
+        if not batch_file.exists():
+            print(f"Batch log file {batch_file} doesn't exist.")
+        else:
+            TextFileViewer(str(batch_file), self)
+
+    def _view_status_file(self) -> None:
+        # Shows the contents of status.txt file from the first of the selected runs in
+        # a TextFileGui window.
+        selected_row: int = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )[0]
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        status_file: pathlib.Path = (
+            self.experiment.get_proc_directory()
+            / self._table.item(selected_row, proc_dir_column).text()
+            / "status.txt"
+        )
+        if not status_file.exists():
+            print(f"Status file {status_file} doesn't exist.")
+        else:
+            TextFileViewer(str(status_file), self)
+
     def _view_hits(self) -> None:
         # Launches Cheetah Viewer showing hits from selected runs.
         selected_rows: List[int] = sorted(
@@ -513,6 +593,58 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         viewer_command: str = f"cheetah_viewer.py {input_str} -i dir -g {geometry}"
         print(viewer_command)
         subprocess.Popen(viewer_command, shell=True)
+
+    def _view_hitrate(self) -> None:
+        # Launches Cheetah Hitrate GUI for selected runs.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        row: int
+        frames_files: List[str] = []
+        for row in selected_rows:
+            filename: pathlib.Path = (
+                proc_dir / self._table.item(row, proc_dir_column).text() / "frames.txt"
+            )
+            if filename.exists():
+                frames_files.append(str(filename))
+
+        if len(frames_files) == 0:
+            print("There's no frames.txt files in the selected directories yet.")
+            return
+
+        input_str: str = " ".join(frames_files)
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        peakogram_gui_command: str = f"cheetah_hitrate.py {input_str}"
+        print(peakogram_gui_command)
+        subprocess.Popen(peakogram_gui_command, shell=True)
+
+    def _view_peakogram(self) -> None:
+        # Launches Cheetah Peakogram GUI for selected runs.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        row: int
+        peak_files: List[str] = []
+        for row in selected_rows:
+            filename: pathlib.Path = (
+                proc_dir / self._table.item(row, proc_dir_column).text() / "peaks.txt"
+            )
+            if filename.exists():
+                peak_files.append(str(filename))
+
+        if len(peak_files) == 0:
+            print("There's no peaks.txt files in the selected directories yet.")
+            return
+
+        input_str: str = " ".join(peak_files)
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        peakogram_gui_command: str = f"cheetah_peakogram.py {input_str} -g {geometry}"
+        print(peakogram_gui_command)
+        subprocess.Popen(peakogram_gui_command, shell=True)
 
     def _view_powder_hits(self) -> None:
         # Launches Cheetah Viewer showing the hits peakpowder.
@@ -571,9 +703,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         This function is called when the main GUI is closed. It closes all child Viewer
         windows.
         """
-        viewer: Viewer
-        for viewer in self._viewer_windows:
-            viewer.close()
         print("Bye bye.")
         event.accept()
 

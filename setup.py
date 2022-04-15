@@ -60,6 +60,7 @@ setup(
             "cheetah_gui.py=cheetah.gui:main",
             "cheetah_viewer.py=cheetah.viewer:main",
             "cheetah_peakogram.py=cheetah.scripts.peakogram:main",
+            "cheetah_hitrate.py=cheetah.scripts.hitrate:main",
         ],
     },
     packages=find_packages(where="src"),
