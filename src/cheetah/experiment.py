@@ -390,6 +390,17 @@ class CheetahExperiment:
         """
         return self._crawler.table_id_to_raw_id(table_id)
 
+    def get_calib_directory(self) -> pathlib.Path:
+        """
+        Get calib directory.
+
+        This function returns the path of the experiment calib directory.
+
+        Returns:
+            The path of the processed data directory.
+        """
+        return self._calib_directory
+
     def get_crawler_csv_filename(self) -> pathlib.Path:
         """
         Get the path of the crawler CSV file.

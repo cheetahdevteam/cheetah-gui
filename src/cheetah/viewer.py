@@ -65,6 +65,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
             mask_hdf5_path: The path to the mask dataset in the mask HDF5 file.
                 Defaults to '/data/data'.
+
+            open_tab: Which tab to show when the GUI opens (0 - Show, 1 - Maskmaker).
+                Defaults to 0.
         """
         super(Viewer, self).__init__()
         self._ui: Any = uic.loadUi(
@@ -923,7 +926,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _add_mask_from_file(self) -> None:
         if self._mask_filename and pathlib.Path(self._mask_filename).is_file():
-            path: pathlib.Path = pathlib.Path(self._mask_filename).parent
+            path: pathlib.Path = pathlib.Path(self._mask_filename)
         else:
             path = pathlib.Path.cwd()
         filename: str = QtWidgets.QFileDialog().getOpenFileName(

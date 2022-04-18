@@ -344,9 +344,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_cheetah_autorun.triggered.connect(self._pass)
 
         # Mask menu actions
-        self._ui.menu_mask_maker.triggered.connect(self._pass)
-        self._ui.menu_mask_combine.triggered.connect(self._pass)
-        self._ui.menu_mask_view.triggered.connect(self._pass)
+        self._ui.menu_mask_maker.triggered.connect(self._open_maskmaker)
+        self._ui.menu_mask_view.triggered.connect(self._view_mask)
 
         # Analysis menu items
         self._ui.menu_analysis_hitrate.triggered.connect(self._view_hitrate)
@@ -640,6 +639,26 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         print(peakogram_gui_command)
         subprocess.Popen(peakogram_gui_command, shell=True)
 
+    def _view_mask(self) -> None:
+        # Open mask file selection dialog and launches Cheetah Viewer on the selected
+        # file.
+        latest_mask: str = self.experiment.get_last_processing_config()["mask"]
+        if latest_mask != "" and pathlib.Path(latest_mask).is_file():
+            path: str = latest_mask
+        else:
+            path = str(self.experiment.get_calib_directory())
+        filename: str = QtWidgets.QFileDialog().getOpenFileName(
+            self, "Select mask file", path, filter="*.h5"
+        )[0]
+        if not filename:
+            return
+        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        viewer_command: str = (
+            f"cheetah_viewer.py {filename} -d /data/data -g {geometry}"
+        )
+        print(viewer_command)
+        subprocess.Popen(viewer_command, shell=True)
+
     def _view_powder_hits(self) -> None:
         # Launches Cheetah Viewer showing the hits peakpowder.
         self._view_sums(1, "/data/peakpowder")
@@ -656,10 +675,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Launches Cheetah Viewer showing the sum of blanks.
         self._view_sums(0, "/data/data")
 
+    def _open_maskmaker(self) -> None:
+        # Launches Cheetah Viewer showing sum of hits with Maskmaker tab open.
+        self._view_sums(1, "/data/data", maskmaker=True)
+
     def _view_sums(
         self,
         sum_class: Literal[0, 1],
         hdf5_dataset: Literal["/data/data", "/data/peakpowder"],
+        maskmaker: bool = False,
     ) -> None:
         # Launches Cheetah Viewer showing requested sums from selected runs.
         selected_rows: List[int] = sorted(
@@ -684,8 +708,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             return
         input_str: str = " ".join(sum_files)
         geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        if maskmaker:
+            extra: str = "--maskmaker"
+        else:
+            extra = ""
         viewer_command: str = (
-            f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry}"
+            f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry} {extra}"
         )
         print(viewer_command)
         subprocess.Popen(viewer_command, shell=True)
