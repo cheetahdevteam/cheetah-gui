@@ -15,7 +15,9 @@ from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 import pyqtgraph  # type: ignore
 from random import randrange
 from scipy import constants  # type: ignore
+from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
 from typing import Any, List, Dict, Union, Tuple, TextIO, cast
+from numpy.typing import NDArray
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import (
@@ -38,6 +40,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         geometry_lines: List[str],
         mask_filename: Union[str, None] = None,
         mask_hdf5_path: str = "/data/data",
+        open_tab: int = 0,
     ) -> None:
         """
         Cheetah Viewer.
@@ -75,7 +78,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         )
         self.show()
 
-        self._frame_retrieval: CheetahFrameRetrieval = frame_retrieval
+        self._ui.tab_widget.setCurrentIndex(open_tab)
+        self._ui.tab_widget.currentChanged.connect(self._tab_changed)
+        self._current_tab: int = self._ui.tab_widget.currentIndex()
 
         self._load_geometry(geometry_lines)
         if mask_filename:
@@ -99,16 +104,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                     )
                     self._ui.show_mask_cb.setEnabled(False)
                 else:
-                    mask: numpy.typing.NDArray[Any] = (
-                        1 - mask_file[self._mask_hdf5_path][()]
-                    )
-                    mask_img: numpy.typing.NDArray[Any] = numpy.zeros(
+                    mask: NDArray[Any] = 1 - mask_file[self._mask_hdf5_path][()]
+                    mask_img: NDArray[Any] = numpy.zeros(
                         self._visual_img_shape, dtype=mask.dtype
                     )
                     mask_img[
                         self._visual_pixelmap_y, self._visual_pixelmap_x
                     ] = mask.ravel()
-                    self._mask: numpy.typing.NDArray[Any] = numpy.zeros(
+                    self._mask: NDArray[Any] = numpy.zeros(
                         shape=mask_img.T.shape + (4,)
                     )
                     self._mask[:, :, 2] = mask_img.T
@@ -116,10 +119,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         else:
             self._ui.show_mask_cb.setEnabled(False)
 
+        self._frame_retrieval: CheetahFrameRetrieval = frame_retrieval
         self._events: List[str] = self._frame_retrieval.get_event_list()
         self._num_events: int = len(self._events)
         if self._num_events == 0:
             sys.exit("No images can be retrieved from the input sources.")
+
+        self._current_event_index: int = 0
+        self._retrieve_current_data()
 
         self._ui.total_number_label.setText(f"/{self._num_events}")
         self._index_regex: Any = QtCore.QRegExp(r"[1-9]\d*")
@@ -128,20 +135,15 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.current_event_index_le.setValidator(self._index_validator)
         self._ui.current_event_index_le.editingFinished.connect(self._go_to_pattern)
 
-        self._current_event_index: int = 0
-        self._retrieve_current_data()
-
         self._show_pixel_values: bool = False
         self._pixel_value_labels: Dict[Tuple[int, int], Any] = {}
 
         self._ui.show_peaks_cb.setEnabled(False)
 
-        self._empty_frame: numpy.typing.NDArray[Any] = numpy.empty(self._data_shape)
+        self._empty_frame: NDArray[Any] = numpy.empty(self._data_shape)
         self._empty_frame[:] = numpy.nan
 
-        self._frame_data_img: numpy.typing.NDArray[Any] = numpy.zeros(
-            self._visual_img_shape
-        )
+        self._frame_data_img: NDArray[Any] = numpy.zeros(self._visual_img_shape)
 
         pyqtgraph.setConfigOption("background", 0.2)
 
@@ -169,6 +171,26 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.min_range_le.editingFinished.connect(self._change_levels)
         self._ui.max_range_le.editingFinished.connect(self._change_levels)
 
+        self._ui.next_button.clicked.connect(self._next_pattern)
+        self._ui.previous_button.clicked.connect(self._previous_pattern)
+        self._ui.random_button.clicked.connect(self._random_pattern)
+        self._ui.play_button.clicked.connect(self._play)
+        self._ui.pause_button.clicked.connect(self._pause)
+        self._ui.shuffle_button.setCheckable(True)
+        self._ui.shuffle_button.clicked.connect(self._shuffle_changed)
+
+        self._init_show_tab()
+        self._init_maskmaker_tab()
+
+        self._refresh_timer: Any = QtCore.QTimer()
+        self._refresh_timer.timeout.connect(self._next_pattern)
+        self._ui.pause_button.setEnabled(False)
+
+        self._update_image_and_peaks()
+        self._tab_changed()
+
+    def _init_show_tab(self) -> None:
+        # Initialize UI elements in the Show tab
         self._ring_pen: Any = pyqtgraph.mkPen("r", width=2)
         self._peak_canvas: Any = pyqtgraph.ScatterPlotItem()
         self._image_view.addItem(self._peak_canvas)
@@ -210,7 +232,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._update_resolution_rings_radii
         )
         self._resolution_rings_lineedit.setEnabled(True)
-        self._resolution_rings_check_box.stateChanged.connect(
+        self._resolution_rings_check_box.clicked.connect(
             self._update_resolution_rings_status
         )
 
@@ -219,15 +241,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_image.setOpacity(0.5)
         self._image_view.addItem(self._mask_image)
         self._ui.show_mask_cb.stateChanged.connect(self._update_mask_image)
-
         self._ui.show_peaks_cb.stateChanged.connect(self._update_peaks)
-        self._ui.next_button.clicked.connect(self._next_pattern)
-        self._ui.previous_button.clicked.connect(self._previous_pattern)
-        self._ui.random_button.clicked.connect(self._random_pattern)
-        self._ui.play_button.clicked.connect(self._play)
-        self._ui.pause_button.clicked.connect(self._pause)
-        self._ui.shuffle_button.setCheckable(True)
-        self._ui.shuffle_button.clicked.connect(self._shuffle_changed)
 
         self._ui.next_crystal_button.clicked.connect(self._next_crystal)
         self._ui.previous_crystal_button.clicked.connect(self._previous_crystal)
@@ -237,10 +251,52 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.show_one_crystal_rb.toggled.connect(self._update_reflections)
         self._ui.show_all_crystals_rb.toggled.connect(self._update_reflections)
 
-        self._update_image_and_peaks()
-        self._refresh_timer: Any = QtCore.QTimer()
-        self._refresh_timer.timeout.connect(self._next_pattern)
-        self._ui.pause_button.setEnabled(False)
+    def _init_maskmaker_tab(self) -> None:
+        # Initialize UI elements in the Maskmaker tab
+        self._ui.mask_rb.toggled.connect(self._change_mask_mode)
+        self._ui.unmask_rb.toggled.connect(self._change_mask_mode)
+        self._ui.toggle_rb.toggled.connect(self._change_mask_mode)
+        self._change_mask_mode()
+
+        self._ui.rectangular_roi_button.clicked.connect(self._mask_rectangular_roi)
+        self._ui.circular_roi_button.clicked.connect(self._mask_curcular_roi)
+        self._ui.outside_histogram_button.clicked.connect(self._mask_outside_histogram)
+        self._ui.panel_edges_button.clicked.connect(self._mask_panel_edges)
+        self._ui.dilate_mask_button.clicked.connect(self._dilate_mask)
+        self._ui.erode_mask_button.clicked.connect(self._erode_mask)
+        self._ui.add_mask_from_file_button.clicked.connect(self._add_mask_from_file)
+        self._ui.clear_mask_button.clicked.connect(self._clear_mask)
+
+        self._ui.brush_button.clicked.connect(self._start_brush)
+        self._ui.brush_button.setCheckable(True)
+        self._ui.brush_size_sb.valueChanged.connect(self._change_brush_size)
+        self._ui.add_brush_button.clicked.connect(self._add_brush)
+        self._ui.discard_brush_button.clicked.connect(self._discard_brush)
+
+        self._ui.save_mask_button.clicked.connect(self._save_mask)
+
+        self._rectangular_roi: Any = pyqtgraph.RectROI([0, 0], [100, 100])
+        self._circular_roi: Any = pyqtgraph.CircleROI([0, 110], [100, 100])
+        self._rectangular_roi.setZValue(10)
+        self._circular_roi.setZValue(10)
+        self._image_view.addItem(self._rectangular_roi)
+        self._image_view.addItem(self._circular_roi)
+
+        self._brush_image: Any = None
+
+        self._maskmaker_image: Any = pyqtgraph.ImageItem()
+        self._maskmaker_image.setZValue(2)
+        self._maskmaker_image.setOpacity(0.5)
+        self._image_view.addItem(self._maskmaker_image)
+        self._maskmaker_mask: NDArray[numpy.int_] = numpy.zeros(
+            self._data_shape, dtype=int
+        )
+        self._maskmaker_image_data: NDArray[numpy.int_] = numpy.zeros(
+            self._visual_img_shape, dtype=int
+        ).T
+        self._update_maskmaker_image()
+
+        self._image_widget.scene.sigMouseClicked.connect(self._mouse_clicked)
 
     def _load_geometry(self, geometry_lines: List[str]) -> None:
         # Loads CrystFEL goemetry using om.utils module.
@@ -279,25 +335,85 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._visual_img_shape: Tuple[int, int] = (y_minimum, x_minimum)
         self._img_center_x: int = int(self._visual_img_shape[1] / 2)
         self._img_center_y: int = int(self._visual_img_shape[0] / 2)
-        self._visual_pixelmap_x: numpy.typing.NDArray[numpy.int32] = cast(
-            numpy.typing.NDArray[numpy.int32],
+        self._visual_pixelmap_x: NDArray[numpy.int32] = cast(
+            NDArray[numpy.int32],
             numpy.array(self._pixelmaps["x"], dtype=numpy.int32)
             + self._visual_img_shape[1] // 2
             - 1,
         ).flatten()
-        self._visual_pixelmap_y: numpy.typing.NDArray[numpy.int32] = cast(
-            numpy.typing.NDArray[numpy.int32],
+        self._visual_pixelmap_y: NDArray[numpy.int32] = cast(
+            NDArray[numpy.int32],
             numpy.array(self._pixelmaps["y"], dtype=numpy.int32)
             + self._visual_img_shape[0] // 2
             - 1,
         ).flatten()
+
+        imesh: NDArray[numpy.int_]
+        jmesh: NDArray[numpy.int_]
+        imesh, jmesh = numpy.meshgrid(  # type: ignore
+            numpy.arange(self._data_shape[0]),
+            numpy.arange(self._data_shape[1]),
+            indexing="ij",
+        )
+        pixelmap_i: NDArray[numpy.int_] = -numpy.ones(self._visual_img_shape, dtype=int)
+        pixelmap_j: NDArray[numpy.int_] = -numpy.ones(self._visual_img_shape, dtype=int)
+        pixelmap_i[self._visual_pixelmap_y, self._visual_pixelmap_x] = imesh.ravel()
+        pixelmap_j[self._visual_pixelmap_y, self._visual_pixelmap_x] = jmesh.ravel()
+        self._where_visual_pixels: Tuple[
+            NDArray[numpy.int_], NDArray[numpy.int_]
+        ] = numpy.where((pixelmap_i != -1) & (pixelmap_j != -1))
+        self._reverse_pixelmap_i: NDArray[numpy.int_] = pixelmap_i[
+            self._where_visual_pixels
+        ]
+        self._reverse_pixelmap_j: NDArray[numpy.int_] = pixelmap_j[
+            self._where_visual_pixels
+        ]
+
+    def _tab_changed(self) -> None:
+        if self._current_tab == 1:
+            # Enable play button when turning off maskmaker
+            self._ui.play_button.setEnabled(True)
+
+        self._current_tab = self._ui.tab_widget.currentIndex()
+        if self._current_tab == 1:
+            # Disable refresh and play button when turning on maskmaker
+            self._refresh_timer.stop()
+            self._ui.pause_button.setEnabled(False)
+            self._ui.play_button.setEnabled(False)
+
+            # Hide resolution rings, peaks, reflections and input mask
+            self._resolution_rings_canvas.setVisible(False)
+            for text_item in self._resolution_rings_textitems:
+                text_item.setVisible(False)
+            self._peak_canvas.setVisible(False)
+            self._refl_canvas.setVisible(False)
+            self._mask_image.setVisible(False)
+
+            # Show maskmaker mask and ROIs
+            self._rectangular_roi.setVisible(True)
+            self._circular_roi.setVisible(True)
+            self._maskmaker_image.setVisible(True)
+
+        elif self._current_tab == 0:
+            # Show resolution rings, peaks, reflections and input mask
+            self._resolution_rings_canvas.setVisible(True)
+            for text_item in self._resolution_rings_textitems:
+                text_item.setVisible(True)
+            self._peak_canvas.setVisible(True)
+            self._refl_canvas.setVisible(True)
+            self._mask_image.setVisible(True)
+
+            # Hide maskmaker items
+            self._rectangular_roi.setVisible(False)
+            self._circular_roi.setVisible(False)
+            self._maskmaker_image.setVisible(False)
 
     def _update_resolution_rings_status(self) -> None:
         new_state = self._resolution_rings_check_box.isChecked()
         if self._resolution_rings_enabled is True and new_state is False:
             text_item: Any
             for text_item in self._resolution_rings_textitems:
-                self._image_widget.scene.removeItem(text_item)
+                self._image_view.removeItem(text_item)
             self._resolution_rings_canvas.setData([], [])
             self._resolution_rings_enabled = False
         if self._resolution_rings_enabled is False and new_state is True:
@@ -363,6 +479,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 "Resolution rings cannot be drawn."
             )
             self._resolution_rings_check_box.setChecked(False)
+            self._update_resolution_rings_status()
         else:
             self._resolution_rings_canvas.setData(
                 [self._img_center_x] * len(resolution_rings_in_pix),
@@ -408,7 +525,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             pass
 
     def _mouse_moved(self, pos: Any) -> None:
-        data: numpy.typing.NDArray[Any] = self._image_widget.image
+        data: NDArray[Any] = self._image_widget.image
         scene_pos: Any = self._image_item.mapFromScene(pos)
         row: int = int(scene_pos.x())
         col: int = int(scene_pos.y())
@@ -471,7 +588,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_image(self) -> None:
         if "data" in self._current_event_data:
-            data: numpy.typing.NDArray[Any] = self._current_event_data["data"]
+            data: NDArray[Any] = self._current_event_data["data"]
         else:
             data = self._empty_frame
         self._frame_data_img[
@@ -640,13 +757,13 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def _update_pixel_values(self) -> None:
         if not self._show_pixel_values:
             return
-        data: numpy.typing.NDArray[Any] = self._image_widget.image
+        data: NDArray[Any] = self._image_widget.image
         view_range = self._image_view.viewRange()
         pos: Tuple[int, int]
         for pos in self._pixel_value_labels:
             x: int = int(numpy.floor(view_range[0][0]) + pos[0])
             y: int = int(numpy.floor(view_range[1][0]) + pos[1])
-            if int(x) < data.shape[0] and int(y) < data.shape[1]:
+            if 0 < int(x) < data.shape[0] and 0 < int(y) < data.shape[1]:
                 pixel_value: str = f"{data[int(x)][int(y)]:.3g}"
             else:
                 pixel_value = ""
@@ -659,7 +776,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         for label in self._pixel_value_labels.values():
             self._image_view.removeItem(label)
         self._pixel_value_labels = {}
-        if pixel_size >= 50:
+        if pixel_size >= 50 and self._current_tab != 1:
             self._show_pixel_values = True
             view_range = self._image_view.viewRange()
             i: int
@@ -670,10 +787,238 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                         anchor=(0.5, 0.5), color="g"
                     )
                     self._image_view.addItem(self._pixel_value_labels[(i, j)])
-
         else:
             self._show_pixel_values = False
         self._update_pixel_values()
+
+    def _update_maskmaker_image(self) -> None:
+        if self._current_tab == 1:
+            mask: NDArray[Any] = numpy.zeros(
+                shape=self._maskmaker_image_data.shape + (4,)
+            )
+            mask[:, :, 2] = self._maskmaker_image_data
+            mask[:, :, 3] = self._maskmaker_image_data
+            self._maskmaker_image.setImage(
+                mask, compositionMode=QtGui.QPainter.CompositionMode_SourceOver
+            )
+        else:
+            self._maskmaker_image.clear()
+
+    def _change_mask_mode(self) -> None:
+        if self._ui.toggle_rb.isChecked():
+            self._mask_mode: str = "toggle"
+        elif self._ui.mask_rb.isChecked():
+            self._mask_mode = "mask"
+        else:
+            self._mask_mode = "unmask"
+
+    def _mask_rectangular_roi(self) -> None:
+        corner: Tuple[float, float] = self._rectangular_roi.pos()
+        size: Tuple[float, float] = self._rectangular_roi.size()
+
+        self._mask_visual_pixels(
+            tuple(
+                numpy.meshgrid(  # type: ignore
+                    numpy.arange(
+                        int(corner[0] + 0.5),
+                        int(corner[0] + size[0] + 0.5),
+                    ),
+                    numpy.arange(
+                        int(corner[1] + 0.5),
+                        int(corner[1] + size[1] + 0.5),
+                    ),
+                    indexing="ij",
+                )
+            )
+        )
+
+    def _mask_curcular_roi(self) -> None:
+        corner: Tuple[float, float] = self._circular_roi.pos()
+        size: Tuple[float, float] = self._circular_roi.size()
+        radius: float = size[0] / 2
+        center: Tuple[float, float] = (
+            corner[0] + size[0] / 2 - 0.5,
+            corner[1] + size[1] / 2 - 0.5,
+        )
+
+        imesh: NDArray[numpy.int_]
+        jmesh: NDArray[numpy.int_]
+        imesh, jmesh = numpy.meshgrid(  # type: ignore
+            numpy.arange(int(corner[0] - 1), int(corner[0] + size[0] + 1)),
+            numpy.arange(int(corner[1] - 1), int(corner[1] + size[1] + 1)),
+            indexing="ij",
+        )
+        inside_circle: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = numpy.where(
+            (imesh - center[0]) ** 2 + (jmesh - center[1]) ** 2 <= radius ** 2
+        )
+        self._mask_visual_pixels((imesh[inside_circle], jmesh[inside_circle]))
+
+    def _mask_outside_histogram(self) -> None:
+        self._mask_visual_pixels(
+            numpy.where(
+                (self._frame_data_img.T < self._levels_range[0])
+                | (self._frame_data_img.T > self._levels_range[1])
+            )
+        )
+
+    def _mask_panel_edges(self) -> None:
+        mask: NDArray[numpy.int_] = numpy.ones(self._data_shape, dtype=numpy.int8)
+        for panel in self._geometry["panels"].values():
+            min_fs: int = panel["orig_min_fs"]
+            max_fs: int = panel["orig_max_fs"]
+            min_ss: int = panel["orig_min_ss"]
+            max_ss: int = panel["orig_max_ss"]
+            mask[min_ss, min_fs:max_fs] = 0
+            mask[max_ss, min_fs:max_fs] = 0
+            mask[min_ss:max_ss, min_fs] = 0
+            mask[min_ss:max_ss, max_fs] = 0
+
+        mask = mask.ravel()
+        self._mask_visual_pixels(
+            (self._visual_pixelmap_x[mask == 0], self._visual_pixelmap_y[mask == 0])
+        )
+
+    def _mask_visual_pixels(
+        self,
+        pixels: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]],
+        mode: Union[None, str] = None,
+    ) -> None:
+        where_in_image: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = numpy.where(
+            (pixels[0] >= 0)
+            & (pixels[1] >= 0)
+            & (pixels[0] < self._visual_img_shape[1])
+            & (pixels[1] < self._visual_img_shape[0])
+        )
+        pixels_in_image: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = (
+            pixels[0][where_in_image],
+            pixels[1][where_in_image],
+        )
+        if mode is None:
+            mode = self._mask_mode
+        if mode == "mask":
+            self._maskmaker_image_data[pixels_in_image] = 1
+        elif mode == "unmask":
+            self._maskmaker_image_data[pixels_in_image] = 0
+        else:
+            self._maskmaker_image_data[pixels_in_image] = (
+                1 - self._maskmaker_image_data[pixels_in_image]
+            )
+        self._update_maskmaker_image()
+
+    def _dilate_mask(self) -> None:
+        self._maskmaker_image_data = binary_dilation(self._maskmaker_image_data).astype(
+            self._maskmaker_image_data.dtype
+        )
+        self._update_maskmaker_image()
+
+    def _erode_mask(self) -> None:
+        self._maskmaker_image_data = binary_erosion(self._maskmaker_image_data).astype(
+            self._maskmaker_image_data.dtype
+        )
+        self._update_maskmaker_image()
+
+    def _clear_mask(self) -> None:
+        self._maskmaker_image_data[:] = 0
+        self._update_maskmaker_image()
+
+    def _add_mask_from_file(self) -> None:
+        if self._mask_filename and pathlib.Path(self._mask_filename).is_file():
+            path: pathlib.Path = pathlib.Path(self._mask_filename).parent
+        else:
+            path = pathlib.Path.cwd()
+        filename: str = QtWidgets.QFileDialog().getOpenFileName(
+            self, "Select mask file", str(path), filter="*.h5"
+        )[0]
+        if filename:
+            h5file: Any
+            with h5py.File(filename, "r") as h5file:
+                mask: NDArray[numpy.int_] = h5file["/data/data"][()].ravel()
+                self._mask_visual_pixels(
+                    (
+                        self._visual_pixelmap_x[mask == 0],
+                        self._visual_pixelmap_y[mask == 0],
+                    ),
+                    mode="mask",
+                )
+
+    def _start_brush(self) -> None:
+        if self._ui.brush_button.isChecked():
+            QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.CrossCursor)
+            self._brush_image = pyqtgraph.ImageItem(
+                numpy.zeros((self._visual_img_shape[0], self._visual_img_shape[1], 4))
+            )
+            self._brush_image.setZValue(10)
+            self._image_view.addItem(self._brush_image)
+            self._change_brush_size()
+        else:
+            self._discard_brush()
+
+    def _generate_brush_kernel(self) -> NDArray[numpy.float_]:
+        size: int = self._ui.brush_size_sb.value()
+        radius: float = size / 2.0
+        corner: float = (size - 1) / 2.0
+        xgrid: NDArray[numpy.float_]
+        ygrid: NDArray[numpy.float_]
+        xgrid, ygrid = numpy.ogrid[-corner : size - corner, -corner : size - corner]
+        kernel: NDArray[numpy.float_] = numpy.zeros((size, size, 4))
+        kernel[:, :, 0][xgrid ** 2 + ygrid ** 2 < radius ** 2] = 1
+        kernel[:, :, 3][xgrid ** 2 + ygrid ** 2 < radius ** 2] = 1
+        return kernel
+
+    def _change_brush_size(self) -> None:
+        if self._ui.brush_button.isChecked():
+            kernel: NDArray[numpy.float_] = self._generate_brush_kernel()
+            self._brush_image.setLevels([0, 1])
+            self._brush_image.setDrawKernel(
+                kernel,
+                mask=kernel,
+                center=(kernel.shape[0] // 2, kernel.shape[1] // 2),
+                mode="set",
+            )
+        else:
+            pass
+
+    def _add_brush(self) -> None:
+        if not self._ui.brush_button.isChecked():
+            return
+        self._mask_visual_pixels(
+            numpy.where(self._brush_image.image[:, :, 0] > 0), mode="mask"
+        )
+        self._discard_brush()
+
+    def _discard_brush(self) -> None:
+        QtWidgets.QApplication.restoreOverrideCursor()
+        self._brush_image.clear()
+        if self._ui.brush_button.isChecked():
+            self._ui.brush_button.toggle()
+
+    def _mouse_clicked(self, click: Any) -> None:
+        if self._current_tab != 1 or self.brush_button.isChecked():
+            return
+        scene_pos: Any = self._image_item.mapFromScene(click.pos())
+        self._mask_visual_pixels(
+            (numpy.array([int(scene_pos.x())]), numpy.array([int(scene_pos.y())]))
+        )
+
+    def _save_mask(self) -> None:
+        if self._mask_filename and pathlib.Path(self._mask_filename).is_file():
+            mask_filename: pathlib.Path = pathlib.Path(self._mask_filename)
+            path: pathlib.Path = mask_filename.parent
+            name: str = f"{mask_filename.stem}-new{mask_filename.suffix}"
+        else:
+            path = pathlib.Path.cwd()
+            name = "mask-new.h5"
+        filename: str = QtWidgets.QFileDialog().getSaveFileName(
+            self, "Select mask file", str(path / name), filter="*.h5"
+        )[0]
+        if filename:
+            mask: NDArray[numpy.int8] = numpy.ones(self._data_shape, dtype=numpy.int8)
+            mask[self._reverse_pixelmap_i, self._reverse_pixelmap_j] = (
+                1 - self._maskmaker_image_data.T[self._where_visual_pixels]
+            )
+            print(f"Saving new mask to {filename}.")
+            with h5py.File("mask-new.h5", "w") as fh:
+                fh.create_dataset("/data/data", data=mask)
 
 
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
@@ -815,6 +1160,12 @@ def _get_geometry_file_contents(stream_filename: str) -> List[str]:
     required=False,
     help="peak list file written by Cheetah processing layer in OM, default: None",
 )
+@click.option(  # type: ignore
+    "--maskmaker",
+    is_flag=True,
+    default=False,
+    help="open the maskmaker tab, default: False",
+)
 def main(
     input_files: List[str],
     input_type: str,
@@ -826,6 +1177,7 @@ def main(
     om_source: str,
     om_config: str,
     om_peaks_file: Union[str, None],
+    maskmaker: bool,
 ) -> None:
     """
     Cheetah Viewer. The viewer displays images from various sources applying detector
@@ -996,13 +1348,13 @@ def main(
         with open(geometry_filename) as fh:
             geometry_lines = fh.readlines()
 
+    if maskmaker:
+        open_tab: int = 1
+    else:
+        open_tab = 0
+
     app: Any = QtWidgets.QApplication(sys.argv)
-    _ = Viewer(
-        frame_retrieval,
-        geometry_lines,
-        mask_filename,
-        hdf5_mask_path,
-    )
+    _ = Viewer(frame_retrieval, geometry_lines, mask_filename, hdf5_mask_path, open_tab)
     sys.exit(app.exec_())
 
 

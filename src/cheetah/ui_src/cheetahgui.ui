@@ -317,13 +317,12 @@
    </widget>
    <widget class="QMenu" name="menu_masks">
     <property name="enabled">
-     <bool>false</bool>
+     <bool>true</bool>
     </property>
     <property name="title">
      <string>Masks</string>
     </property>
     <addaction name="menu_mask_maker"/>
-    <addaction name="menu_mask_combine"/>
     <addaction name="menu_mask_view"/>
    </widget>
    <widget class="QMenu" name="menuPowder">
