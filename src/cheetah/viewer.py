@@ -9,6 +9,7 @@ import numpy
 import numpy.typing
 import pathlib
 import sys
+import yaml
 
 from om.utils import crystfel_geometry
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
@@ -1040,17 +1041,10 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     }
 
 
-def _parse_config_file(filename: pathlib.Path, separator: str = ":") -> Dict[str, str]:
+def _parse_config_file(filename: pathlib.Path) -> Dict[str, Any]:
     fh: TextIO
-    config: Dict[str, str] = {}
     with open(filename) as fh:
-        line: str
-        for line in fh:
-            split_items: List[str] = line.split(separator)
-            if len(split_items) > 1:
-                config[split_items[0].strip()] = (
-                    separator.join(split_items[1:])
-                ).strip()
+        config: Dict[str, Any] = yaml.safe_load(fh)
     return config
 
 
@@ -1272,11 +1266,13 @@ def main(
             if not dir.is_dir():
                 print(f"Skipping input source {dir}: is not a directory.")
                 continue
-            process_config: pathlib.Path = dir / "process_config.txt"
+            process_config: pathlib.Path = dir / "process.config"
             if process_config.is_file():
-                config: Dict[str, str] = _parse_config_file(process_config)
-                source_string: str = config["om_source"]
-                config_file: pathlib.Path = pathlib.Path(config["om_config"])
+                config: Dict[str, Any] = _parse_config_file(process_config)
+                source_string: str = config["Process script template data"]["om_source"]
+                config_file: pathlib.Path = pathlib.Path(
+                    config["Process script template data"]["om_config"]
+                )
             else:
                 print(f"Skipping input source {dir}: {process_config} file not found.")
                 continue

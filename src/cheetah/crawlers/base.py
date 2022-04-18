@@ -6,10 +6,11 @@ This module contains base classes for Cheetah Crawlers.
 import csv
 import pathlib
 import time
+import yaml
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, TextIO, Tuple, Dict, Union, cast
+from typing import List, TextIO, Tuple, Dict, Union, Any, cast
 
 try:
     from typing import TypedDict, Literal
@@ -227,16 +228,18 @@ class Crawler(ABC):
             run_id: str = split_items[0]
             tag: str = "-".join(split_items[1:])
             recipe: str = ""
-            process_config_file: pathlib.Path = run_directory / "process_config.txt"
+            process_config_file: pathlib.Path = run_directory / "process.config"
             if process_config_file.is_file():
-                process_config: Dict[str, str] = self._parse_status_file(
-                    process_config_file
-                )
-                if "config_template" in process_config.keys():
-                    recipe = pathlib.Path(process_config["config_template"]).name
+                fh: TextIO
+                with open(process_config_file, "r") as fh:
+                    process_config: Dict[str, Any] = yaml.safe_load(fh.read())
+                recipe = pathlib.Path(
+                    process_config["Processing config"]["config_template"]
+                ).name
 
             if status_file.is_file():
-                status: Dict[str, str] = self._parse_status_file(status_file)
+                with open(status_file, "r") as fh:
+                    status: Dict[str, Any] = yaml.safe_load(fh.read())
                 if "Update time" in status.keys():
                     update_time: float = datetime.strptime(
                         status["Update time"], "%a %b %d %H:%M:%S %Y"
@@ -244,11 +247,11 @@ class Crawler(ABC):
                 else:
                     update_time = status_file.stat().st_mtime
                 if "Frames processed" in status.keys():
-                    processed: int = int(status["Frames processed"])
+                    processed: int = status["Frames processed"]
                 else:
                     processed = 0
                 if "Number of hits" in status.keys():
-                    hits: int = int(status["Number of hits"])
+                    hits: int = status["Number of hits"]
                 else:
                     hits = 0
                 hdf5_status.append(
@@ -265,18 +268,6 @@ class Crawler(ABC):
                 )
 
         return hdf5_status
-
-    def _parse_status_file(self, filename: pathlib.Path) -> Dict[str, str]:
-        # This function parses status.txt file written by Cheetah processing.
-        status: Dict[str, str] = {}
-        fh: TextIO
-        with open(filename, "r") as fh:
-            line: str
-            for line in fh:
-                line_items: List[str] = line.split(":")
-                if len(line_items) > 1:
-                    status[line_items[0].strip()] = ":".join(line_items[1:]).strip()
-        return status
 
     def _read_table(self) -> Tuple[List[TypeRawStatusItem], List[TypeProcStatusItem]]:
         # Reads data from the crawler CSV file.

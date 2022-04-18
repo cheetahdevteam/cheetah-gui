@@ -6,6 +6,7 @@ particular experiment and control its data processing.
 """
 import pathlib
 import shutil
+import yaml
 
 from typing import List, Dict, TextIO, Union
 
@@ -17,6 +18,7 @@ except:
 from cheetah.crawlers import TypeDetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
 from cheetah.process import CheetahProcess, TypeProcessingConfig
+from cheetah.utils.yaml_dumper import CheetahSafeDumper
 
 
 class TypeExperimentConfig(TypedDict):
@@ -105,56 +107,44 @@ class CheetahExperiment:
             self._raw_directory,
             self._proc_directory,
         )
-
-    def _parse_crawler_config(self) -> Dict[str, str]:
-        # Parses config file where parameters and values are separated by '='. Returns
-        # a dictionary using parameters as keys.
-        config: Dict[str, str] = {}
-        fh: TextIO
-        with open(self._crawler_config_filename, "r") as fh:
-            line: str
-            for line in fh:
-                line_items: List[str] = line.split("=")
-                if len(line_items) == 2:
-                    config[line_items[0].strip()] = line_items[1].strip()
-        return config
+        self.write_crawler_config()
 
     def write_crawler_config(self) -> None:
         """
         Write crawler config file.
 
         This function writes all experiment and crawler configuration parameters to the
-        crawler.txt file in cheetah/gui directory.
+        crawler.config file in cheetah/gui directory.
         """
         fh: TextIO
         with open(self._crawler_config_filename, "w") as fh:
-            # Write experiment info:
             fh.write(
-                f"facility={self._facility}\n"
-                f"instrument={self._instrument}\n"
-                f"detector={self._detector}\n"
-                f"experiment_id={self._experiment_id}\n\n"
-            )
-            # Write directories:
-            fh.write(
-                f"base_path={self._base_path}\n\n"
-                f"raw_dir={self._raw_directory.relative_to(self._base_path)}\n"
-                f"hdf5_dir={self._proc_directory.relative_to(self._base_path)}\n"
-                f"process_dir={self._process_directory.relative_to(self._base_path)}\n\n"
-            )
-            # Write crawler scan config:
-            fh.write(
-                f"crawler_scan_raw_dir={self._crawler.raw_directory_scan_is_enabled()}\n"
-                f"crawler_scan_proc_dir={self._crawler.proc_directory_scan_is_enabled()}\n\n"
-            )
-
-            # Write processing config info:
-            fh.write(f"geometry={self._last_geometry.relative_to(self._base_path)}\n")
-            if self._last_mask:
-                fh.write(f"mask={self._last_mask.relative_to(self._base_path)}\n")
-            fh.write(
-                f"cheetah_config={self._last_process_config_filename.relative_to(self._base_path)}\n"
-                f"cheetah_tag={self._last_tag}\n"
+                yaml.dump(
+                    {
+                        "facility": self._facility,
+                        "instrument": self._instrument,
+                        "detector": self._detector,
+                        "experiment_id": self._experiment_id,
+                        "base_path": self._base_path,
+                        "raw_dir": self._raw_directory.relative_to(self._base_path),
+                        "hdf5_dir": self._proc_directory.relative_to(self._base_path),
+                        "process_dir": self._process_directory.relative_to(
+                            self._base_path
+                        ),
+                        "crawler_scan_raw_dir": self._crawler.raw_directory_scan_is_enabled(),
+                        "crawler_scan_proc_dir": self._crawler.proc_directory_scan_is_enabled(),
+                        "geometry": self._last_geometry.relative_to(self._base_path),
+                        "mask": self._last_mask.relative_to(self._base_path)
+                        if self._last_mask
+                        else None,
+                        "cheetah_config": self._last_process_config_filename.relative_to(
+                            self._base_path
+                        ),
+                        "cheetah_tag": self._last_tag,
+                    },
+                    Dumper=CheetahSafeDumper,
+                    sort_keys=False,
+                )
             )
 
     def _resolve_path(
@@ -173,39 +163,6 @@ class CheetahExperiment:
         else:
             return parent_path / path
 
-    def _load_existing_experiment_oldstyle(
-        self, crawler_config: Dict[str, str]
-    ) -> None:
-        self._raw_directory: pathlib.Path = self._resolve_path(
-            pathlib.Path(crawler_config["xtcdir"]), self._gui_directory
-        )
-        self._facility: str = "LCLS"
-        self._instrument: str = ""
-        self._detector: str = ""
-        self._experiment_id: str = facilities["LCLS"]["guess_experiment_id"](
-            self._raw_directory
-        )
-        self._proc_directory: pathlib.Path = self._resolve_path(
-            pathlib.Path(crawler_config["hdf5dir"]), self._gui_directory
-        )
-        self._process_script: pathlib.Path = self._resolve_path(
-            pathlib.Path(crawler_config["process"]), self._gui_directory
-        )
-        self._process_directory: pathlib.Path = self._process_script.parent
-        self._calib_directory: pathlib.Path = self._gui_directory.parent / "calib"
-        self._last_process_config_filename: pathlib.Path = self._resolve_path(
-            pathlib.Path(crawler_config["cheetahini"]), self._process_directory
-        )
-        self._last_geometry: pathlib.Path = self._resolve_path(
-            pathlib.Path(crawler_config["geometry"]), self._gui_directory
-        )
-        self._last_mask: Union[None, pathlib.Path] = None
-        self._last_tag: str = crawler_config["cheetahtag"]
-
-        self._base_path: pathlib.Path = self._raw_directory.parent
-
-        # TODO: backup old config files and write new ones
-
     def _load_existing_experiment(self, path: pathlib.Path) -> None:
         # Loads information from crawler.config file. `path` must point to the existing
         # cheetah/gui directory containing crawler.config file.
@@ -217,11 +174,9 @@ class CheetahExperiment:
             f"Going to selected experiment: {self._gui_directory}\n"
             f"Loading configuration file: {self._crawler_config_filename}"
         )
-        crawler_config: Dict[str, str] = self._parse_crawler_config()
-
-        if "xtcdir" in crawler_config.keys():
-            self._load_existing_experiment_oldstyle(crawler_config)
-            return
+        fh: TextIO
+        with open(self._crawler_config_filename, "r") as fh:
+            crawler_config: Dict[str, str] = yaml.safe_load(fh.read())
 
         self._facility = crawler_config["facility"]
         self._instrument = crawler_config["instrument"]
@@ -261,10 +216,11 @@ class CheetahExperiment:
         self._last_geometry = self._resolve_path(
             pathlib.Path(crawler_config["geometry"]), self._base_path
         )
-        self._last_mask = self._resolve_path(
-            pathlib.Path(crawler_config["mask"]), self._base_path
-        )
-        if not self._last_mask.is_file():
+        if crawler_config["mask"]:
+            self._last_mask: Union[pathlib.Path, None] = self._resolve_path(
+                pathlib.Path(crawler_config["mask"]), self._base_path
+            )
+        else:
             self._last_mask = None
         self._last_tag = crawler_config["cheetah_tag"]
 
@@ -345,11 +301,11 @@ class CheetahExperiment:
         )
 
         self._crawler_config_filename = self._gui_directory / "crawler.config"
+        self._crawler_scan_raw_dir = True
+        self._crawler_scan_proc_dir = True
 
         self._last_process_config_filename = self._process_directory / "template.yaml"
         self._last_tag = ""
-
-        self.write_crawler_config()
 
     def _update_previous_experiments_list(self) -> None:
         # Updates the list of experiments in ~/.cheetah-crawler2, setting current
@@ -413,7 +369,9 @@ class CheetahExperiment:
         """
         return self._crawler_csv_filename
 
-    def get_last_processing_config(self) -> TypeProcessingConfig:
+    def get_last_processing_config(
+        self, run_proc_dir: str = ""
+    ) -> TypeProcessingConfig:
         """
         Get the last processing config.
 

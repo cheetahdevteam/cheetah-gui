@@ -10,6 +10,7 @@ import pathlib
 import shutil
 import stat
 import subprocess
+import yaml
 
 from typing import Callable, TextIO, Union
 
@@ -17,8 +18,9 @@ try:
     from typing import Literal, TypedDict
 except:
     from typing_extensions import Literal, TypedDict  # type: ignore
-from cheetah.crawlers import facilities
 
+from cheetah.crawlers import facilities
+from cheetah.utils.yaml_dumper import CheetahSafeDumper
 
 class _TypeOmConfigTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill OM config
@@ -122,18 +124,20 @@ class CheetahProcess:
         process_template_data: _TypeProcessScriptTemplateData,
         om_config_template_data: _TypeOmConfigTemplateData,
     ) -> None:
-        # Writes process_config.txt file in the output run directory.
+        # Writes process.config file in the output run directory.
         fh: TextIO
-        with open(output_directory / "process_config.txt", "w") as fh:
-            fh.write("Processing config:\n")
-            for key, value in config.items():
-                fh.write(f"{key}: {value}\n")
-            fh.write("\nProcess script template data:\n")
-            for key, value in process_template_data.items():
-                fh.write(f"{key}: {value}\n")
-            fh.write("\nOM config template data:\n")
-            for key, value in om_config_template_data.items():
-                fh.write(f"{key}: {value}\n")
+        with open(output_directory / "process.config", "w") as fh:
+            fh.write(
+                yaml.dump(
+                    {
+                        "Processing config": config,
+                        "Process script template data": process_template_data,
+                        "OM config template data": om_config_template_data,
+                    },
+                    Dumper=CheetahSafeDumper,
+                    sort_keys=False,
+                )
+            )
 
     def _write_status_file(self, output_directory: pathlib.Path) -> None:
         # Writes status.txt file after submitting the job.

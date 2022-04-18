@@ -397,17 +397,21 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )
-
         selected_runs: List[str] = [
             self.experiment.crawler_table_id_to_raw_id(self._table.item(row, 0).text())
             for row in selected_rows
         ]
-
         if len(selected_runs) == 0:
             return
+
+        first_selected_hdf5_dir: str = self._table.item(
+            selected_rows[0], self._table_column_names.index("H5Directory")
+        ).text()
+
         dialog: process_dialogs.RunProcessingDialog = (
             process_dialogs.RunProcessingDialog(
-                self.experiment.get_last_processing_config(), self
+                self.experiment.get_last_processing_config(),
+                self,
             )
         )
         if dialog.exec() == 0:
