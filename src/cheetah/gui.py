@@ -127,12 +127,16 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
     def _refresh(self) -> None:
         # Starts crawler update.
         self._refresh_button.setEnabled(False)
+        self._raw_scan_enable_button.setEnabled(False)
+        self._proc_scan_enable_button.setEnabled(False)
         self._status_label.setText("Scanning files")
         self._refresh_thread.start()
 
     def _refresh_finished(self) -> None:
         # Finishes crawler update.
         self._refresh_button.setEnabled(True)
+        self._raw_scan_enable_button.setEnabled(True)
+        self._proc_scan_enable_button.setEnabled(True)
         self._status_label.setText("Ready")
         self._refresh_timer.start(60000)
 
@@ -403,14 +407,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         ]
         if len(selected_runs) == 0:
             return
-
-        first_selected_hdf5_dir: str = self._table.item(
+        first_selected_hdf5_dir: Union[str, None] = self._table.item(
             selected_rows[0], self._table_column_names.index("H5Directory")
         ).text()
+        if first_selected_hdf5_dir == "---":
+            first_selected_hdf5_dir = None
 
         dialog: process_dialogs.RunProcessingDialog = (
             process_dialogs.RunProcessingDialog(
-                self.experiment.get_last_processing_config(),
+                self.experiment.get_last_processing_config(first_selected_hdf5_dir),
                 self,
             )
         )
@@ -584,12 +589,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         selected_directories: List[str] = [
             str(proc_dir / self._table.item(row, proc_dir_column).text())
             for row in selected_rows
+            if self._table.item(row, proc_dir_column).text() != "---"
         ]
+        if len(selected_directories) == 0:
+            return
         input_str: str = " ".join(selected_directories)
         geometry: str = self.experiment.get_last_processing_config()["geometry"]
         viewer_command: str = f"cheetah_viewer.py {input_str} -i dir -g {geometry}"
         print(viewer_command)
-        subprocess.Popen(viewer_command, shell=True)
+        p: subprocess.Popen[bytes] = subprocess.Popen(viewer_command, shell=True)
 
     def _view_hitrate(self) -> None:
         # Launches Cheetah Hitrate GUI for selected runs.

@@ -8,7 +8,7 @@ import pathlib
 import shutil
 import yaml
 
-from typing import List, Dict, TextIO, Union
+from typing import List, Dict, TextIO, Union, Any, cast
 
 try:
     from typing import TypedDict
@@ -136,7 +136,7 @@ class CheetahExperiment:
                         "geometry": self._last_geometry.relative_to(self._base_path),
                         "mask": self._last_mask.relative_to(self._base_path)
                         if self._last_mask
-                        else None,
+                        else "",
                         "cheetah_config": self._last_process_config_filename.relative_to(
                             self._base_path
                         ),
@@ -195,20 +195,8 @@ class CheetahExperiment:
         )
         self._calib_directory = self._gui_directory.parent / "calib"
 
-        if (
-            "crawler_scan_raw_dir" in crawler_config.keys()
-            and crawler_config["crawler_scan_raw_dir"] == "False"
-        ):
-            self._crawler_scan_raw_dir: bool = False
-        else:
-            self._crawler_scan_raw_dir = True
-        if (
-            "crawler_scan_proc_dir" in crawler_config.keys()
-            and crawler_config["crawler_scan_proc_dir"] == "False"
-        ):
-            self._crawler_scan_proc_dir: bool = False
-        else:
-            self._crawler_scan_proc_dir = True
+        self._crawler_scan_raw_dir: bool = crawler_config["crawler_scan_raw_dir"]
+        self._crawler_scan_proc_dir: bool = crawler_config["crawler_scan_proc_dir"]
 
         self._last_process_config_filename = self._resolve_path(
             pathlib.Path(crawler_config["cheetah_config"]), self._base_path
@@ -353,6 +341,7 @@ class CheetahExperiment:
         This function returns the path of the experiment calib directory.
 
         Returns:
+
             The path of the processed data directory.
         """
         return self._calib_directory
@@ -365,24 +354,43 @@ class CheetahExperiment:
         data displayed in the Cheetah GUI run table.
 
         Returns:
+
             The path of the crawler CSV file.
         """
         return self._crawler_csv_filename
 
     def get_last_processing_config(
-        self, run_proc_dir: str = ""
+        self, run_proc_dir: Union[str, None] = None
     ) -> TypeProcessingConfig:
         """
         Get the last processing config.
 
         This function returns a
         [TypeProcessingConfig][cheetah.process.TypeProcessingConfig] dictionary
-        containing configuration of the latest launched processing job.
+        containing configuration of the latest launched processing job either from a
+        specified run directory or from the whole experiment.
+
+        Arguments:
+
+            run_proc_dir: Either the path of the processed run directory or None. When
+                the value of this parameter is None, the function returns the last
+                processing config used for any run in the experiment. Defaults to None.
 
         Returns:
 
             The last processing config.
         """
+        if run_proc_dir:
+            process_config_filename: pathlib.Path = (
+                self._proc_directory / run_proc_dir / "process.config"
+            )
+            if process_config_filename.is_file():
+                fh: TextIO
+                with open(process_config_filename, "r") as fh:
+                    run_process_config: Dict[str, Any] = yaml.safe_load(fh)
+                return cast(
+                    TypeProcessingConfig, run_process_config["Processing config"]
+                )
         return {
             "config_template": str(self._last_process_config_filename),
             "tag": self._last_tag,
