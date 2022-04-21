@@ -429,6 +429,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def _update_resolution_rings_radii(self) -> None:
         was_enabled: bool = self._resolution_rings_check_box.isChecked()
         self._resolution_rings_check_box.setChecked(False)
+        self._update_resolution_rings_status()
 
         items: List[str] = str(self._resolution_rings_lineedit.text()).split(",")
         if items:
@@ -441,13 +442,15 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         x: float
         self._resolution_rings_textitems = [
-            pyqtgraph.TextItem(text="{0}A".format(x), anchor=(0.5, 0.8))
+            pyqtgraph.TextItem(
+                text="{0}A".format(x), anchor=(0.5, 0.8), color=(0, 255, 0)
+            )
             for x in self._resolution_rings_in_a
         ]
 
         if was_enabled is True:
             self._resolution_rings_check_box.setChecked(True)
-
+        self._update_resolution_rings_status()
         self._draw_resolution_rings()
 
     def _draw_resolution_rings(self) -> None:
