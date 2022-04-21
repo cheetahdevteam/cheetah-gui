@@ -1,22 +1,17 @@
-; Manually optimized with hdfsee
-; Manually optimized with hdfsee
-; Manually optimized with hdfsee
-; Manually optimized with hdfsee
-
 photon_energy = 11800
 peak_list = /data/peaks
 peak_list_type = cxi
 
-;photon_energy = 11100
+photon_energy = 12000
 photon_energy_bandwidth = 0.20
 adu_per_eV = 0.0001
 clen = 0.250
 res = 11287.47795414462 
 
-mask_file = /gpfs/cfel/group/cxi/scratch/data/2021/APS-2022-Meents-Mar-14ID/processed/alexandra/mask_v0.h5
-mask = /data/data
-mask_good = 0x01
-mask_bad = 0x00
+;mask_file = /path/to/mask.h5
+;mask = /data/data
+;mask_good = 0x01
+;mask_bad = 0x00
 
 data = /data/data
 dim0 = %

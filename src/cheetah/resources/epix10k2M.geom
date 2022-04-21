@@ -10,9 +10,10 @@ dim0 = %
 dim1 = ss
 dim2 = fs
 
-; mask = /entry_1/data_1/mask
-; mask_good = 0x0000
-; mask_bad = 0xffff
+;mask_file = /path/to/mask.h5
+;mask = /data/data
+;mask_good = 0x01
+;mask_bad = 0x00
 
 rigid_group_q0 = p0a0,p0a1,p0a2,p0a3,p1a0,p1a1,p1a2,p1a3,p2a0,p2a1,p2a2,p2a3,p3a0,p3a1,p3a2,p3a3
 rigid_group_q1 = p4a0,p4a1,p4a2,p4a3,p5a0,p5a1,p5a2,p5a3,p6a0,p6a1,p6a2,p6a3,p7a0,p7a1,p7a2,p7a3

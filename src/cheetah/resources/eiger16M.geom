@@ -15,7 +15,6 @@ data = /entry/data/data
 
 peak_info_location = /entry_1/result_1
 
-
 ; Uncomment these lines if you have a separate bad pixel map (recommended!)
 ; mask_file = /path/to/mask.h5
 ; mask = /data/data

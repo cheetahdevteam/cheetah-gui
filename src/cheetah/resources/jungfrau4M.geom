@@ -9,9 +9,10 @@ dim0 = %
 dim1 = ss
 dim2 = fs
 
-;mask = /entry_1/data_1/mask
-;mask_good = 0x0000
-;mask_bad = 0xffff
+;mask_file = /path/to/mask.h5
+;mask = /data/data
+;mask_good = 0x01
+;mask_bad = 0x00
 
 p0a0/fs = +1.000000x +0.000000y
 p0a0/ss = +0.000000x -1.000000y

@@ -6,9 +6,10 @@ coffset = 0.567855
 
 data = /entry_1/data_1/data
 
-;mask = /entry_1/data_1/mask
-;mask_good = 0x0000
-;mask_bad = 0xffff
+;mask_file = /path/to/mask.h5
+;mask = /data/data
+;mask_good = 0x01
+;mask_bad = 0x00
 
 dim0 = %
 dim1 = ss
