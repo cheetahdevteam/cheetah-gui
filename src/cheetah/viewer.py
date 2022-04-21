@@ -1024,7 +1024,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 1 - self._maskmaker_image_data.T[self._where_visual_pixels]
             )
             print(f"Saving new mask to {filename}.")
-            with h5py.File("mask-new.h5", "w") as fh:
+            with h5py.File(filename, "w") as fh:
                 fh.create_dataset("/data/data", data=mask)
 
 
