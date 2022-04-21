@@ -62,6 +62,7 @@ class CheetahExperiment:
         self,
         path: pathlib.Path,
         new_experiment_config: Union[None, TypeExperimentConfig] = None,
+        gui: bool = True,
     ) -> None:
         """
         Cheetah Experiment.
@@ -86,12 +87,13 @@ class CheetahExperiment:
                 [TypeExperimentConfig][cheetah.experiment.TypeExperimentConfig]
                 dictionary or None. If the value of this parameter is None `path` must
                 point to already existing cheetah/gui directory.
+
+            gui: Whether experiment is intialized from the GUI. Defaults to True.
         """
         if new_experiment_config:
             self._setup_new_experiment(new_experiment_config)
         else:
             self._load_existing_experiment(path)
-        self._update_previous_experiments_list()
         self._crawler_csv_filename: pathlib.Path = self._gui_directory / "crawler.txt"
         self._crawler: Crawler = facilities[self._facility]["crawler"](
             self._raw_directory,
@@ -107,7 +109,10 @@ class CheetahExperiment:
             self._raw_directory,
             self._proc_directory,
         )
-        self.write_crawler_config()
+
+        if gui:
+            self._update_previous_experiments_list()
+            self.write_crawler_config()
 
     def write_crawler_config(self) -> None:
         """
@@ -176,32 +181,32 @@ class CheetahExperiment:
         )
         fh: TextIO
         with open(self._crawler_config_filename, "r") as fh:
-            crawler_config: Dict[str, str] = yaml.safe_load(fh.read())
+            crawler_config: Dict[str, Any] = yaml.safe_load(fh.read())
 
-        self._facility = crawler_config["facility"]
-        self._instrument = crawler_config["instrument"]
-        self._detector = crawler_config["detector"]
-        self._experiment_id = crawler_config["experiment_id"]
+        self._facility: str = crawler_config["facility"]
+        self._instrument: str = crawler_config["instrument"]
+        self._detector: str = crawler_config["detector"]
+        self._experiment_id: str = crawler_config["experiment_id"]
 
-        self._base_path = pathlib.Path(crawler_config["base_path"])
-        self._raw_directory = self._resolve_path(
+        self._base_path: pathlib.Path = pathlib.Path(crawler_config["base_path"])
+        self._raw_directory: pathlib.Path = self._resolve_path(
             pathlib.Path(crawler_config["raw_dir"]), self._base_path
         )
-        self._proc_directory = self._resolve_path(
+        self._proc_directory: pathlib.Path = self._resolve_path(
             pathlib.Path(crawler_config["hdf5_dir"]), self._base_path
         )
-        self._process_directory = self._resolve_path(
+        self._process_directory: pathlib.Path = self._resolve_path(
             pathlib.Path(crawler_config["process_dir"]), self._base_path
         )
-        self._calib_directory = self._gui_directory.parent / "calib"
+        self._calib_directory: pathlib.Path = self._gui_directory.parent / "calib"
 
         self._crawler_scan_raw_dir: bool = crawler_config["crawler_scan_raw_dir"]
         self._crawler_scan_proc_dir: bool = crawler_config["crawler_scan_proc_dir"]
 
-        self._last_process_config_filename = self._resolve_path(
+        self._last_process_config_filename: pathlib.Path = self._resolve_path(
             pathlib.Path(crawler_config["cheetah_config"]), self._base_path
         )
-        self._last_geometry = self._resolve_path(
+        self._last_geometry: pathlib.Path = self._resolve_path(
             pathlib.Path(crawler_config["geometry"]), self._base_path
         )
         if crawler_config["mask"]:
@@ -210,7 +215,7 @@ class CheetahExperiment:
             )
         else:
             self._last_mask = None
-        self._last_tag = crawler_config["cheetah_tag"]
+        self._last_tag: str = crawler_config["cheetah_tag"]
 
     def _setup_new_experiment(
         self, new_experiment_config: TypeExperimentConfig
@@ -359,6 +364,29 @@ class CheetahExperiment:
         """
         return self._crawler_csv_filename
 
+    def get_facility(self) -> str:
+        """
+        Get facility.
+
+        This function returns the name of the facility (defined in
+        [facilities][cheetah.crawlers.facilities]).
+
+        Returns:
+
+            The name of the facility.
+        """
+        return self._facility
+
+    def get_id(self) -> str:
+        """
+        Get experiment ID.
+
+        Returns:
+
+            Experiment ID.
+        """
+        return self._experiment_id
+
     def get_last_processing_config(
         self, run_proc_dir: Union[str, None] = None
     ) -> TypeProcessingConfig:
@@ -398,6 +426,18 @@ class CheetahExperiment:
             "mask": str(self._last_mask) if self._last_mask else "",
         }
 
+    def get_raw_directory(self) -> pathlib.Path:
+        """
+        Get raw data directory.
+
+        This function returns the path of the directory where raw data is stored.
+
+        Returns:
+
+            The path of the raw data directory.
+        """
+        return self._raw_directory
+
     def get_working_directory(self) -> pathlib.Path:
         """
         Get working directory.
@@ -405,6 +445,7 @@ class CheetahExperiment:
         This function returns the path of the Cheetah experiment directory.
 
         Returns:
+
             The path of the Cheetah experiment directory.
         """
         return (self._gui_directory / "..").resolve()
@@ -416,6 +457,7 @@ class CheetahExperiment:
         This function returns the path of the directory where processed data is stored.
 
         Returns:
+
             The path of the processed data directory.
         """
         return self._proc_directory
@@ -483,6 +525,7 @@ class CheetahExperiment:
         initialized.
 
         Returns:
+
             Cheetah crawler.
         """
         return self._crawler

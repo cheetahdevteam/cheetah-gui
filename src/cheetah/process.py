@@ -4,7 +4,6 @@ Cheetah Process.
 This module contains classes and functions that allow configuring and launching Cheetah
 processing jobs.
 """
-import click  # type: ignore
 import jinja2
 import pathlib
 import shutil
@@ -12,7 +11,7 @@ import stat
 import subprocess
 import yaml
 
-from typing import Callable, TextIO, Union
+from typing import Callable, TextIO, Union, List
 
 try:
     from typing import Literal, TypedDict
@@ -21,6 +20,7 @@ except:
 
 from cheetah.crawlers import facilities
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
+
 
 class _TypeOmConfigTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill OM config
@@ -253,14 +253,3 @@ class CheetahProcess:
         self._write_process_config_file(
             output_directory, config, process_script_data, om_config_data
         )
-
-
-@click.command()  # type: ignore
-def main() -> None:
-    """ """
-    pass
-    # TODO: make cheetah_process.py a standalone script
-
-
-if __name__ == "__main__":
-    main()
