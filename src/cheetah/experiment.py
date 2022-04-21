@@ -462,22 +462,44 @@ class CheetahExperiment:
         """
         return self._proc_directory
 
-    def process_run(
+    def kill_processing_jobs(self, run_proc_dirs: List[str]) -> None:
+        """
+        Kill a list of processing jobs.
+
+        This function kills the processing of each run in the provided list calling
+        [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run]
+        function.
+
+        Arguments:
+
+            run_proc_dirs: A list of processed run directories relative to the
+                experiment proc directory (as displayed in the Cheetah GUI table).
+        """
+        run_dir: str
+        for run_dir in run_proc_dirs:
+            error: str = self._cheetah_process.kill_processing(run_dir)
+            if error != "":
+                print(error)
+            else:
+                print(f"Killing job {run_dir}.")
+
+    def process_runs(
         self,
-        run_id: str,
+        run_ids: List[str],
         processing_config: Union[TypeProcessingConfig, None],
         queue: Union[str, None] = None,
         n_processes: Union[int, None] = None,
     ) -> None:
         """
-        Launch processing of a single run.
+        Launch processing of a list of runs.
 
-        This function launches processing of a single run calling
-        [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run] method.
+        This function launches processing of each run from the provided list calling
+        [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run]
+        function.
 
         Arguments:
 
-            run_id: Run ID of the raw data.
+            run_ids: A list of run IDs of the raw data.
 
             processing_config: Either a
                 [TypeProcessingConfig][cheetah.process.TypeProcessingConfig] dictionary
@@ -508,12 +530,14 @@ class CheetahExperiment:
             else:
                 self._last_mask = None
 
-        self._cheetah_process.process_run(
-            run_id,
-            processing_config,
-            queue,
-            n_processes,
-        )
+        run_id: str
+        for run_id in run_ids:
+            self._cheetah_process.process_run(
+                run_id,
+                processing_config,
+                queue,
+                n_processes,
+            )
         self.write_crawler_config()
 
     def start_crawler(self) -> Crawler:

@@ -33,6 +33,7 @@ from cheetah.crawlers.functions_desy import (
     prepare_om_source_p11_eiger,
     prepare_om_source_biocars_mccd,
 )
+from cheetah.crawlers.functions_generic import kill_slurm_job
 
 
 class TypeDetectorInfo(TypedDict):
@@ -104,6 +105,7 @@ class TypeFacilityInfo(TypedDict):
     guess_experiment_id: Callable[[pathlib.Path], str]
     guess_batch_queue: Callable[[pathlib.Path], str]
     prepare_om_source: Callable[[str, str, pathlib.Path, pathlib.Path], str]
+    kill_processing_job: Callable[[str], str]
     crawler: Type[Crawler]
 
 
@@ -155,6 +157,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "guess_experiment_id": guess_experiment_id_lcls,
         "prepare_om_source": prepare_om_source_lcls,
         "guess_batch_queue": guess_batch_queue_lcls,
+        "kill_processing_job": kill_slurm_job,
         "crawler": LclsCrawler,
     },
     "DESY (PETRA III)": {
@@ -176,6 +179,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "guess_experiment_id": guess_experiment_id_desy,
         "prepare_om_source": prepare_om_source_p11_eiger,
         "guess_batch_queue": guess_batch_queue_desy,
+        "kill_processing_job": kill_slurm_job,
         "crawler": P11EigerCrawler,
     },
     "DESY (external beamtime)": {
@@ -197,6 +201,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "guess_experiment_id": guess_experiment_id_desy,
         "prepare_om_source": prepare_om_source_biocars_mccd,
         "guess_batch_queue": guess_batch_queue_desy,
+        "kill_processing_job": kill_slurm_job,
         "crawler": BioCarsMccdCrawler,
     },
 }

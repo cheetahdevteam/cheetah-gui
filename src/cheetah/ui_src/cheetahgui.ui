@@ -70,6 +70,13 @@
          </widget>
         </item>
         <item>
+         <widget class="QPushButton" name="button_kill_processing">
+          <property name="text">
+           <string>Kill processing</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="button_view_hits">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -303,7 +310,7 @@
      <string>Cheetah</string>
     </property>
     <addaction name="menu_cheetah_process_selected"/>
-    <addaction name="menu_cheetah_autorun"/>
+    <addaction name="menu_cheetah_kill_processing"/>
    </widget>
    <widget class="QMenu" name="menuAnalysis">
     <property name="enabled">
@@ -479,6 +486,11 @@
   <action name="menu_file_start_crawler">
    <property name="text">
     <string>Start crawler</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_kill_processing">
+   <property name="text">
+    <string>Kill processing jobs</string>
    </property>
   </action>
  </widget>

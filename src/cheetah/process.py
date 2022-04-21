@@ -11,7 +11,7 @@ import stat
 import subprocess
 import yaml
 
-from typing import Callable, TextIO, Union, List
+from typing import Callable, TextIO, Union, Dict, Any
 
 try:
     from typing import Literal, TypedDict
@@ -112,6 +112,9 @@ class CheetahProcess:
         self._prepare_om_source: Callable[
             [str, str, pathlib.Path, pathlib.Path], str
         ] = facilities[self._facility]["prepare_om_source"]
+        self._kill_processing_job: Callable[[str], str] = facilities[self._facility][
+            "kill_processing_job"
+        ]
 
     def _raw_id_to_proc_id(self, raw_id: str) -> str:
         # Converts raw run ID to processed run ID by replacing all "-" signs with "_".
@@ -139,12 +142,51 @@ class CheetahProcess:
                 )
             )
 
-    def _write_status_file(self, output_directory: pathlib.Path) -> None:
+    def _write_status_file(
+        self, filename: pathlib.Path, status: Dict[str, Any]
+    ) -> None:
         # Writes status.txt file after submitting the job.
         fh: TextIO
-        with open(output_directory / "status.txt", "w") as fh:
+        with open(filename, "w") as fh:
             fh.write("# Cheetah status\n")
-            fh.write("Status: Submitted\n")
+            fh.write(yaml.dump(status, Dumper=CheetahSafeDumper, sort_keys=False))
+
+    def kill_processing(self, run_proc_dir: str) -> str:
+        """
+        Kill run processing job.
+
+        This function tries to kill the processing of the provided run using
+        facility-specific kill_processing_job function (defined in
+        [facilities][cheetah.crawlers.facilities]).
+
+        Arguments:
+
+            run_proc_dir: The path of the processed run directory relative to the
+                experiment proc directory (as displayed in the Cheetah GUI table).
+
+        Returns:
+
+            Either an empty string if the job was killed successfully or the error
+            message.
+        """
+        status_filename: pathlib.Path = (
+            self._proc_directory / run_proc_dir / "status.txt"
+        )
+        if status_filename.is_file():
+            fh: TextIO
+            with open(status_filename, "r") as fh:
+                status: Dict[str, Any] = yaml.safe_load(fh.read())
+        else:
+            return f"Job directory {run_proc_dir} doesn't exist."
+
+        if status["Status"] == "Finished":
+            return f"Processing job {run_proc_dir} is already finished."
+
+        error: str = self._kill_processing_job(run_proc_dir)
+        if error == "":
+            status["Status"] = "Cancelled"
+            self._write_status_file(status_filename, status)
+        return error
 
     def process_run(
         self,
@@ -249,7 +291,9 @@ class CheetahProcess:
 
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
         subprocess.run(f"{process_script}", cwd=output_directory)
-        self._write_status_file(output_directory)
+        self._write_status_file(
+            output_directory / "status.txt", {"Status": "Submitted"}
+        )
         self._write_process_config_file(
             output_directory, config, process_script_data, om_config_data
         )

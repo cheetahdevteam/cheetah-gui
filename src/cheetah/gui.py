@@ -193,12 +193,10 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         """
         Process runs.
 
-        This function is called when ProcessThread is started. It calls
-        [process_run][cheetah.experiment.Experiment.process_run] function for each run
-        in the list.
+        This function is called when ProcessThread is started. It calls Cheetah
+        Experiment [process_runs][cheetah.experiment.Experiment.process_runs] function.
         """
-        for run_id in self._runs:
-            self._experiment.process_run(run_id, self._config)
+        self._experiment.process_runs(self._runs, self._config)
 
 
 class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
@@ -262,7 +260,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     See documentation of the `__init__` function.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, command: bool = False) -> None:
         """
         Cheetah GUI.
 
@@ -271,6 +269,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         output. When started it creates an instance of
         [CheetahExperiment][cheetah.experiment.Experiment] class which is then used to
         update the table and launch data processing.
+
+        Attributes:
+
+            command: Whether to enable command operations and start the crawler on
+                start-up. Defaults to False.
         """
         super(CheetahGui, self).__init__()
         self._ui: Any = uic.loadUi(
@@ -322,7 +325,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             "Not finished": QtGui.QColor(0, 255, 255),
             "Ready": QtGui.QColor(200, 255, 200),
             "Finished": QtGui.QColor(200, 255, 200),
-            "Terminated": QtGui.QColor(255, 200, 200),
+            "Cancelled": QtGui.QColor(255, 200, 200),
             "Error": QtGui.QColor(255, 100, 100),
         }
 
@@ -334,6 +337,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Connect front panel buttons to actions
         self._ui.button_refresh.clicked.connect(self._refresh_table)
         self._ui.button_run_cheetah.clicked.connect(self._process_runs)
+        self._ui.button_kill_processing.clicked.connect(self._kill_processing)
         self._ui.button_view_hits.clicked.connect(self._view_hits)
         self._ui.button_sum_blanks.clicked.connect(self._view_sum_blanks)
         self._ui.button_sum_hits.clicked.connect(self._view_sum_hits)
@@ -345,7 +349,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         # Cheetah menu actions
         self._ui.menu_cheetah_process_selected.triggered.connect(self._process_runs)
-        self._ui.menu_cheetah_autorun.triggered.connect(self._pass)
+        self._ui.menu_cheetah_kill_processing.triggered.connect(self._kill_processing)
 
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._open_maskmaker)
@@ -367,13 +371,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         # Disable action commands until enabled
         self._ui.button_run_cheetah.setEnabled(False)
+        self._ui.button_kill_processing.setEnabled(False)
         self._ui.menu_file_start_crawler.setEnabled(False)
         self._ui.menu_cheetah_process_selected.setEnabled(False)
-        self._ui.menu_cheetah_autorun.setEnabled(False)
+        self._ui.menu_cheetah_kill_processing.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
-    def _pass(self) -> None:
-        pass
+        if command:
+            self._enable_commands()
+            self._start_crawler()
 
     def _crawler_gui_closed(self) -> None:
         # Prints a message when Crawler GUI is closed.
@@ -382,9 +388,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _enable_commands(self) -> None:
         # Enables "command operations": starting the crawler and processing runs.
         self._ui.button_run_cheetah.setEnabled(True)
+        self._ui.button_kill_processing.setEnabled(True)
         self._ui.menu_file_start_crawler.setEnabled(True)
         self._ui.menu_cheetah_process_selected.setEnabled(True)
-        # self._ui.menu_cheetah_autorun.setEnabled(True)
+        self._ui.menu_cheetah_kill_processing.setEnabled(True)
 
     def _exit(self) -> None:
         # Prints message on exit
@@ -395,6 +402,32 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Hack to get current directory without resolving links at psana
         # instead of using pathlib.Path.cwd()
         return pathlib.Path(os.environ["PWD"])
+
+    def _kill_processing(self) -> None:
+        # Ask if the user is sure they want to kill the jobs. If yes - try to kill the
+        # jobs.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        if len(selected_rows) == 0:
+            return
+        reply: Any = QtWidgets.QMessageBox.question(
+            self,
+            "",
+            "Are you sure you want to cancel processing of the selected runs?",
+            QtWidgets.QMessageBox.Yes,
+            QtWidgets.QMessageBox.No,
+        )
+        if reply == QtWidgets.QMessageBox.No:
+            return
+
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        selected_run_dirs: List[str] = [
+            (self._table.item(row, proc_dir_column).text())
+            for row in selected_rows
+            if self._table.item(row, proc_dir_column).text() != "---"
+        ]
+        self.experiment.kill_processing_jobs(selected_run_dirs)
 
     def _process_runs(self) -> None:
         # Starts a ProcessThread which submits processing of selected runs
@@ -446,12 +479,16 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _process_thread_started(self) -> None:
         # Disables launching new processing jobs until the previous jobs are submitted
         self._ui.button_run_cheetah.setEnabled(False)
+        self._ui.button_kill_processing.setEnabled(False)
         self._ui.menu_cheetah_process_selected.setEnabled(False)
+        self._ui.menu_cheetah_kill_processing.setEnabled(False)
 
     def _process_thread_finished(self) -> None:
         # Enables launching new processing jobs
         self._ui.button_run_cheetah.setEnabled(True)
+        self._ui.button_kill_processing.setEnabled(True)
         self._ui.menu_cheetah_process_selected.setEnabled(True)
+        self._ui.menu_cheetah_kill_processing.setEnabled(True)
 
     def _refresh_table(self) -> None:
         # Refreshes runs table. This function is run automatically every minute. It can
@@ -742,7 +779,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
-def main() -> None:
+@click.option(  # type: ignore
+    "--command", "-c", "command", is_flag=True, default=False, hidden=True
+)
+def main(command: bool) -> None:
     """
     Cheetah GUI. This script starts the main Cheetah window. If started from the
     existing Cheetah experiment directory containing crawler.config file experiment
@@ -750,7 +790,7 @@ def main() -> None:
     opened.
     """
     app: Any = QtWidgets.QApplication(sys.argv)
-    _ = CheetahGui()
+    _ = CheetahGui(command)
     sys.exit(app.exec_())
 
 
