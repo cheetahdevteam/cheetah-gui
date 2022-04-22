@@ -55,13 +55,15 @@ setup(
         "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "cheetah_process_runs.py=cheetah.scripts.process_runs:main"
+        ],
         "gui_scripts": [
             "cheetah_gui.py=cheetah.gui:main",
             "cheetah_viewer.py=cheetah.viewer:main",
             "cheetah_peakogram.py=cheetah.scripts.peakogram:main",
             "cheetah_hitrate.py=cheetah.scripts.hitrate:main",
-            "cheetah_process_runs.py=cheetah.scripts.process_runs:main",
+            "online_cell_monitor.py=cheetah.scripts.cell_monitor:main",
         ],
     },
     packages=find_packages(where="src"),

@@ -133,7 +133,7 @@ class FileReader(QtCore.QObject, metaclass=_QtMetaclass):  # type: ignore
         if data is not None:
             self.output.emit(data)
         if not self._sleep_timer.isActive():
-            self._read_files()
+            self._emit_timer.start(self._output_emit_interval)
 
     @abstractmethod
     def _process_line(self, line: str) -> None:
