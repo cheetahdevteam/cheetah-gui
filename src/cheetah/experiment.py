@@ -6,6 +6,7 @@ particular experiment and control its data processing.
 """
 import pathlib
 import shutil
+import stat
 import yaml
 
 from typing import List, Dict, TextIO, Union, Any, cast
@@ -95,7 +96,9 @@ class CheetahExperiment:
         else:
             self._load_existing_experiment(path)
         self._crawler_csv_filename: pathlib.Path = self._gui_directory / "crawler.txt"
-        self._crawler: Crawler = facilities[self._facility]["crawler"](
+        self._crawler: Crawler = facilities[self._facility]["instruments"][
+            self._instrument
+        ]["detectors"][self._detector]["crawler"](
             self._raw_directory,
             self._proc_directory,
             self._crawler_csv_filename,
@@ -104,6 +107,8 @@ class CheetahExperiment:
         )
         self._cheetah_process: CheetahProcess = CheetahProcess(
             self._facility,
+            self._instrument,
+            self._detector,
             self._experiment_id,
             self._process_directory / "process_template.sh",
             self._raw_directory,
@@ -265,10 +270,15 @@ class CheetahExperiment:
         )
         resource: str
         for resource in resources["calib_resources"].values():
+            resource_path: pathlib.Path = pathlib.Path(resource)
             shutil.copyfile(
                 pathlib.Path(new_experiment_config["cheetah_resources"]) / resource,
-                self._calib_directory / resource,
+                self._calib_directory / resource_path.name,
             )
+            if resource_path.parts[0] == "scripts":
+                script: pathlib.Path = self._calib_directory / resource_path.name
+                script.chmod(script.stat().st_mode | stat.S_IEXEC)
+
         self._last_geometry = (
             self._calib_directory / resources["calib_resources"]["geometry"]
         )
@@ -364,6 +374,19 @@ class CheetahExperiment:
         """
         return self._crawler_csv_filename
 
+    def get_detector(self) -> str:
+        """
+        Get detector.
+
+        This function returns the name of the detector (defined in
+        [facilities][cheetah.crawlers.facilities]).
+
+        Returns:
+
+            The name of the detector.
+        """
+        return self._detector
+
     def get_facility(self) -> str:
         """
         Get facility.
@@ -386,6 +409,19 @@ class CheetahExperiment:
             Experiment ID.
         """
         return self._experiment_id
+
+    def get_instrument(self) -> str:
+        """
+        Get instrument.
+
+        This function returns the name of the instrument (defined in
+        [facilities][cheetah.crawlers.facilities]).
+
+        Returns:
+
+            The name of the instrument.
+        """
+        return self._instrument
 
     def get_last_processing_config(
         self, run_proc_dir: Union[str, None] = None

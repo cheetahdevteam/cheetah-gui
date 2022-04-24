@@ -108,6 +108,8 @@ def main(
     )
     process: CheetahProcess = CheetahProcess(
         experiment.get_facility(),
+        experiment.get_instrument(),
+        experiment.get_detector(),
         experiment.get_id(),
         pathlib.Path(process_template),
         experiment.get_raw_directory(),

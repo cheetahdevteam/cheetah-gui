@@ -1,0 +1,78 @@
+om:
+  parallelization_layer: MpiParallelization
+  data_retrieval_layer: Jungfrau1MFilesDataRetrieval
+  processing_layer: CheetahProcessing
+
+data_retrieval_layer:
+  calibration: false
+  fallback_detector_distance_in_mm: 100
+  fallback_beam_energy_in_eV: 12000
+  required_data:
+    - "detector_data"
+    - "beam_energy"
+    - "detector_distance"
+    - "timestamp"
+    - "event_id"
+    - "frame_id"
+  detector_dark_filenames:
+    - "/path/to/dark_d0.h5"
+    - "/path/to/dark_d1.h5"
+  detector_gain_filenames:
+    - "/path/to/calib/gainMaps_M109.bin"
+    - "/path/to/calib/gainMaps_M110.bin"
+  detector_photon_energy_kev: 12.0
+
+cheetah:
+  processed_directory: "{{output_dir}}"
+  processed_filename_prefix: "{{filename_prefix}}"
+  processed_filename_extension: "h5"
+  write_class_sums: true
+  class_sums_update_interval: 5
+  class_sums_sending_interval: 30
+  status_file_update_interval: 100
+  class_sum_filename_prefix: "{{filename_prefix}}"
+  hdf5_file_data_type: "float32"
+  hdf5_file_compression: null
+  hdf5_file_compression_opts: 6
+  hdf5_file_compression_shuffle: true
+  hdf5_file_max_num_peaks: 2048
+  hdf5_fields:
+    detector_data: "/data/data"
+    event_id: "/data/event_id"
+    timestamp: "/data/timestamp"
+    peak_list: "/data/peaks"
+
+crystallography:
+  num_frames_in_event_to_process: 1
+  data_broadcast: false
+  data_broadcast_url: null
+  responding_url: null
+  geometry_file: "{{geometry_file}}"
+  min_num_peaks_for_hit: 20
+  max_num_peaks_for_hit: 5000
+  saturation_value: 100000
+  running_average_window_size: 200
+  geometry_is_optimized: true
+  speed_report_interval: 100
+  hit_frame_sending_interval: 5
+  non_hit_frame_sending_interval: 5
+  data_broadcast_interval: 10
+  binning: false
+  binning_before_peakfinding: false
+
+correction:
+  filename: null
+  hdf5_path: null
+
+peakfinder8_peak_detection:
+  detector_type: jungfrau1M
+  max_num_peaks: 2048
+  adc_threshold: 5.0
+  minimum_snr: 5.0
+  min_pixel_count: 2
+  max_pixel_count: 150
+  local_bg_radius: 4
+  min_res: 10
+  max_res: 1000
+  bad_pixel_map_filename: "{{mask_file}}"
+  bad_pixel_map_hdf5_path: /data/data

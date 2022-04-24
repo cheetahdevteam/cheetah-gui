@@ -46,6 +46,15 @@ class _TypeProcessScriptTemplateData(TypedDict):
     om_config: pathlib.Path
 
 
+class _TypeProcessDarkScriptTemplateData(TypedDict):
+    # A dictionary used internally to store information required to fill process dark
+    # script template, which can be used to process a single dark run.
+
+    run_id: str
+    raw_dir: str
+    output_dir: str
+
+
 class TypeProcessingConfig(TypedDict):
     """
     A dictionary storing processing configuration parameters.
@@ -75,6 +84,8 @@ class CheetahProcess:
     def __init__(
         self,
         facility: str,
+        instrument: str,
+        detector: str,
         experiment_id: str,
         process_template: pathlib.Path,
         raw_directory: pathlib.Path,
@@ -91,6 +102,10 @@ class CheetahProcess:
         Arguments:
 
             facility: The name of the facility.
+
+            instrument: The name of the instrument.
+
+            detector: The name of the detector.
 
             experiment_id: Experiment ID.
 
@@ -111,7 +126,11 @@ class CheetahProcess:
         self._proc_directory: pathlib.Path = proc_directory
         self._prepare_om_source: Callable[
             [str, str, pathlib.Path, pathlib.Path], str
-        ] = facilities[self._facility]["prepare_om_source"]
+        ] = facilities[self._facility]["instruments"][instrument]["detectors"][
+            detector
+        ][
+            "prepare_om_source"
+        ]
         self._kill_processing_job: Callable[[str], str] = facilities[self._facility][
             "kill_processing_job"
         ]

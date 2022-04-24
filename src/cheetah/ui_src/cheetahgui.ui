@@ -311,6 +311,7 @@
     </property>
     <addaction name="menu_cheetah_process_selected"/>
     <addaction name="menu_cheetah_kill_processing"/>
+    <addaction name="menu_cheetah_process_jungfrau_darks"/>
    </widget>
    <widget class="QMenu" name="menuAnalysis">
     <property name="enabled">
@@ -491,6 +492,14 @@
   <action name="menu_cheetah_kill_processing">
    <property name="text">
     <string>Kill processing jobs</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_process_jungfrau_darks">
+   <property name="text">
+    <string>Process JF 1M darks</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
    </property>
   </action>
  </widget>

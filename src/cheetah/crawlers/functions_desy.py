@@ -167,3 +167,47 @@ def prepare_om_source_biocars_mccd(
     )
 
     return str(output_filename)
+
+
+def prepare_om_source_jungfrau1M(
+    run_id: str,
+    experiment_id: str,
+    raw_directory: pathlib.Path,
+    run_proc_directory: pathlib.Path,
+) -> str:
+    """
+    Prepare OM data source for the processing of Junfrau 1M data.
+
+    The OM data source string for the data retrieval from Jungfrau 1M files is a text
+    file containing the list of 'master' HDF5 files. This function writes the list of
+    names of files belonging to a given run to the files.lst file in the
+    `run_proc_directory`.
+
+    Arguments:
+
+        run_id: Run ID of the raw data.
+
+        experiment_id: Experiment ID.
+
+        raw_directory: The raw data directory path of the experiment.
+
+        run_proc_directory: The processed data directory path of the run.
+
+    Returns:
+
+        OM data source string.
+    """
+    data_directory: pathlib.Path = (raw_directory / run_id).parent
+    filename_prefix: str = run_id.split("/")[-1]
+    fh: TextIO
+    with open(run_proc_directory / "files.lst", "w") as fh:
+        fh.writelines(
+            (
+                f"{data_directory/filename}\n"
+                for filename in sorted(
+                    data_directory.glob(f"{filename_prefix}_master_*.h5")
+                )
+            )
+        )
+
+    return str(run_proc_directory / "files.lst")

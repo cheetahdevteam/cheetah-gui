@@ -325,6 +325,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             "Not finished": QtGui.QColor(0, 255, 255),
             "Ready": QtGui.QColor(200, 255, 200),
             "Finished": QtGui.QColor(200, 255, 200),
+            "Dark ready": QtGui.QColor(70, 130, 180),
             "Cancelled": QtGui.QColor(255, 200, 200),
             "Error": QtGui.QColor(255, 100, 100),
         }
@@ -350,6 +351,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Cheetah menu actions
         self._ui.menu_cheetah_process_selected.triggered.connect(self._process_runs)
         self._ui.menu_cheetah_kill_processing.triggered.connect(self._kill_processing)
+        self._ui.menu_cheetah_process_jungfrau_darks.triggered.connect(
+            self._process_jungfrau_darks
+        )
 
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._open_maskmaker)
@@ -375,11 +379,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_start_crawler.setEnabled(False)
         self._ui.menu_cheetah_process_selected.setEnabled(False)
         self._ui.menu_cheetah_kill_processing.setEnabled(False)
+        self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
         if command:
             self._enable_commands()
             self._start_crawler()
+
+        if self.experiment.get_detector() == "Jungfrau1M":
+            self._ui.menu_cheetah_process_jungfrau_darks.setVisible(True)
 
     def _crawler_gui_closed(self) -> None:
         # Prints a message when Crawler GUI is closed.
@@ -392,6 +400,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_start_crawler.setEnabled(True)
         self._ui.menu_cheetah_process_selected.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
+        self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(True)
 
     def _exit(self) -> None:
         # Prints message on exit
@@ -402,6 +411,47 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Hack to get current directory without resolving links at psana
         # instead of using pathlib.Path.cwd()
         return pathlib.Path(os.environ["PWD"])
+
+    def _process_jungfrau_darks(self) -> None:
+        # Process selected Jungfrau 1M dark runs
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        selected_runs: List[str] = [
+            self._table.item(row, 0).text() for row in selected_rows
+        ]
+        if len(selected_runs) == 0:
+            return
+        input_str: str = " ".join(selected_runs)
+        latest_config: str = self.experiment.get_last_processing_config()[
+            "config_template"
+        ]
+        selected_config: str = QtWidgets.QFileDialog().getOpenFileName(
+            self, "Select config template file", latest_config, filter="*.yaml"
+        )[0]
+        if not selected_config:
+            return
+        crawler_config: pathlib.Path = (
+            self.experiment.get_working_directory() / "gui/crawler.config"
+        )
+        process_darks_script: pathlib.Path = (
+            self.experiment.get_calib_directory() / "process_darks_jungfrau.py"
+        )
+        process_darks_command: str = (
+            f"{process_darks_script} {input_str} -e {crawler_config} "
+            f"-c {selected_config} --copy-templates"
+        )
+        print(process_darks_command)
+        subprocess.Popen(process_darks_command, shell=True)
+        cheetah_column: int = self._table_column_names.index("Cheetah")
+        row: int
+        for row in selected_rows:
+            self._table.setItem(
+                row, cheetah_column, QtWidgets.QTableWidgetItem("Started")
+            )
+            self._table.item(row, cheetah_column).setBackground(
+                self._status_colors["Started"]
+            )
 
     def _kill_processing(self) -> None:
         # Ask if the user is sure they want to kill the jobs. If yes - try to kill the
@@ -497,6 +547,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self._refresh_timer.start(60000)
             return
         self._table.setSortingEnabled(False)
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
         n_columns: int = len(self._table_column_names)
         fh: TextIO
         with open(self._crawler_csv_filename, "r") as fh:
@@ -535,6 +588,14 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self._table.resizeRowsToContents()
         self._table.setSortingEnabled(True)
+
+        # restore previous selection:
+        self._table.clearSelection()
+        self._table.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        for row in selected_rows:
+            self._table.selectRow(row)
+        self._table.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+
         print(f"Table refreshed at {datetime.now()}")
 
         self._refresh_timer.start(60000)

@@ -19,6 +19,7 @@ from cheetah.crawlers.base import Crawler
 from cheetah.crawlers.crawler_lcls import LclsCrawler
 from cheetah.crawlers.crawler_p11 import P11EigerCrawler
 from cheetah.crawlers.crawler_biocars import BioCarsMccdCrawler
+from cheetah.crawlers.crawler_jungfrau import Jungfrau1MCrawler
 
 from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
@@ -32,6 +33,7 @@ from cheetah.crawlers.functions_desy import (
     guess_raw_directory_desy,
     prepare_om_source_p11_eiger,
     prepare_om_source_biocars_mccd,
+    prepare_om_source_jungfrau1M,
 )
 from cheetah.crawlers.functions_generic import kill_slurm_job
 
@@ -53,11 +55,18 @@ class TypeDetectorInfo(TypedDict):
         om_config_template: The name of the OM config template file.
 
         process_template: The name of the process script template file.
+
+        prepare_om_source: A function which prepares OM data source for data processing.
+
+        crawler: Cheetah Crawler class for the facility.
+
     """
 
     calib_resources: Dict[str, str]
     om_config_template: str
     process_template: str
+    prepare_om_source: Callable[[str, str, pathlib.Path, pathlib.Path], str]
+    crawler: Type[Crawler]
 
 
 class TypeInstrumentInfo(TypedDict):
@@ -95,18 +104,14 @@ class TypeFacilityInfo(TypedDict):
         guess_batch_queue: A function which guesses the appropriate batch queue name
             based on the experiment directory path.
 
-        prepare_om_source: A function which prepares OM data source for data processing.
-
-        crawler: Cheetah Crawler class for the facility.
+        kill_processing_job: A function which kills OM processing job.
     """
 
     instruments: Dict[str, TypeInstrumentInfo]
     guess_raw_directory: Callable[[pathlib.Path], pathlib.Path]
     guess_experiment_id: Callable[[pathlib.Path], str]
     guess_batch_queue: Callable[[pathlib.Path], str]
-    prepare_om_source: Callable[[str, str, pathlib.Path, pathlib.Path], str]
     kill_processing_job: Callable[[str], str]
-    crawler: Type[Crawler]
 
 
 facilities: Dict[str, TypeFacilityInfo] = {
@@ -121,6 +126,8 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "mfx_epix_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_lcls,
+                        "crawler": LclsCrawler,
                     },
                     "cspad": {
                         "calib_resources": {
@@ -129,6 +136,8 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "mfx_cspad_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_lcls,
+                        "crawler": LclsCrawler,
                     },
                 },
             },
@@ -141,6 +150,8 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "cxi_jungfrau_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_lcls,
+                        "crawler": LclsCrawler,
                     },
                     "cspad": {
                         "calib_resources": {
@@ -149,16 +160,16 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "cxi_cspad_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_lcls,
+                        "crawler": LclsCrawler,
                     },
                 },
             },
         },
         "guess_raw_directory": guess_raw_directory_lcls,
         "guess_experiment_id": guess_experiment_id_lcls,
-        "prepare_om_source": prepare_om_source_lcls,
         "guess_batch_queue": guess_batch_queue_lcls,
         "kill_processing_job": kill_slurm_job,
-        "crawler": LclsCrawler,
     },
     "DESY (PETRA III)": {
         "instruments": {
@@ -171,16 +182,16 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "p11_eiger_template.yaml",
                         "process_template": "desy_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_p11_eiger,
+                        "crawler": P11EigerCrawler,
                     }
                 }
             }
         },
         "guess_raw_directory": guess_raw_directory_desy,
         "guess_experiment_id": guess_experiment_id_desy,
-        "prepare_om_source": prepare_om_source_p11_eiger,
         "guess_batch_queue": guess_batch_queue_desy,
         "kill_processing_job": kill_slurm_job,
-        "crawler": P11EigerCrawler,
     },
     "DESY (external beamtime)": {
         "instruments": {
@@ -193,16 +204,27 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "biocars_mccd_template.yaml",
                         "process_template": "desy_slurm_template.sh",
-                    }
+                        "prepare_om_source": prepare_om_source_biocars_mccd,
+                        "crawler": BioCarsMccdCrawler,
+                    },
+                    "Jungfrau1M": {
+                        "calib_resources": {
+                            "geometry": "jungfrau1M.geom",
+                            "mask": "mask_jungfrau1M.h5",
+                            "process_darks_script": "scripts/process_darks_jungfrau.py",
+                        },
+                        "om_config_template": "jungfrau1M_template.yaml",
+                        "process_template": "desy_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_jungfrau1M,
+                        "crawler": Jungfrau1MCrawler,
+                    },
                 }
-            }
+            },
         },
         "guess_raw_directory": guess_raw_directory_desy,
         "guess_experiment_id": guess_experiment_id_desy,
-        "prepare_om_source": prepare_om_source_biocars_mccd,
         "guess_batch_queue": guess_batch_queue_desy,
         "kill_processing_job": kill_slurm_job,
-        "crawler": BioCarsMccdCrawler,
     },
 }
 """

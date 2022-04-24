@@ -1,3 +1,4 @@
 include src/cheetah/resources/*
 include src/cheetah/resources/templates/*
+include src/cheetah/resources/scripts/*
 include src/cheetah/ui_src/*
