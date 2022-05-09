@@ -166,7 +166,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.auto_range_cb.setChecked(True)
         self._ui.auto_range_cb.stateChanged.connect(self._update_image)
 
-        self._level_regex: Any = QtCore.QRegExp(r"-?\d+\.?\d*")
+        self._level_regex: Any = QtCore.QRegExp(r"-?\d+\.?\d*([eE][+-]?\d+)?")
         self._level_validator: Any = QtGui.QRegExpValidator()
         self._level_validator.setRegExp(self._level_regex)
         self._ui.min_range_le.setValidator(self._level_validator)
@@ -509,8 +509,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def _hist_range_changed(self) -> None:
         self._levels_range = self._image_hist.getLevels()
         try:
-            self._ui.min_range_le.setText(f"{int(self._levels_range[0])}")
-            self._ui.max_range_le.setText(f"{int(self._levels_range[1])}")
+            self._ui.min_range_le.setText(f"{self._levels_range[0]:.7g}")
+            self._ui.max_range_le.setText(f"{self._levels_range[1]:.7g}")
         except ValueError:
             pass
 
