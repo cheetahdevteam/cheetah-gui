@@ -46,6 +46,11 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
     See documentation of the `__init__` function.
     """
 
+    scan_finished: Any = QtCore.pyqtSignal()
+    """
+    Qt signal emitted when crawler finishes scanning directories.
+    """
+
     def __init__(self, experiment: CheetahExperiment, parent: Any = None) -> None:
         """
         Cheetah Crawler Gui.
@@ -139,6 +144,7 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         self._proc_scan_enable_button.setEnabled(True)
         self._status_label.setText("Ready")
         self._refresh_timer.start(60000)
+        self.scan_finished.emit()
 
     def closeEvent(self, event: Any) -> None:
         """
@@ -543,6 +549,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _refresh_table(self) -> None:
         # Refreshes runs table. This function is run automatically every minute. It can
         # also be run manually by clicking "Refresh table" button.
+        self._refresh_timer.stop()
         if not self._crawler_csv_filename.exists():
             self._refresh_timer.start(60000)
             return
@@ -641,6 +648,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Starts new Crawler GUI.
         print("Starting crawler")
         self.crawler_window = CrawlerGui(self.experiment, self)
+        self.crawler_window.scan_finished.connect(self._refresh_table)
         self.crawler_window.show()
 
     def _view_batch_log(self) -> None:
