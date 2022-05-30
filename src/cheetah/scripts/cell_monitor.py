@@ -244,6 +244,9 @@ class CellMonitorGui(QtWidgets.QMainWindow):  # type: ignore
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
+        self._refresh_timer: Any = QtCore.QTimer()
+        self._refresh_timer.timeout.connect(self._update_plots)
+
         self.resize(1000, 500)
         self.show()
         self._start_stream_reader()
@@ -275,6 +278,7 @@ class CellMonitorGui(QtWidgets.QMainWindow):  # type: ignore
         # Clear accumulated data.
         self._crystals = SortedList(key=lambda d: d["timestamp"])
         self._frames = SortedList(key=lambda d: d["timestamp"])
+        self._update_plots()
 
     def _update_data(self, data: Dict[str, Any]) -> None:
         # Update accumulated data.
@@ -297,6 +301,7 @@ class CellMonitorGui(QtWidgets.QMainWindow):  # type: ignore
     def _update_plots(self) -> None:
         # Update cell parameter histograms and indexing rate plot when the new data
         # received.
+        self._refresh_timer.stop()
         frame: _TypeFrame
         indexed: List[bool] = [frame["indexed"] for frame in self._frames]
         num_frames: int = len(self._frames)
@@ -334,6 +339,7 @@ class CellMonitorGui(QtWidgets.QMainWindow):  # type: ignore
             * 100,
         )
         self._update_histograms()
+        self._refresh_timer.start(5000)
 
     def _update_histograms(self) -> None:
         # Update cell parameter histograms.
