@@ -20,6 +20,7 @@ from cheetah.crawlers.crawler_lcls import LclsCrawler
 from cheetah.crawlers.crawler_p11 import P11EigerCrawler
 from cheetah.crawlers.crawler_biocars import BioCarsMccdCrawler
 from cheetah.crawlers.crawler_jungfrau import Jungfrau1MCrawler
+from cheetah.crawlers.crawler_p09 import P09LambdaCrawler
 
 from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
@@ -34,6 +35,7 @@ from cheetah.crawlers.functions_desy import (
     prepare_om_source_p11_eiger,
     prepare_om_source_biocars_mccd,
     prepare_om_source_jungfrau1M,
+    prepare_om_source_p09_lambda,
 )
 from cheetah.crawlers.functions_generic import kill_slurm_job
 
@@ -184,6 +186,28 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "process_template": "desy_slurm_template.sh",
                         "prepare_om_source": prepare_om_source_p11_eiger,
                         "crawler": P11EigerCrawler,
+                    }
+                }
+            }
+        },
+        "guess_raw_directory": guess_raw_directory_desy,
+        "guess_experiment_id": guess_experiment_id_desy,
+        "guess_batch_queue": guess_batch_queue_desy,
+        "kill_processing_job": kill_slurm_job,
+    },
+    "DESY (PETRA III)": {
+        "instruments": {
+            "P09": {
+                "detectors": {
+                    "Lambda1M5": {
+                        "calib_resources": {
+                            "geometry": "lambda1M5.geom",
+                            "mask": "mask_lambda1M5.h5",
+                        },
+                        "om_config_template": "p09_lambda_template.yaml",
+                        "process_template": "desy_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_p09_lambda,
+                        "crawler": P09LambdaCrawler,
                     }
                 }
             }
