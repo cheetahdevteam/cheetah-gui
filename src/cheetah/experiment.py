@@ -136,19 +136,19 @@ class CheetahExperiment:
                         "detector": self._detector,
                         "experiment_id": self._experiment_id,
                         "base_path": self._base_path,
-                        "raw_dir": self._raw_directory.relative_to(self._base_path),
-                        "hdf5_dir": self._proc_directory.relative_to(self._base_path),
-                        "process_dir": self._process_directory.relative_to(
-                            self._base_path
+                        "raw_dir": self._relative_to_base_path(self._raw_directory),
+                        "hdf5_dir": self._relative_to_base_path(self._proc_directory),
+                        "process_dir": self._relative_to_base_path(
+                            self._process_directory
                         ),
                         "crawler_scan_raw_dir": self._crawler.raw_directory_scan_is_enabled(),
                         "crawler_scan_proc_dir": self._crawler.proc_directory_scan_is_enabled(),
-                        "geometry": self._last_geometry.relative_to(self._base_path),
-                        "mask": self._last_mask.relative_to(self._base_path)
+                        "geometry": self._relative_to_base_path(self._last_geometry),
+                        "mask": self._relative_to_base_path(self._last_mask)
                         if self._last_mask
                         else "",
-                        "cheetah_config": self._last_process_config_filename.relative_to(
-                            self._base_path
+                        "cheetah_config": self._relative_to_base_path(
+                            self._last_process_config_filename
                         ),
                         "cheetah_tag": self._last_tag,
                     },
@@ -156,6 +156,12 @@ class CheetahExperiment:
                     sort_keys=False,
                 )
             )
+
+    def _relative_to_base_path(self, path: pathlib.Path) -> pathlib.Path:
+        try:
+            return path.relative_to(self._base_path)
+        except ValueError:
+            return path
 
     def _resolve_path(
         self, path: pathlib.Path, parent_path: pathlib.Path
