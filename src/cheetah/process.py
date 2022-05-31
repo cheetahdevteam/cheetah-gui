@@ -46,15 +46,6 @@ class _TypeProcessScriptTemplateData(TypedDict):
     om_config: pathlib.Path
 
 
-class _TypeProcessDarkScriptTemplateData(TypedDict):
-    # A dictionary used internally to store information required to fill process dark
-    # script template, which can be used to process a single dark run.
-
-    run_id: str
-    raw_dir: str
-    output_dir: str
-
-
 class TypeProcessingConfig(TypedDict):
     """
     A dictionary storing processing configuration parameters.
@@ -119,9 +110,6 @@ class CheetahProcess:
         self._facility: str = facility
         self._experiment_id: str = experiment_id
         self._process_template_file: pathlib.Path = process_template
-        fh: TextIO
-        with open(self._process_template_file) as fh:
-            self._process_template: jinja2.Template = jinja2.Template(fh.read())
         self._raw_directory: pathlib.Path = raw_directory
         self._proc_directory: pathlib.Path = proc_directory
         self._prepare_om_source: Callable[
@@ -290,6 +278,8 @@ class CheetahProcess:
             fh.write(om_config_template.render(om_config_data))
 
         process_script: pathlib.Path = output_directory / "process.sh"
+        with open(self._process_template_file) as fh:
+            process_template: jinja2.Template = jinja2.Template(fh.read())
         om_source: str = self._prepare_om_source(
             run_id, self._experiment_id, self._raw_directory, output_directory
         )
@@ -306,7 +296,7 @@ class CheetahProcess:
             "om_config": om_config_file,
         }
         with open(process_script, "w") as fh:
-            fh.write(self._process_template.render(process_script_data))
+            fh.write(process_template.render(process_script_data))
 
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
         subprocess.run(f"{process_script}", cwd=output_directory)
