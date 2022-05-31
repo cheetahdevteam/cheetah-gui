@@ -50,6 +50,9 @@ setup(
         "pyqt5",
         "pyqtgraph",
         "typing_extensions",
+        "sortedcontainers",
+        "ansi2html",
+        "yaml",
     ],
     extras_require={
         "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],
