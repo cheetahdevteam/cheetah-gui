@@ -10,6 +10,7 @@ import pathlib
 import subprocess
 import sys
 
+from ansi2html import Ansi2HTMLConverter  # type: ignore
 from datetime import datetime
 from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 from typing import Any, List, Dict, Union, TextIO
@@ -234,10 +235,11 @@ class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
         self.parent: Any = parent
 
         self._filename: pathlib.Path = pathlib.Path(filename)
+        self._converter = Ansi2HTMLConverter()
 
         self._reload_button: Any = QtWidgets.QPushButton("Reload")
         self._reload_button.clicked.connect(self._update)
-        self._text_edit: Any = QtWidgets.QPlainTextEdit()
+        self._text_edit: Any = QtWidgets.QTextEdit()
         self._text_edit.setReadOnly(True)
 
         layout: Any = QtWidgets.QVBoxLayout()
@@ -256,9 +258,10 @@ class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
         if pathlib.Path(self._filename).exists():
             fh: TextIO
             with open(self._filename, "r") as fh:
-                self._text_edit.appendPlainText(fh.read())
+                self._text_edit.setHtml(self._converter.convert(fh.read()))
+                self._text_edit.moveCursor(QtGui.QTextCursor.End)
         else:
-            self._text_edit.appendPlainText(f"File {self._filename} doesn't exist.")
+            self._text_edit.setPlainText(f"File {self._filename} doesn't exist.")
 
 
 class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
