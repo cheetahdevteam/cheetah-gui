@@ -55,7 +55,7 @@ class BioCarsMccdCrawler(Crawler):
         This method overrides the corresponding method of the base class: please also
         refer to the documentation of that class for more information.
 
-        For the data collected at BioCARS beamline at APS using Rayonix detecor
+        For the data collected at BioCARS beamline at APS using Rayonix detector
         Cheetah uses run directory path relative to the raw experiment directory as
         both the raw run ID and the run ID displayed in the Chetah GUI table.
 
@@ -77,7 +77,7 @@ class BioCarsMccdCrawler(Crawler):
         This method overrides the corresponding method of the base class: please also
         refer to the documentation of that class for more information.
 
-        For the data collected at BioCARS beamline at APS using Rayonix detecor
+        For the data collected at BioCARS beamline at APS using Rayonix detector
         Cheetah uses run directory path relative to the raw experiment directory as
         both the raw run ID and the run ID displayed in the Chetah GUI table.
 
