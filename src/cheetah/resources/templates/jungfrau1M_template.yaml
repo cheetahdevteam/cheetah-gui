@@ -43,26 +43,21 @@ cheetah:
     peak_list: "/data/peaks"
 
 crystallography:
-  num_frames_in_event_to_process: 1
-  data_broadcast: false
-  data_broadcast_url: null
-  responding_url: null
-  geometry_file: "{{geometry_file}}"
-  min_num_peaks_for_hit: 20
+  num_frames_in_event_to_process: null
+  geometry_file: {{geometry_file}}
+  min_num_peaks_for_hit: 10
   max_num_peaks_for_hit: 5000
-  saturation_value: 100000
   running_average_window_size: 200
-  geometry_is_optimized: true
+  geometry_is_optimized: false
   speed_report_interval: 100
-  hit_frame_sending_interval: 5
-  non_hit_frame_sending_interval: 5
-  data_broadcast_interval: 10
-  binning: false
-  binning_before_peakfinding: false
 
 correction:
-  filename: null
-  hdf5_path: null
+  dark_filename: null
+  dark_hdf5_path: null
+  gain_filename: null
+  gain_hdf5_path: null
+  mask_filename: null
+  mask_hdf5_path: null
 
 peakfinder8_peak_detection:
   detector_type: jungfrau1M
