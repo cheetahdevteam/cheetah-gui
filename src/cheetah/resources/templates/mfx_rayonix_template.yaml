@@ -1,0 +1,70 @@
+om:
+  parallelization_layer: MpiParallelization
+  data_retrieval_layer: MfxLclsRayonixDataRetrieval
+  processing_layer: CheetahProcessing
+
+data_retrieval_layer:
+  calibration: true
+  psana_detector_name: Rayonix
+  psana_detector_distance_epics_name: detector_z
+  psana_calibration_directory: /reg/d/psdm/mfx/mfxlx5520/calib
+  psana_evr_source_name: evr0
+  active_optical_laser_evr_code: 205
+  required_data:
+    - "detector_data"
+    - "beam_energy"
+    - "detector_distance"
+    - "timestamp"
+    - "event_id"
+    - "frame_id"
+
+cheetah:
+  processed_directory: {{output_dir}}
+  processed_filename_prefix: "{{experiment_id}}-{{run_id}}"
+  processed_filename_extension: "cxi"
+  write_class_sums: true
+  class_sums_update_interval: 5
+  class_sums_sending_interval: 100
+  class_sum_filename_prefix: "{{run_id}}"
+  status_file_update_interval: 100
+  hdf5_file_data_type: "float32"
+  hdf5_file_compression: null
+  hdf5_file_compression_opts: null
+  hdf5_file_max_num_peaks: 2048
+  hdf5_fields:
+    detector_data: "/entry_1/data_1/data"
+    event_id: "/LCLS/fiducial"
+    beam_energy: "/LCLS/photon_energy_eV"
+    detector_distance: "/LCLS/detector_1/EncoderValue"
+    timestamp: "/LCLS/timestamp"
+    peak_list: "/entry_1/result_1"
+
+crystallography:
+  num_frames_in_event_to_process: null
+  geometry_file: {{geometry_file}}
+  min_num_peaks_for_hit: 10
+  max_num_peaks_for_hit: 5000
+  running_average_window_size: 200
+  geometry_is_optimized: true
+  speed_report_interval: 100
+
+correction:
+  dark_filename: null
+  dark_hdf5_path: null
+  gain_filename: null
+  gain_hdf5_path: null
+  mask_filename: null
+  mask_hdf5_path: null
+
+peakfinder8_peak_detection:
+  detector_type: rayonix
+  max_num_peaks: 2048
+  adc_threshold: 50.0
+  minimum_snr: 7.0
+  min_pixel_count: 1
+  max_pixel_count: 30
+  local_bg_radius: 8
+  bad_pixel_map_filename: {{mask_file}}
+  bad_pixel_map_hdf5_path: /data/data
+  min_res: 20
+  max_res: 1000

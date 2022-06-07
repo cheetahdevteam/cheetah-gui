@@ -131,6 +131,16 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "prepare_om_source": prepare_om_source_lcls,
                         "crawler": LclsCrawler,
                     },
+                    "rayonix": {
+                        "calib_resources": {
+                            "geometry": "rayonix.geom",
+                            "mask": "mask_rayonix.h5",
+                        },
+                        "om_config_template": "mfx_rayonix_template.yaml",
+                        "process_template": "lcls_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_lcls,
+                        "crawler": LclsCrawler,
+                    },
                     "cspad": {
                         "calib_resources": {
                             "geometry": "cspad.geom",
