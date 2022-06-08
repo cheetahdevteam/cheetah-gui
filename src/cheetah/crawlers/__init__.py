@@ -125,6 +125,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "calib_resources": {
                             "geometry": "epix10k2M.geom",
                             "mask": "mask_epix10k2M.h5",
+                            "psana_mask_script": "scripts/psana_mask.py",
                         },
                         "om_config_template": "mfx_epix_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
@@ -135,6 +136,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "calib_resources": {
                             "geometry": "rayonix.geom",
                             "mask": "mask_rayonix.h5",
+                            "psana_mask_script": "scripts/psana_mask.py",
                         },
                         "om_config_template": "mfx_rayonix_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
@@ -159,6 +161,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "calib_resources": {
                             "geometry": "jungfrau4M.geom",
                             "mask": "mask_jungfrau4M.h5",
+                            "psana_mask_script": "scripts/psana_mask.py",
                         },
                         "om_config_template": "cxi_jungfrau_template.yaml",
                         "process_template": "lcls_slurm_template.sh",

@@ -52,7 +52,7 @@ setup(
         "typing_extensions",
         "sortedcontainers",
         "ansi2html",
-        "yaml",
+        "pyyaml",
     ],
     extras_require={
         "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],

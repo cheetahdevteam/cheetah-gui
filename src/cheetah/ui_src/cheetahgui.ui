@@ -293,7 +293,7 @@
      <x>0</x>
      <y>0</y>
      <width>1200</width>
-     <height>23</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -332,6 +332,7 @@
     </property>
     <addaction name="menu_mask_maker"/>
     <addaction name="menu_mask_view"/>
+    <addaction name="menu_mask_psana"/>
    </widget>
    <widget class="QMenu" name="menuPowder">
     <property name="title">
@@ -497,6 +498,17 @@
   <action name="menu_cheetah_process_jungfrau_darks">
    <property name="text">
     <string>Process JF 1M darks</string>
+   </property>
+   <property name="visible">
+    <bool>false</bool>
+   </property>
+  </action>
+  <action name="menu_mask_psana">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Extract mask from psana</string>
    </property>
    <property name="visible">
     <bool>false</bool>

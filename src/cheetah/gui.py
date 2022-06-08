@@ -9,6 +9,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import yaml
 
 from ansi2html import Ansi2HTMLConverter  # type: ignore
 from datetime import datetime
@@ -367,6 +368,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._open_maskmaker)
         self._ui.menu_mask_view.triggered.connect(self._view_mask)
+        self._ui.menu_mask_psana.triggered.connect(self._psana_mask)
 
         # Analysis menu items
         self._ui.menu_analysis_hitrate.triggered.connect(self._view_hitrate)
@@ -397,6 +399,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         if self.experiment.get_detector() == "Jungfrau1M":
             self._ui.menu_cheetah_process_jungfrau_darks.setVisible(True)
+
+        if self.experiment.get_facility() == "LCLS":
+            self._ui.menu_mask_psana.setVisible(True)
 
     def _crawler_gui_closed(self) -> None:
         # Prints a message when Crawler GUI is closed.
@@ -461,6 +466,69 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self._table.item(row, cheetah_column).setBackground(
                 self._status_colors["Started"]
             )
+
+    def _get_psana_detector_name(self) -> str:
+        # Get psana detector name from OM config template
+        config_template: pathlib.Path = pathlib.Path(
+            self.experiment.get_last_processing_config()["config_template"]
+        )
+        if not config_template.exists():
+            print(
+                f"Could not find processing config template, file {config_template} "
+                f"doesn't exist."
+            )
+            return ""
+        fh: TextIO
+        detector_name: str = ""
+        with open(config_template) as fh:
+            for line in fh:
+                if "psana_detector_name" in line:
+                    detector_name = line.split(":")[-1].strip()
+        return detector_name
+
+    def _psana_mask(self) -> None:
+        # Extract mask from psana and save it to file
+        if len(self._table.selectionModel().selectedRows()) == 0:
+            return
+        selected_run: int = sorted(
+            (
+                int(self._table.item(index.row(), 0).text())
+                for index in self._table.selectionModel().selectedRows()
+            )
+        )[0]
+
+        calib_directory: pathlib.Path = self.experiment.get_calib_directory()
+        raw_directory: pathlib.Path = self.experiment.get_raw_directory()
+        experiment_id: str = self.experiment.get_id()
+        psana_detector_name: str = self._get_psana_detector_name()
+        if not psana_detector_name:
+            print(
+                "Could not extract psana detector name from the processing config "
+                "template."
+            )
+            return
+
+        psana_mask_script: pathlib.Path = calib_directory / "psana_mask.py"
+        if not psana_mask_script.exists():
+            print("Could not find psana_mask.py script in cheetah/calib directory.")
+            return
+
+        psana_source: str = (
+            f"exp={experiment_id}:run={selected_run}:dir={raw_directory}"
+        )
+        suggested_filename: str = str(calib_directory / f"mask-r{selected_run}:04d.h5")
+        output_filename: str = QtWidgets.QFileDialog().getSaveFileName(
+            self, "Select output mask file", suggested_filename, filter="*.h5"
+        )[0]
+        if not output_filename:
+            return
+
+        command: str = (
+            f"{psana_mask_script} -s {psana_source} -d {psana_detector_name} "
+            f"-o {output_filename}"
+        )
+        print(command)
+        subprocess.Popen(command, shell=True)
 
     def _kill_processing(self) -> None:
         # Ask if the user is sure they want to kill the jobs. If yes - try to kill the
@@ -657,6 +725,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _view_batch_log(self) -> None:
         # Shows the contents of batch.out file from the first of the selected runs in
         # a TextFileGui window.
+        if len(self._table.selectionModel().selectedRows()) == 0:
+            return
         selected_row: int = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )[0]
@@ -674,6 +744,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _view_status_file(self) -> None:
         # Shows the contents of status.txt file from the first of the selected runs in
         # a TextFileGui window.
+        if len(self._table.selectionModel().selectedRows()) == 0:
+            return
         selected_row: int = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
         )[0]
