@@ -517,7 +517,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         psana_source: str = (
             f"exp={experiment_id}:run={selected_run}:dir={raw_directory}"
         )
-        suggested_filename: str = str(calib_directory / f"mask-r{selected_run}:04d.h5")
+        suggested_filename: str = str(calib_directory / f"mask-r{selected_run:04d}.h5")
         output_filename: str = QtWidgets.QFileDialog().getSaveFileName(
             self, "Select output mask file", suggested_filename, filter="*.h5"
         )[0]
