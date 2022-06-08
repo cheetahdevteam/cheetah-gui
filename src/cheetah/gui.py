@@ -402,6 +402,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         if self.experiment.get_facility() == "LCLS":
             self._ui.menu_mask_psana.setVisible(True)
+            self._ui.menu_mask_psana.setEnabled(True)
 
     def _crawler_gui_closed(self) -> None:
         # Prints a message when Crawler GUI is closed.
