@@ -159,6 +159,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._image_widget.scene.sigMouseMoved.connect(self._mouse_moved)
         self._image_view.sigRangeChanged.connect(self._visible_image_range_changed)
+        self._image_view.invertY(False)
 
         self._image_hist = self._image_widget.getHistogramWidget()
         self._image_hist.sigLevelsChanged.connect(self._hist_range_changed)
