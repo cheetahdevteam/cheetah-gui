@@ -352,27 +352,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             - 1,
         ).flatten()
 
-        imesh: NDArray[numpy.int_]
-        jmesh: NDArray[numpy.int_]
-        imesh, jmesh = numpy.meshgrid(  # type: ignore
-            numpy.arange(self._data_shape[0]),
-            numpy.arange(self._data_shape[1]),
-            indexing="ij",
-        )
-        pixelmap_i: NDArray[numpy.int_] = -numpy.ones(self._visual_img_shape, dtype=int)
-        pixelmap_j: NDArray[numpy.int_] = -numpy.ones(self._visual_img_shape, dtype=int)
-        pixelmap_i[self._visual_pixelmap_y, self._visual_pixelmap_x] = imesh.ravel()
-        pixelmap_j[self._visual_pixelmap_y, self._visual_pixelmap_x] = jmesh.ravel()
-        self._where_visual_pixels: Tuple[
-            NDArray[numpy.int_], NDArray[numpy.int_]
-        ] = numpy.where((pixelmap_i != -1) & (pixelmap_j != -1))
-        self._reverse_pixelmap_i: NDArray[numpy.int_] = pixelmap_i[
-            self._where_visual_pixels
-        ]
-        self._reverse_pixelmap_j: NDArray[numpy.int_] = pixelmap_j[
-            self._where_visual_pixels
-        ]
-
     def _tab_changed(self) -> None:
         if self._current_tab == 1:
             # Enable play button when turning off maskmaker
@@ -1019,10 +998,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self, "Select mask file", str(path / name), filter="*.h5"
         )[0]
         if filename:
-            mask: NDArray[numpy.int8] = numpy.ones(self._data_shape, dtype=numpy.int8)
-            mask[self._reverse_pixelmap_i, self._reverse_pixelmap_j] = (
-                1 - self._maskmaker_image_data.T[self._where_visual_pixels]
-            )
+            mask: NDArray[numpy.int8] = (1 - self._maskmaker_image_data)[
+                self._visual_pixelmap_x, self._visual_pixelmap_y
+            ].reshape(self._data_shape)
             print(f"Saving new mask to {filename}.")
             with h5py.File(filename, "w") as fh:
                 fh.create_dataset("/data/data", data=mask)
