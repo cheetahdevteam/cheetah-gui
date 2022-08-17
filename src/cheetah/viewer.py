@@ -113,7 +113,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                         self._visual_img_shape, dtype=mask.dtype
                     )
                     mask_img[
-                        self._visual_pixelmap_y, self._visual_pixelmap_x
+                        self._visual_pixelmap_y.ravel(), self._visual_pixelmap_x.ravel()
                     ] = mask.ravel()
                     self._mask: NDArray[Any] = numpy.zeros(
                         shape=mask_img.T.shape + (4,)
@@ -296,7 +296,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._maskmaker_mask: NDArray[numpy.int_] = numpy.zeros(
             self._data_shape, dtype=int
         )
-        self._maskmaker_image_data: NDArray[numpy.int_] = numpy.zeros(
+        self._maskmaker_visual_mask: NDArray[numpy.int_] = numpy.zeros(
             self._visual_img_shape, dtype=int
         ).T
         self._update_maskmaker_image()
@@ -345,13 +345,13 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             numpy.array(self._pixelmaps["x"], dtype=numpy.int32)
             + self._visual_img_shape[1] // 2
             - 1,
-        ).flatten()
+        )
         self._visual_pixelmap_y: NDArray[numpy.int32] = cast(
             NDArray[numpy.int32],
             numpy.array(self._pixelmaps["y"], dtype=numpy.int32)
             + self._visual_img_shape[0] // 2
             - 1,
-        ).flatten()
+        )
 
     def _tab_changed(self) -> None:
         if self._current_tab == 1:
@@ -579,11 +579,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         else:
             data = self._empty_frame
         self._frame_data_img[
-            self._visual_pixelmap_y, self._visual_pixelmap_x
+            self._visual_pixelmap_y.ravel(), self._visual_pixelmap_x.ravel()
         ] = data.ravel().astype(self._frame_data_img.dtype)
 
         if self._ui.auto_range_cb.isChecked():
-            values = data.flatten()
+            values = data.ravel()
             values.sort()
             nvalues: int = len(values)
             self._levels_range = (
@@ -645,8 +645,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
                 ] + int(round(peak_fs))
-                y_in_frame: float = self._visual_pixelmap_y[peak_index_in_slab]
-                x_in_frame: float = self._visual_pixelmap_x[peak_index_in_slab]
+                y_in_frame: float = self._visual_pixelmap_y.ravel()[peak_index_in_slab]
+                x_in_frame: float = self._visual_pixelmap_x.ravel()[peak_index_in_slab]
                 peak_list_x_in_frame.append(y_in_frame)
                 peak_list_y_in_frame.append(x_in_frame)
         self._peak_canvas.setData(
@@ -714,8 +714,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
                 ] + int(round(peak_fs))
-                y_in_frame: float = self._visual_pixelmap_y[peak_index_in_slab]
-                x_in_frame: float = self._visual_pixelmap_x[peak_index_in_slab]
+                y_in_frame: float = self._visual_pixelmap_y.ravel()[peak_index_in_slab]
+                x_in_frame: float = self._visual_pixelmap_x.ravel()[peak_index_in_slab]
                 peak_list_x_in_frame.append(y_in_frame)
                 peak_list_y_in_frame.append(x_in_frame)
             pen: Any = pyqtgraph.mkPen(
@@ -780,13 +780,17 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_maskmaker_image(self) -> None:
         if self._current_tab == 1:
-            mask: NDArray[Any] = numpy.zeros(
-                shape=self._maskmaker_image_data.shape + (4,)
+            # self._maskmaker_visual_mask[:] = 0
+            self._maskmaker_visual_mask[
+                self._visual_pixelmap_x.ravel(), self._visual_pixelmap_y.ravel()
+            ] = self._maskmaker_mask.ravel()
+            mask_image: NDArray[Any] = numpy.zeros(
+                shape=self._maskmaker_visual_mask.shape + (4,)
             )
-            mask[:, :, 2] = self._maskmaker_image_data
-            mask[:, :, 3] = self._maskmaker_image_data
+            mask_image[:, :, 2] = self._maskmaker_visual_mask
+            mask_image[:, :, 3] = self._maskmaker_visual_mask
             self._maskmaker_image.setImage(
-                mask, compositionMode=QtGui.QPainter.CompositionMode_SourceOver
+                mask_image, compositionMode=QtGui.QPainter.CompositionMode_SourceOver
             )
         else:
             self._maskmaker_image.clear()
@@ -802,20 +806,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def _mask_rectangular_roi(self) -> None:
         corner: Tuple[float, float] = self._rectangular_roi.pos()
         size: Tuple[float, float] = self._rectangular_roi.size()
-
-        self._mask_visual_pixels(
-            tuple(
-                numpy.meshgrid(  # type: ignore
-                    numpy.arange(
-                        int(corner[0] + 0.5),
-                        int(corner[0] + size[0] + 0.5),
-                    ),
-                    numpy.arange(
-                        int(corner[1] + 0.5),
-                        int(corner[1] + size[1] + 0.5),
-                    ),
-                    indexing="ij",
-                )
+        self._mask_original_pixels(
+            numpy.where(
+                (self._visual_pixelmap_x >= corner[0] - 0.5)
+                & (self._visual_pixelmap_x <= corner[0] + size[0] - 0.5)
+                & (self._visual_pixelmap_y >= corner[1] - 0.5)
+                & (self._visual_pixelmap_y <= corner[1] + size[1] - 0.5)
             )
         )
 
@@ -824,46 +820,49 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         size: Tuple[float, float] = self._circular_roi.size()
         radius: float = size[0] / 2
         center: Tuple[float, float] = (
-            corner[0] + size[0] / 2 - 0.5,
-            corner[1] + size[1] / 2 - 0.5,
+            corner[0] + radius - 0.5,
+            corner[1] + radius - 0.5,
         )
-
-        imesh: NDArray[numpy.int_]
-        jmesh: NDArray[numpy.int_]
-        imesh, jmesh = numpy.meshgrid(  # type: ignore
-            numpy.arange(int(corner[0] - 1), int(corner[0] + size[0] + 1)),
-            numpy.arange(int(corner[1] - 1), int(corner[1] + size[1] + 1)),
-            indexing="ij",
-        )
-        inside_circle: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = numpy.where(
-            (imesh - center[0]) ** 2 + (jmesh - center[1]) ** 2 <= radius ** 2
-        )
-        self._mask_visual_pixels((imesh[inside_circle], jmesh[inside_circle]))
+        rsquared_map: NDArray[numpy.float_] = (
+            self._visual_pixelmap_x - center[0]
+        ) ** 2 + (self._visual_pixelmap_y - center[1]) ** 2
+        self._mask_original_pixels(numpy.where(rsquared_map <= radius ** 2))
 
     def _mask_outside_histogram(self) -> None:
-        self._mask_visual_pixels(
+        self._mask_original_pixels(
             numpy.where(
-                (self._frame_data_img.T < self._levels_range[0])
-                | (self._frame_data_img.T > self._levels_range[1])
+                (self._current_event_data["data"] < self._levels_range[0])
+                | (self._current_event_data["data"] > self._levels_range[1])
             )
         )
 
     def _mask_panel_edges(self) -> None:
-        mask: NDArray[numpy.int_] = numpy.ones(self._data_shape, dtype=numpy.int8)
+        mask: NDArray[numpy.int_] = numpy.zeros(self._data_shape, dtype=numpy.int8)
         for panel in self._geometry["panels"].values():
             min_fs: int = panel["orig_min_fs"]
             max_fs: int = panel["orig_max_fs"]
             min_ss: int = panel["orig_min_ss"]
             max_ss: int = panel["orig_max_ss"]
-            mask[min_ss, min_fs:max_fs] = 0
-            mask[max_ss, min_fs:max_fs] = 0
-            mask[min_ss:max_ss, min_fs] = 0
-            mask[min_ss:max_ss, max_fs] = 0
+            mask[min_ss, min_fs : max_fs + 1] = 1
+            mask[max_ss, min_fs : max_fs + 1] = 1
+            mask[min_ss : max_ss + 1, min_fs] = 1
+            mask[min_ss : max_ss + 1, max_fs] = 1
+        self._mask_original_pixels(numpy.where(mask == 1))
 
-        mask = mask.ravel()
-        self._mask_visual_pixels(
-            (self._visual_pixelmap_x[mask == 0], self._visual_pixelmap_y[mask == 0])
-        )
+    def _mask_original_pixels(
+        self,
+        pixels: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]],
+        mode: Union[None, str] = None,
+    ) -> None:
+        if mode is None:
+            mode = self._mask_mode
+        if mode == "mask":
+            self._maskmaker_mask[pixels] = 1
+        elif mode == "unmask":
+            self._maskmaker_mask[pixels] = 0
+        else:
+            self._maskmaker_mask[pixels] = 1 - self._maskmaker_mask[pixels]
+        self._update_maskmaker_image()
 
     def _mask_visual_pixels(
         self,
@@ -873,39 +872,59 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         where_in_image: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = numpy.where(
             (pixels[0] >= 0)
             & (pixels[1] >= 0)
-            & (pixels[0] < self._visual_img_shape[1])
-            & (pixels[1] < self._visual_img_shape[0])
+            & (pixels[0] < self._visual_img_shape[0])
+            & (pixels[1] < self._visual_img_shape[1])
         )
         pixels_in_image: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = (
-            pixels[0][where_in_image],
             pixels[1][where_in_image],
+            pixels[0][where_in_image],
         )
-        if mode is None:
-            mode = self._mask_mode
-        if mode == "mask":
-            self._maskmaker_image_data[pixels_in_image] = 1
-        elif mode == "unmask":
-            self._maskmaker_image_data[pixels_in_image] = 0
-        else:
-            self._maskmaker_image_data[pixels_in_image] = (
-                1 - self._maskmaker_image_data[pixels_in_image]
+        visual_mask: NDArray[numpy.int_] = numpy.zeros(
+            self._visual_img_shape, dtype=numpy.int8
+        )
+        visual_mask[pixels_in_image] = 1
+        self._mask_original_pixels(
+            numpy.where(
+                visual_mask[
+                    self._visual_pixelmap_y.ravel(), self._visual_pixelmap_x.ravel()
+                ].reshape(self._data_shape)
+                == 1
+            ),
+            mode=mode,
+        )
+
+    def _dilate_mask(self) -> None:
+        for panel in self._geometry["panels"].values():
+            min_fs: int = panel["orig_min_fs"]
+            max_fs: int = panel["orig_max_fs"]
+            min_ss: int = panel["orig_min_ss"]
+            max_ss: int = panel["orig_max_ss"]
+            self._maskmaker_mask[
+                min_ss : max_ss + 1, min_fs : max_fs + 1
+            ] = binary_dilation(
+                self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
+            ).astype(
+                self._maskmaker_mask.dtype
             )
         self._update_maskmaker_image()
 
-    def _dilate_mask(self) -> None:
-        self._maskmaker_image_data = binary_dilation(self._maskmaker_image_data).astype(
-            self._maskmaker_image_data.dtype
-        )
-        self._update_maskmaker_image()
-
     def _erode_mask(self) -> None:
-        self._maskmaker_image_data = binary_erosion(self._maskmaker_image_data).astype(
-            self._maskmaker_image_data.dtype
-        )
+        for panel in self._geometry["panels"].values():
+            min_fs: int = panel["orig_min_fs"]
+            max_fs: int = panel["orig_max_fs"]
+            min_ss: int = panel["orig_min_ss"]
+            max_ss: int = panel["orig_max_ss"]
+            self._maskmaker_mask[
+                min_ss : max_ss + 1, min_fs : max_fs + 1
+            ] = binary_erosion(
+                self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
+            ).astype(
+                self._maskmaker_mask.dtype
+            )
         self._update_maskmaker_image()
 
     def _clear_mask(self) -> None:
-        self._maskmaker_image_data[:] = 0
+        self._maskmaker_mask[:] = 0
         self._update_maskmaker_image()
 
     def _add_mask_from_file(self) -> None:
@@ -919,14 +938,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if filename:
             h5file: Any
             with h5py.File(filename, "r") as h5file:
-                mask: NDArray[numpy.int_] = h5file["/data/data"][()].ravel()
-                self._mask_visual_pixels(
-                    (
-                        self._visual_pixelmap_x[mask == 0],
-                        self._visual_pixelmap_y[mask == 0],
-                    ),
-                    mode="mask",
-                )
+                mask: NDArray[numpy.int_] = h5file["/data/data"][()]
+                self._mask_original_pixels(numpy.where(mask == 0), mode="mask")
 
     def _start_brush(self) -> None:
         if self._ui.brush_button.isChecked():
@@ -999,12 +1012,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self, "Select mask file", str(path / name), filter="*.h5"
         )[0]
         if filename:
-            mask: NDArray[numpy.int8] = (1 - self._maskmaker_image_data)[
-                self._visual_pixelmap_x, self._visual_pixelmap_y
-            ].reshape(self._data_shape)
             print(f"Saving new mask to {filename}.")
             with h5py.File(filename, "w") as fh:
-                fh.create_dataset("/data/data", data=mask)
+                fh.create_dataset("/data/data", data=(1 - self._maskmaker_mask))
 
 
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
