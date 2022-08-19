@@ -583,7 +583,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         ] = data.ravel().astype(self._frame_data_img.dtype)
 
         if self._ui.auto_range_cb.isChecked():
-            values = data.ravel()
+            values = data.flatten()
             values.sort()
             nvalues: int = len(values)
             self._levels_range = (
