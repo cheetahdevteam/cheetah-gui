@@ -252,9 +252,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.previous_crystal_button.clicked.connect(self._previous_crystal)
         self._ui.next_crystal_button.setEnabled(False)
         self._ui.previous_crystal_button.setEnabled(False)
-        self._ui.show_no_crystals_rb.toggled.connect(self._update_reflections)
-        self._ui.show_one_crystal_rb.toggled.connect(self._update_reflections)
-        self._ui.show_all_crystals_rb.toggled.connect(self._update_reflections)
+        self._ui.show_no_crystals_rb.clicked.connect(self._update_reflections)
+        self._ui.show_one_crystal_rb.clicked.connect(self._update_reflections)
+        self._ui.show_all_crystals_rb.clicked.connect(self._update_reflections)
+        self._crystal_to_show: int = 0
 
     def _init_maskmaker_tab(self) -> None:
         # Initialize UI elements in the Maskmaker tab
@@ -605,7 +606,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.current_event_index_le.setText(f"{self._current_event_index + 1}")
         self._update_image()
         self._update_peaks()
-        self._crystal_to_show: int = 0
         self._update_reflections()
         if "source" in self._current_event_data:
             status_message: str = (
@@ -660,19 +660,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         )
 
     def _next_crystal(self) -> None:
-        n_crystals: int = len(self._current_event_data["crystals"])
-        if self._crystal_to_show == n_crystals - 1:
-            self._crystal_to_show = 0
-        else:
-            self._crystal_to_show += 1
+        self._crystal_to_show += 1
         self._update_reflections()
 
     def _previous_crystal(self) -> None:
-        n_crystals: int = len(self._current_event_data["crystals"])
-        if self._crystal_to_show == 0:
-            self._crystal_to_show = n_crystals - 1
-        else:
-            self._crystal_to_show -= 1
+        self._crystal_to_show -= 1
         self._update_reflections()
 
     def _update_reflections(self) -> None:
@@ -693,6 +685,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if self._ui.show_no_crystals_rb.isChecked():
             crystals: List[int] = []
         elif self._ui.show_one_crystal_rb.isChecked():
+            if self._crystal_to_show < 0:
+                self._crystal_to_show = n_crystals - 1
+            elif self._crystal_to_show > n_crystals - 1:
+                self._crystal_to_show = 0
             crystals = [self._crystal_to_show]
             if n_crystals > 1:
                 self._ui.next_crystal_button.setEnabled(True)
