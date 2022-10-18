@@ -22,12 +22,20 @@ class Jungfrau1MCrawler(Crawler):
         # Gets timestamp from Jungfrau 1M master h5 file.
         h5file: Any
         with h5py.File(filename, "r") as h5file:
-            timestamp: float = datetime.strptime(
-                h5file["/entry/instrument/detector/timestamp"][()]
-                .decode("utf-8")
-                .strip(),
-                "%a %b %d %H:%M:%S %Y",
-            ).timestamp()
+            try:
+                timestamp: float = datetime.strptime(
+                    h5file["/entry/instrument/detector/timestamp"][()]
+                    .decode("utf-8")
+                    .strip(),
+                    "%a %b %d %H:%M:%S %Y",
+                ).timestamp()
+            except KeyError:
+                timestamp = datetime.strptime(
+                    h5file["/entry/instrument/detector/Timestamp"][()]
+                    .decode("utf-8")
+                    .strip(),
+                    "%a %b %d %H:%M:%S %Y",
+                ).timestamp()
 
         return timestamp
 

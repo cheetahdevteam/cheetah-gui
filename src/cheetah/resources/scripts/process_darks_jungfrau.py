@@ -125,7 +125,7 @@ def main(
                     (
                         f"{data_directory/filename}\n"
                         for filename in sorted(
-                            data_directory.glob(f"{filename_prefix}_{module}_*.h5")
+                            data_directory.glob(f"{filename_prefix}_*_{module}_*.h5")
                         )
                     )
                 )
