@@ -71,7 +71,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
         self._streams: Dict[str, TextIO] = {}
         self._events: List[_TypeStreamEvent] = []
         self._om_retrievals: Dict[Tuple[str, str], OmFrameDataRetrieval] = {}
-        self._om_binning: Union[Binning, None] = None
+        self._binning: Union[Binning, None] = None
         filename: str
         for filename in sources:
             offsets: List[int] = self._get_index(pathlib.Path(filename))
