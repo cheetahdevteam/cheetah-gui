@@ -188,28 +188,6 @@ facilities: Dict[str, TypeFacilityInfo] = {
     },
     "DESY (PETRA III)": {
         "instruments": {
-            "P11": {
-                "detectors": {
-                    "Eiger16M": {
-                        "calib_resources": {
-                            "geometry": "eiger16M.geom",
-                            "mask": "mask_eiger16M.h5",
-                        },
-                        "om_config_template": "p11_eiger_template.yaml",
-                        "process_template": "desy_slurm_template.sh",
-                        "prepare_om_source": prepare_om_source_p11_eiger,
-                        "crawler": P11EigerCrawler,
-                    }
-                }
-            }
-        },
-        "guess_raw_directory": guess_raw_directory_desy,
-        "guess_experiment_id": guess_experiment_id_desy,
-        "guess_batch_queue": guess_batch_queue_desy,
-        "kill_processing_job": kill_slurm_job,
-    },
-    "DESY (PETRA III)": {
-        "instruments": {
             "P09": {
                 "detectors": {
                     "Lambda1M5": {
@@ -223,7 +201,21 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "crawler": P09LambdaCrawler,
                     }
                 }
-            }
+            },
+            "P11": {
+                "detectors": {
+                    "Eiger16M": {
+                        "calib_resources": {
+                            "geometry": "eiger16M.geom",
+                            "mask": "mask_eiger16M.h5",
+                        },
+                        "om_config_template": "p11_eiger_template.yaml",
+                        "process_template": "desy_slurm_template.sh",
+                        "prepare_om_source": prepare_om_source_p11_eiger,
+                        "crawler": P11EigerCrawler,
+                    }
+                }
+            },
         },
         "guess_raw_directory": guess_raw_directory_desy,
         "guess_experiment_id": guess_experiment_id_desy,
