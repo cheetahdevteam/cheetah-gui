@@ -38,6 +38,10 @@ class TypeProcStatusItem(TypedDict):
 
         hits: The number of found hits.
 
+        indexed: The number of indexed hits.
+
+        crystals: The number of indexed crystals.
+
         recipe: The name of the config file used for the data processing.
     """
 
@@ -48,6 +52,8 @@ class TypeProcStatusItem(TypedDict):
     update_time: float
     processed: int
     hits: int
+    indexed: int
+    crystals: int
     recipe: str
 
 
@@ -89,7 +95,12 @@ class TypeTableRow(TypedDict):
 
         Nhits: Either the number of found hits (if processing has started) or "---".
 
+        Nindexed:  Either the number of indexed hits (if streaming processing has
+            started) or "---".
+
         Hitrate: Either hit rate in % (if processing has started) or "---".
+
+        Idxrate: Either indexing rate in % or "---".
 
         Recipe: The name of the config file used for the data processing.
 
@@ -103,7 +114,9 @@ class TypeTableRow(TypedDict):
     H5Directory: str
     Nprocessed: Union[int, Literal["---"]]
     Nhits: Union[int, Literal["---"]]
+    Nindexed: Union[int, Literal["---"]]
     Hitrate: Union[float, Literal["---"]]
+    Idxrate: Union[float, Literal["---"]]
     Recipe: str
     Calibration: str
 
@@ -219,7 +232,7 @@ class Crawler(ABC):
         # in Cheetah GUI. It scans processed data directory and returns the list of
         # TypeProcStatusItem dictionaries containing information of the data processing
         # status for each processing run.
-        hdf5_status: List[TypeProcStatusItem] = []
+        proc_status: List[TypeProcStatusItem] = []
         status_file: pathlib.Path
         for status_file in self._proc_directory.rglob("status.txt"):
             run_directory: pathlib.Path = status_file.parent
@@ -254,7 +267,14 @@ class Crawler(ABC):
                     hits: int = status["Number of hits"]
                 else:
                     hits = 0
-                hdf5_status.append(
+                crystfel_output: pathlib.Path = run_directory / "crystfel.out"
+                if crystfel_output.is_file():
+                    indexing_results: Tuple[int, int] = self._scan_crystfel_output(
+                        crystfel_output
+                    )
+                else:
+                    indexing_results = (-1, -1)
+                proc_status.append(
                     {
                         "run_name": run_name,
                         "run_id": run_id,
@@ -263,11 +283,26 @@ class Crawler(ABC):
                         "update_time": update_time,
                         "processed": processed,
                         "hits": hits,
+                        "indexed": indexing_results[0],
+                        "crystals": indexing_results[1],
                         "recipe": recipe,
                     }
                 )
 
-        return hdf5_status
+        return proc_status
+
+    def _scan_crystfel_output(self, crystfel_output: pathlib.Path) -> Tuple[int, int]:
+        fh: TextIO
+        indexed: int = 0
+        crystals: int = 0
+        with open(crystfel_output) as fh:
+            for line in fh.readlines()[::-1]:
+                if line.endswith("images/sec.\n"):
+                    split_items: List[str] = line.split()
+                    indexed = int(split_items[6])
+                    crystals = int(split_items[-4])
+                    break
+        return indexed, crystals
 
     def _read_table(self) -> Tuple[List[TypeRawStatusItem], List[TypeProcStatusItem]]:
         # Reads data from the crawler CSV file.
@@ -299,6 +334,10 @@ class Crawler(ABC):
                                 "update_time": update_time,
                                 "processed": int(table_row["Nprocessed"]),
                                 "hits": int(table_row["Nhits"]),
+                                "indexed": int(table_row["Nindexed"])
+                                if table_row["Nindexed"] != "---"
+                                else -1,
+                                "crystals": -1,
                                 "recipe": table_row["Recipe"],
                             }
                         )
@@ -438,6 +477,10 @@ class Crawler(ABC):
                 hitrate: Union[Literal["---"], float] = (
                     100 * hits / processed if processed > 0 else "---"
                 )
+                indexed: int = latest_proc_item["indexed"]
+                if indexed >= 0:
+                    row["Nindexed"] = indexed
+                    row["Idxrate"] = 100 * indexed / hits if hits > 0 else "---"
                 row["Nprocessed"] = processed
                 row["Nhits"] = hits
                 row["Hitrate"] = hitrate

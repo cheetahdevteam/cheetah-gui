@@ -170,6 +170,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         experiment: CheetahExperiment,
         runs: List[str],
         config: TypeProcessingConfig,
+        streaming: bool,
     ) -> None:
         """
         Process Thread.
@@ -191,11 +192,14 @@ class ProcessThread(QtCore.QThread):  # type: ignore
                 argument will be passed to
                 [CheetahExperiment.process_run][cheetah.experiment.Experiment.process_run]
                 function.
+
+            streaming: Whether to save hits to files or stream them to CrystFEL.
         """
         super(ProcessThread, self).__init__()
         self._experiment: CheetahExperiment = experiment
         self._runs: List[str] = runs
         self._config: TypeProcessingConfig = config
+        self._streaming: bool = streaming
 
     def run(self) -> None:
         """
@@ -204,7 +208,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         This function is called when ProcessThread is started. It calls Cheetah
         Experiment [process_runs][cheetah.experiment.Experiment.process_runs] function.
         """
-        self._experiment.process_runs(self._runs, self._config)
+        self._experiment.process_runs(self._runs, self._config, self._streaming)
 
 
 class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
@@ -348,8 +352,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Connect front panel buttons to actions
         self._ui.button_refresh.clicked.connect(self._refresh_table)
         self._ui.button_run_cheetah.clicked.connect(self._process_runs)
+        self._ui.button_run_streaming.clicked.connect(self._process_runs_streaming)
         self._ui.button_kill_processing.clicked.connect(self._kill_processing)
         self._ui.button_view_hits.clicked.connect(self._view_hits)
+        self._ui.button_view_stream.clicked.connect(self._view_stream)
         self._ui.button_sum_blanks.clicked.connect(self._view_sum_blanks)
         self._ui.button_sum_hits.clicked.connect(self._view_sum_hits)
         self._ui.button_peak_powder.clicked.connect(self._view_powder_hits)
@@ -359,7 +365,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_start_crawler.triggered.connect(self._start_crawler)
 
         # Cheetah menu actions
-        self._ui.menu_cheetah_process_selected.triggered.connect(self._process_runs)
+        self._ui.menu_cheetah_process_runs.triggered.connect(self._process_runs)
+        self._ui.menu_cheetah_process_streaming.triggered.connect(
+            self._process_runs_streaming
+        )
         self._ui.menu_cheetah_kill_processing.triggered.connect(self._kill_processing)
         self._ui.menu_cheetah_process_jungfrau_darks.triggered.connect(
             self._process_jungfrau_darks
@@ -380,15 +389,21 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_powder_peaks_hits.triggered.connect(self._view_powder_hits)
         self._ui.menu_powder_peaks_blanks.triggered.connect(self._view_powder_blanks)
 
+        # Indexing menu actions
+        self._ui.menu_indexing_view_stream.triggered.connect(self._view_stream)
+        self._ui.menu_indexing_cell_explorer.triggered.connect(self._cell_explorer)
+
         # Log menu actions
         self._ui.menu_log_batch.triggered.connect(self._view_batch_log)
         self._ui.menu_log_cheetah_status.triggered.connect(self._view_status_file)
 
         # Disable action commands until enabled
         self._ui.button_run_cheetah.setEnabled(False)
+        self._ui.button_run_streaming.setEnabled(False)
         self._ui.button_kill_processing.setEnabled(False)
         self._ui.menu_file_start_crawler.setEnabled(False)
-        self._ui.menu_cheetah_process_selected.setEnabled(False)
+        self._ui.menu_cheetah_process_runs.setEnabled(False)
+        self._ui.menu_cheetah_process_streaming.setEnabled(False)
         self._ui.menu_cheetah_kill_processing.setEnabled(False)
         self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
@@ -413,9 +428,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.button_run_cheetah.setEnabled(True)
         self._ui.button_kill_processing.setEnabled(True)
         self._ui.menu_file_start_crawler.setEnabled(True)
-        self._ui.menu_cheetah_process_selected.setEnabled(True)
+        self._ui.menu_cheetah_process_runs.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
         self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(True)
+        if self.experiment._streaming_process is not None:
+            self._ui.button_run_streaming.setEnabled(True)
+            self._ui.menu_cheetah_process_streaming.setEnabled(True)
 
     def _exit(self) -> None:
         # Prints message on exit
@@ -557,7 +575,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         ]
         self.experiment.kill_processing_jobs(selected_run_dirs)
 
-    def _process_runs(self) -> None:
+    def _process_runs(self, streaming: bool = False) -> None:
         # Starts a ProcessThread which submits processing of selected runs
         selected_rows: List[int] = sorted(
             (index.row() for index in self._table.selectionModel().selectedRows())
@@ -588,6 +606,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 self.experiment,
                 selected_runs,
                 processing_config,
+                streaming,
             )
             self._process_thread.started.connect(self._process_thread_started)
             self._process_thread.finished.connect(self._process_thread_finished)
@@ -604,19 +623,27 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                     self._status_colors["Submitting"]
                 )
 
+    def _process_runs_streaming(self) -> None:
+        self._process_runs(streaming=True)
+
     def _process_thread_started(self) -> None:
         # Disables launching new processing jobs until the previous jobs are submitted
         self._ui.button_run_cheetah.setEnabled(False)
         self._ui.button_kill_processing.setEnabled(False)
-        self._ui.menu_cheetah_process_selected.setEnabled(False)
+        self._ui.menu_cheetah_process_runs.setEnabled(False)
         self._ui.menu_cheetah_kill_processing.setEnabled(False)
+        self._ui.button_run_streaming.setEnabled(False)
+        self._ui.menu_cheetah_process_streaming.setEnabled(False)
 
     def _process_thread_finished(self) -> None:
         # Enables launching new processing jobs
         self._ui.button_run_cheetah.setEnabled(True)
         self._ui.button_kill_processing.setEnabled(True)
-        self._ui.menu_cheetah_process_selected.setEnabled(True)
+        self._ui.menu_cheetah_process_runs.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
+        if self.experiment._streaming_process is not None:
+            self._ui.button_run_streaming.setEnabled(True)
+            self._ui.menu_cheetah_process_streaming.setEnabled(True)
 
     def _refresh_table(self) -> None:
         # Refreshes runs table. This function is run automatically every minute. It can
@@ -781,6 +808,31 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         print(viewer_command)
         p: subprocess.Popen[bytes] = subprocess.Popen(viewer_command, shell=True)
 
+    def _view_stream(self) -> None:
+        # Launches Cheetah Viewer showing stream files from selected runs.
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        stream_files: List[str] = []
+        dir: pathlib.Path
+        for dir in selected_directories:
+            file: pathlib.Path
+            for file in dir.glob("*.stream"):
+                stream_files.append(str(file))
+        if len(stream_files) == 0:
+            print(f"There's no stream files in the selected directories yet.")
+            return
+        input_str: str = " ".join(stream_files)
+        viewer_command: str = f"cheetah_viewer.py -i stream {input_str}"
+        print(viewer_command)
+        subprocess.Popen(viewer_command, shell=True)
+
     def _view_hitrate(self) -> None:
         # Launches Cheetah Hitrate GUI for selected runs.
         selected_rows: List[int] = sorted(
@@ -911,6 +963,29 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
         print(viewer_command)
         subprocess.Popen(viewer_command, shell=True)
+
+    def _cell_explorer(self) -> None:
+        selected_rows: List[int] = sorted(
+            (index.row() for index in self._table.selectionModel().selectedRows())
+        )
+        proc_dir_column: int = self._table_column_names.index("H5Directory")
+        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            proc_dir / self._table.item(row, proc_dir_column).text()
+            for row in selected_rows
+        ]
+        stream_files: List[str] = []
+        dir: pathlib.Path
+        for dir in selected_directories:
+            file: pathlib.Path
+            for file in dir.glob("*.stream"):
+                stream_files.append(str(file))
+        if len(stream_files) == 0:
+            print(f"There's no stream files in the selected directories yet.")
+            return
+        command: str = f"cell_explorer {stream_files[0]}"
+        print(command)
+        subprocess.Popen(command, shell=True)
 
     def closeEvent(self, event: Any) -> None:
         """

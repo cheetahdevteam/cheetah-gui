@@ -26,6 +26,9 @@ class _TypeOmConfigTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill OM config
     # template, which can be used to process data from a single run.
 
+    processing_layer: Union[
+        Literal["CheetahProcessing"], Literal["StreamingCheetahProcessing"]
+    ]
     psana_calib_dir: pathlib.Path
     output_dir: pathlib.Path
     experiment_id: str
@@ -35,7 +38,7 @@ class _TypeOmConfigTemplateData(TypedDict, total=False):
     mask_file: Union[pathlib.Path, Literal["null"]]
 
 
-class _TypeProcessScriptTemplateData(TypedDict):
+class _TypeProcessScriptTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill process script
     # template, which can be used to process data from a single run.
 
@@ -44,6 +47,9 @@ class _TypeProcessScriptTemplateData(TypedDict):
     n_processes: int
     om_source: str
     om_config: pathlib.Path
+    filename_prefix: str
+    geometry_file: pathlib.Path
+    output_dir: pathlib.Path
 
 
 class TypeProcessingConfig(TypedDict):
@@ -81,6 +87,7 @@ class CheetahProcess:
         process_template: pathlib.Path,
         raw_directory: pathlib.Path,
         proc_directory: pathlib.Path,
+        streaming: bool = False,
     ) -> None:
         """
         Cheetah Process.
@@ -122,6 +129,13 @@ class CheetahProcess:
         self._kill_processing_job: Callable[[str], str] = facilities[self._facility][
             "kill_processing_job"
         ]
+        if streaming:
+            self._om_processing_layer: Union[
+                Literal["CheetahProcessing"],
+                Literal["StreamingCheetahProcessing"],
+            ] = "StreamingCheetahProcessing"
+        else:
+            self._om_processing_layer = "CheetahProcessing"
 
     def _raw_id_to_proc_id(self, raw_id: str) -> str:
         # Converts raw run ID to processed run ID by replacing all "-" signs with "_".
@@ -193,6 +207,8 @@ class CheetahProcess:
         if error == "":
             status["Status"] = "Cancelled"
             self._write_status_file(status_filename, status)
+        else:
+            print(error)
         return error
 
     def process_run(
@@ -266,6 +282,7 @@ class CheetahProcess:
             om_config_template: jinja2.Template = jinja2.Template(fh.read())
 
         om_config_data: _TypeOmConfigTemplateData = {
+            "processing_layer": self._om_processing_layer,
             "psana_calib_dir": self._raw_directory.parent / "calib",
             "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
@@ -294,6 +311,9 @@ class CheetahProcess:
             "n_processes": n_processes,
             "om_source": om_source,
             "om_config": om_config_file,
+            "filename_prefix": proc_id.split("/")[-1],
+            "output_dir": output_directory,
+            "geometry_file": geometry_file,
         }
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))

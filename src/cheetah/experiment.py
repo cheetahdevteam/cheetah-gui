@@ -114,6 +114,19 @@ class CheetahExperiment:
             self._raw_directory,
             self._proc_directory,
         )
+        if (self._process_directory / "streaming_template.sh").exists():
+            self._streaming_process: Union[None, CheetahProcess] = CheetahProcess(
+                self._facility,
+                self._instrument,
+                self._detector,
+                self._experiment_id,
+                self._process_directory / "streaming_template.sh",
+                self._raw_directory,
+                self._proc_directory,
+                streaming=True,
+            )
+        else:
+            self._streaming_process = None
 
         if gui:
             self._update_previous_experiments_list()
@@ -308,6 +321,14 @@ class CheetahExperiment:
             / process_template,
             self._process_directory / "process_template.sh",
         )
+        if "streaming_template" in resources:
+            streaming_template: str = resources["streaming_template"]
+            shutil.copyfile(
+                pathlib.Path(new_experiment_config["cheetah_resources"])
+                / "templates"
+                / streaming_template,
+                self._process_directory / "streaming_template.sh",
+            )
 
         self._crawler_config_filename = self._gui_directory / "crawler.config"
         self._crawler_scan_raw_dir = True
@@ -529,6 +550,7 @@ class CheetahExperiment:
         self,
         run_ids: List[str],
         processing_config: Union[TypeProcessingConfig, None],
+        streaming: bool,
         queue: Union[str, None] = None,
         n_processes: Union[int, None] = None,
     ) -> None:
@@ -573,13 +595,25 @@ class CheetahExperiment:
                 self._last_mask = None
 
         run_id: str
-        for run_id in run_ids:
-            self._cheetah_process.process_run(
-                run_id,
-                processing_config,
-                queue,
-                n_processes,
-            )
+        if streaming:
+            if self._streaming_process is None:
+                print("Streaming processing is not set up for this experiment.")
+                return
+            for run_id in run_ids:
+                self._streaming_process.process_run(
+                    run_id,
+                    processing_config,
+                    queue,
+                    n_processes,
+                )
+        else:
+            for run_id in run_ids:
+                self._cheetah_process.process_run(
+                    run_id,
+                    processing_config,
+                    queue,
+                    n_processes,
+                )
         self.write_crawler_config()
 
     def start_crawler(self) -> Crawler:

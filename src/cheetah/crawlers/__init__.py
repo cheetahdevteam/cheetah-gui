@@ -40,7 +40,7 @@ from cheetah.crawlers.functions_desy import (
 from cheetah.crawlers.functions_generic import kill_slurm_job
 
 
-class TypeDetectorInfo(TypedDict):
+class TypeDetectorInfo(TypedDict, total=False):
     """
     A dictionary storing information about resources associated with a certain detector.
 
@@ -58,6 +58,8 @@ class TypeDetectorInfo(TypedDict):
 
         process_template: The name of the process script template file.
 
+        streaming_template: The name of the streaming script template file (optional).
+
         prepare_om_source: A function which prepares OM data source for data processing.
 
         crawler: Cheetah Crawler class for the facility.
@@ -67,6 +69,7 @@ class TypeDetectorInfo(TypedDict):
     calib_resources: Dict[str, str]
     om_config_template: str
     process_template: str
+    streaming_template: str
     prepare_om_source: Callable[[str, str, pathlib.Path, pathlib.Path], str]
     crawler: Type[Crawler]
 
@@ -211,6 +214,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "p11_eiger_template.yaml",
                         "process_template": "desy_slurm_template.sh",
+                        "streaming_template": "desy_slurm_streaming_template.sh",
                         "prepare_om_source": prepare_om_source_p11_eiger,
                         "crawler": P11EigerCrawler,
                     }

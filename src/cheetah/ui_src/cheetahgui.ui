@@ -70,6 +70,13 @@
          </widget>
         </item>
         <item>
+         <widget class="QPushButton" name="button_run_streaming">
+          <property name="text">
+           <string>Run Cheetah+CrystFEL</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="button_kill_processing">
           <property name="text">
            <string>Kill processing</string>
@@ -92,6 +99,13 @@
           </property>
           <property name="text">
            <string>View hits</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="button_view_stream">
+          <property name="text">
+           <string>View stream</string>
           </property>
          </widget>
         </item>
@@ -309,7 +323,15 @@
     <property name="title">
      <string>Cheetah</string>
     </property>
-    <addaction name="menu_cheetah_process_selected"/>
+    <widget class="QMenu" name="menuProcess_selected_runs">
+     <property name="title">
+      <string>Process selected runs</string>
+     </property>
+     <addaction name="separator"/>
+     <addaction name="menu_cheetah_process_runs"/>
+     <addaction name="menu_cheetah_process_streaming"/>
+    </widget>
+    <addaction name="menuProcess_selected_runs"/>
     <addaction name="menu_cheetah_kill_processing"/>
     <addaction name="menu_cheetah_process_jungfrau_darks"/>
    </widget>
@@ -353,11 +375,19 @@
     <addaction name="menu_log_batch"/>
     <addaction name="menu_log_cheetah_status"/>
    </widget>
+   <widget class="QMenu" name="menuIndexing">
+    <property name="title">
+     <string>Indexing</string>
+    </property>
+    <addaction name="menu_indexing_view_stream"/>
+    <addaction name="menu_indexing_cell_explorer"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuCheetah"/>
    <addaction name="menu_masks"/>
    <addaction name="menuPowder"/>
    <addaction name="menuAnalysis"/>
+   <addaction name="menuIndexing"/>
    <addaction name="menuLogs"/>
   </widget>
   <action name="menu_file_autorefresh">
@@ -383,11 +413,6 @@
   <action name="menu_file_quit">
    <property name="text">
     <string>Quit</string>
-   </property>
-  </action>
-  <action name="menu_cheetah_process_selected">
-   <property name="text">
-    <string>Process selected runs</string>
    </property>
   </action>
   <action name="menu_cheetah_autorun">
@@ -512,6 +537,26 @@
    </property>
    <property name="visible">
     <bool>false</bool>
+   </property>
+  </action>
+  <action name="menu_indexing_view_stream">
+   <property name="text">
+    <string>View stream file</string>
+   </property>
+  </action>
+  <action name="menu_indexing_cell_explorer">
+   <property name="text">
+    <string>Cell explorer</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_process_runs">
+   <property name="text">
+    <string>Save hits to files</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_process_streaming">
+   <property name="text">
+    <string>Stream hits to CrystFEL</string>
    </property>
   </action>
  </widget>
