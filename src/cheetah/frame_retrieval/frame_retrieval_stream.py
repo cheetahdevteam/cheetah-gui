@@ -123,22 +123,27 @@ class StreamRetrieval(CheetahFrameRetrieval):
             else:
                 print(f"Index file {index_filename} is outdated, creating new index.")
         else:
-            print(f"Creating new index file {index_filename}.")
-
-        with open(index_filename, "w") as fh:
-            fh.write(f"stream_mtime={stream_filename.stat().st_mtime}\n")
+            print(f"Creating new index.")
 
         command: str = (
             f"grep --byte-offset 'Begin chunk' {stream_filename} "
-            "| awk '{print $1}' FS=':' >> "
-            f"{index_filename}"
+            "| awk '{print $1}' FS=':'"
         )
         print(command)
-        subprocess.run(command, shell=True)
+        output: subprocess.CompletedProcess = subprocess.run(
+            command, shell=True, capture_output=True
+        )
+        if output.stderr:
+            print(output.stderr.decode())
 
-        with open(index_filename, "r") as fh:
-            fh.readline()
-            offsets = [int(line) for line in fh]
+        offsets: List[int] = [int(line) for line in output.stdout.split()]
+        try:
+            with open(index_filename, "w") as fh:
+                fh.write(f"stream_mtime={stream_filename.stat().st_mtime}\n")
+                fh.write(output.stdout.decode())
+                print(f"Writing new index file {index_filename}.")
+        except PermissionError as e:
+            print(f"Couldn't write index file {index_filename}:\n{e}")
 
         return offsets
 
