@@ -288,7 +288,12 @@ class _TreeItemDelegate(QtWidgets.QStyledItemDelegate):
                 if value in self._colors.keys():
                     painter.fillRect(option.rect, self._colors[value])
             painter.setPen(QtGui.QColor(200, 200, 200))
-            painter.drawRect(option.rect)
+            # painter.drawRect(option.rect)
+            painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+            painter.drawLine(option.rect.topLeft(), option.rect.topRight())
+            painter.drawLine(option.rect.topRight(), option.rect.bottomRight())
+            painter.drawLine(option.rect.topLeft(), option.rect.bottomLeft())
+
         super(_TreeItemDelegate, self).paint(painter, option, index)
 
 
@@ -1134,6 +1139,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         command: str = f"cell_explorer {stream_files[0]}"
         print(command)
         subprocess.Popen(command, shell=True)
+
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Delete:
+            self._remove_processing()
+        else:
+            super().keyPressEvent(event)
 
     def closeEvent(self, event: Any) -> None:
         """
