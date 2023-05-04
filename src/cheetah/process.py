@@ -4,14 +4,14 @@ Cheetah Process.
 This module contains classes and functions that allow configuring and launching Cheetah
 processing jobs.
 """
-import jinja2
 import pathlib
 import shutil
 import stat
 import subprocess
-import yaml
+from typing import Any, Callable, Dict, TextIO, Union
 
-from typing import Callable, TextIO, Union, Dict, Any
+import jinja2
+import yaml
 
 try:
     from typing import Literal, TypedDict
@@ -247,17 +247,8 @@ class CheetahProcess:
                 parameter will be inserted in the process script template. If this
                 parameter is None, 12 nodes will be used. Defaults to None.
         """
-        om_config_template_file: pathlib.Path = pathlib.Path(config["config_template"])
-        tag: str = config["tag"]
-        geometry_file: pathlib.Path = pathlib.Path(config["geometry"])
-        if config["mask"]:
-            mask_file: Union[pathlib.Path, Literal["null"]] = pathlib.Path(
-                config["mask"]
-            )
-        else:
-            mask_file = "null"
-
         proc_id: str = self._raw_id_to_proc_id(run_id)
+        tag: str = config["tag"]
         if tag:
             output_directory_name: str = f"{proc_id}-{tag}"
         else:
@@ -269,10 +260,36 @@ class CheetahProcess:
                 f"Moving to existing data directory {output_directory}\n"
                 f"Deleting previous files"
             )
-            shutil.rmtree(output_directory)
+            try:
+                shutil.rmtree(output_directory)
+            except Exception as e:
+                print(f"Couldn't clean {output_directory}: {e}.")
+                return
         else:
             print(f"Creating hdf5 data directory {output_directory}")
         output_directory.mkdir(parents=True)
+
+        # Copy input files to the output directory
+        input_files_directory: pathlib.Path = output_directory / "input_files"
+        input_files_directory.mkdir()
+
+        om_config_template_file: pathlib.Path = (
+            input_files_directory / pathlib.Path(config["config_template"]).name
+        )
+        shutil.copy(config["config_template"], om_config_template_file)
+
+        geometry_file: pathlib.Path = (
+            input_files_directory / pathlib.Path(config["geometry"]).name
+        )
+        shutil.copy(config["geometry"], geometry_file)
+
+        if config["mask"]:
+            mask_file: Union[pathlib.Path, Literal["null"]] = (
+                input_files_directory / pathlib.Path(config["mask"]).name
+            )
+            shutil.copy(config["mask"], mask_file)
+        else:
+            mask_file = "null"
 
         print(f"Copying configuration file: {om_config_template_file}")
         om_config_file: pathlib.Path = output_directory / "monitor.yaml"
