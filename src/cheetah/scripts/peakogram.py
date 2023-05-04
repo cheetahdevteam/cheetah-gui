@@ -3,25 +3,25 @@ Peakogram GUI.
 
 This module contains Cheetah peakogram GUI.
 """
-import click  # type: ignore
 import pathlib
 import sys
-from typing import Any, List, Dict, Union, cast
+from typing import Any, Dict, List, Union, cast
+
+import click  # type: ignore
 
 try:
     from typing import TypedDict
 except:
     from typing_extensions import TypedDict
+
 import numpy
-
-from numpy.typing import NDArray
-
-from om.utils import crystfel_geometry
-from PyQt5 import QtGui, QtCore, QtWidgets  # type: ignore
 import pyqtgraph  # type: ignore
-
-from cheetah.utils.file_reader_base import FileReader
 from cheetah import __file__ as cheetah_src_path
+from cheetah.utils.file_reader_base import FileReader
+from numpy.typing import NDArray
+from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
+
+from om.lib.geometry import GeometryInformation
 
 
 class _TypePeak(TypedDict):
@@ -51,12 +51,9 @@ class _PeaksReader(FileReader):
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
 
-        self._radius_pixelmap: NDArray[numpy.float_] = cast(
-            NDArray[numpy.float_],
-            crystfel_geometry.pixel_maps_from_geometry_file(
-                filename=parameters["geometry"]
-            )["radius"],
-        )
+        self._radius_pixelmap: NDArray[numpy.float_] = GeometryInformation(
+            geometry_filename=parameters["geometry"]
+        ).get_pixel_maps()["radius"]
 
         self._peak_list: List[_TypePeak] = []
         self._npeaks: int = 0
@@ -239,6 +236,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         )
         peakogram: NDArray[numpy.float_] = data["peakogram"]
         peakogram[numpy.where(peakogram == 0)] = numpy.nan
+        print(peakogram.shape)
         self._peakogram_plot_image_view.setImage(
             numpy.log(peakogram),
             pos=(0, 0),

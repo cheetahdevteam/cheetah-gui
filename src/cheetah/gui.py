@@ -3,27 +3,28 @@ Cheetah GUI.
 
 This module contains the implementation of the main Cheetah GUI.
 """
-import click  # type: ignore
 import csv
 import os
 import pathlib
 import subprocess
 import sys
-import yaml
-
-from ansi2html import Ansi2HTMLConverter  # type: ignore
 from datetime import datetime
-from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
-from typing import Any, List, Dict, Union, TextIO
+from operator import itemgetter
+from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
+
+import click  # type: ignore
+import yaml
+from ansi2html import Ansi2HTMLConverter  # type: ignore
+from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
 
 try:
     from typing import Literal
 except:
     from typing_extensions import Literal  # type: ignore
 
-from cheetah.crawlers.base import Crawler, TypeTableRow
-from cheetah.dialogs import setup_dialogs, process_dialogs
 from cheetah import __file__ as cheetah_src_path
+from cheetah.crawlers.base import Crawler, TypeTableRow
+from cheetah.dialogs import process_dialogs, setup_dialogs
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
 
@@ -269,6 +270,36 @@ class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
             self._text_edit.setPlainText(f"File {self._filename} doesn't exist.")
 
 
+class _TreeItemDelegate(QtWidgets.QStyledItemDelegate):
+    # Color delegate for the tree view item.
+    def __init__(
+        self, colors: Dict[str, Any], columns_to_paint: List[int], parent=None
+    ):
+        super(_TreeItemDelegate, self).__init__(parent)
+        self._colors: Dict[str, Any] = colors
+        self._columns_to_paint: List[int] = columns_to_paint
+
+    def paint(self, painter, option, index):
+        if index.parent() == QtCore.QModelIndex() or index.column() > 1:
+            row = index.row()
+            column = index.column()
+            if column in self._columns_to_paint:
+                value = index.model().data(index)
+                if value in self._colors.keys():
+                    painter.fillRect(option.rect, self._colors[value])
+            painter.setPen(QtGui.QColor(200, 200, 200))
+            painter.drawRect(option.rect)
+        super(_TreeItemDelegate, self).paint(painter, option, index)
+
+
+class _SelectedRows(NamedTuple):
+    # A tuple of selected rows, run_ids, processing directories and data model indices.
+    rows: Tuple[float]
+    runs: Tuple[str]
+    proc_dirs: Tuple[str]
+    indices: Tuple[QtCore.QModelIndex]
+
+
 class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     """
     See documentation of the `__init__` function.
@@ -300,33 +331,25 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
         self.show()
 
+        # Load experiment
         self._select_experiment()
         self.setWindowTitle(f"Cheetah GUI: {self.experiment.get_working_directory()}")
         self._crawler_csv_filename: pathlib.Path = (
             self.experiment.get_crawler_csv_filename()
         )
 
-        self._table: Any = self._ui.table_status
-        self._table_data: List[Dict[str, Any]] = []
+        # Set up table
         self._table_column_names: List[str] = list(TypeTableRow.__annotations__.keys())
-        self._table.setColumnCount(len(self._table_column_names))
-        self._table.setHorizontalHeaderLabels(self._table_column_names)
-        self._table.horizontalHeader().setDefaultSectionSize(
-            self.width() // len(self._table_column_names)
-        )
-        self._table.setSortingEnabled(True)
-        self._table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-        self._table.horizontalHeader().setSectionResizeMode(
-            QtWidgets.QHeaderView.Interactive
-        )
-        self._table.horizontalHeader().setSectionResizeMode(
-            self._table.columnCount() - 1, QtWidgets.QHeaderView.Stretch
-        )
-        self._table.setWordWrap(False)
-        self._table.verticalHeader().setVisible(False)
+        self._proc_dir_column: int = self._table_column_names.index("H5Directory")
+        self._cheetah_status_column: int = self._table_column_names.index("Cheetah")
+        self._dataset_tag_column: int = self._table_column_names.index("Dataset")
+        self._num_columns: int = len(self._table_column_names)
 
-        # self._table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
-        self._table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self._tree: Any = self._ui.tree_status
+        self._data_model: Any = QtGui.QStandardItemModel()
+        self._data_model.setHorizontalHeaderLabels(self._table_column_names)
+        self._tree.setModel(self._data_model)
+        self._tree.header().setDefaultSectionSize(self.width() // self._num_columns)
 
         self._status_colors: Dict[str, Any] = {
             "---": QtGui.QColor(255, 255, 255),
@@ -340,9 +363,19 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             "Ready": QtGui.QColor(200, 255, 200),
             "Finished": QtGui.QColor(200, 255, 200),
             "Dark ready": QtGui.QColor(70, 130, 180),
+            "Cancelling": QtGui.QColor(255, 165, 165),
             "Cancelled": QtGui.QColor(255, 200, 200),
             "Error": QtGui.QColor(255, 100, 100),
+            "Removing": QtGui.QColor(100, 100, 255),
         }
+        columns_to_paint: List[int] = [
+            i
+            for i, name in enumerate(self._table_column_names)
+            if name in ("Rawdata", "Cheetah")
+        ]
+        self._tree.setItemDelegate(
+            _TreeItemDelegate(self._status_colors, columns_to_paint)
+        )
 
         self._refresh_timer: Any = QtCore.QTimer()
         self._refresh_timer.timeout.connect(self._refresh_table)
@@ -373,6 +406,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_cheetah_process_jungfrau_darks.triggered.connect(
             self._process_jungfrau_darks
         )
+        self._ui.menu_cheetah_remove_processing.triggered.connect(
+            self._remove_processing
+        )
 
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._open_maskmaker)
@@ -396,6 +432,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Log menu actions
         self._ui.menu_log_batch.triggered.connect(self._view_batch_log)
         self._ui.menu_log_cheetah_status.triggered.connect(self._view_status_file)
+        self._ui.menu_log_om.triggered.connect(self._view_om_log)
+        self._ui.menu_log_crystfel.triggered.connect(self._view_crystfel_log)
 
         # Disable action commands until enabled
         self._ui.button_run_cheetah.setEnabled(False)
@@ -436,7 +474,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self._ui.menu_cheetah_process_streaming.setEnabled(True)
 
     def _exit(self) -> None:
-        # Prints message on exit
+        # Prints a message on exit
         print("Bye bye.")
         sys.exit(0)
 
@@ -445,14 +483,30 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # instead of using pathlib.Path.cwd()
         return pathlib.Path(os.environ["PWD"])
 
+    def _get_selected_rows(
+        self,
+    ) -> _SelectedRows:
+        # Get selected rows, run IDs and proc directories
+        selected: List[Tuple[float, str, str, QtCore.QModelIndex]] = []
+        index: QtCore.QModelIndex
+        for index in self._tree.selectionModel().selectedRows():
+            run_id: str = self._data_model.data(index)
+            row: float = float(index.row())
+            if run_id == "":
+                parent: QtCore.QModelIndex = index.parent()
+                run_id = self._data_model.data(parent)
+                row = index.parent().row() + (index.row() + 1) / 1000
+            proc_dir: str = self._data_model.data(
+                index.siblingAtColumn(self._proc_dir_column)
+            )
+            selected.append((row, run_id, proc_dir, index))
+
+        return _SelectedRows(*zip(*sorted(selected, key=itemgetter(0))))  # type: ignore
+
     def _process_jungfrau_darks(self) -> None:
         # Process selected Jungfrau 1M dark runs
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        selected_runs: List[str] = [
-            self._table.item(row, 0).text() for row in selected_rows
-        ]
+        selected: _SelectedRows = self._get_selected_rows()
+        selected_runs: Set[str] = set(selected.runs)
         if len(selected_runs) == 0:
             return
         input_str: str = " ".join(selected_runs)
@@ -476,14 +530,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
         print(process_darks_command)
         subprocess.Popen(process_darks_command, shell=True)
-        cheetah_column: int = self._table_column_names.index("Cheetah")
-        row: int
-        for row in selected_rows:
-            self._table.setItem(
-                row, cheetah_column, QtWidgets.QTableWidgetItem("Started")
-            )
-            self._table.item(row, cheetah_column).setBackground(
-                self._status_colors["Started"]
+        row: float
+        for row in selected.rows:
+            self._data_model.item(int(row), self._cheetah_status_column).setText(
+                "Started"
             )
 
     def _get_psana_detector_name(self) -> str:
@@ -507,14 +557,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _psana_mask(self) -> None:
         # Extract mask from psana and save it to file
-        if len(self._table.selectionModel().selectedRows()) == 0:
+        selected: _SelectedRows = self._get_selected_rows()
+        if len(selected.runs) == 0:
             return
-        selected_run: int = sorted(
-            (
-                int(self._table.item(index.row(), 0).text())
-                for index in self._table.selectionModel().selectedRows()
-            )
-        )[0]
+        selected_run: int = int(selected.runs[0])
 
         calib_directory: pathlib.Path = self.experiment.get_calib_directory()
         raw_directory: pathlib.Path = self.experiment.get_raw_directory()
@@ -552,11 +598,17 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _kill_processing(self) -> None:
         # Ask if the user is sure they want to kill the jobs. If yes - try to kill the
         # jobs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        if len(selected_rows) == 0:
+        selected: _SelectedRows = self._get_selected_rows()
+        selected_proc_dirs: List[str] = []
+        selected_indices: List[QtCore.QModelIndex] = []
+        i: int
+        for i in range(len(selected.proc_dirs)):
+            if selected.proc_dirs[i] not in ("---", ""):
+                selected_proc_dirs.append(selected.proc_dirs[i])
+                selected_indices.append(selected.indices[i])
+        if len(selected_proc_dirs) == 0:
             return
+
         reply: Any = QtWidgets.QMessageBox.question(
             self,
             "",
@@ -567,31 +619,58 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if reply == QtWidgets.QMessageBox.No:
             return
 
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        selected_run_dirs: List[str] = [
-            (self._table.item(row, proc_dir_column).text())
-            for row in selected_rows
-            if self._table.item(row, proc_dir_column).text() != "---"
-        ]
-        self.experiment.kill_processing_jobs(selected_run_dirs)
+        self.experiment.kill_processing_jobs(selected_proc_dirs)
+        for index in selected_indices:
+            self._data_model.itemFromIndex(
+                index.siblingAtColumn(self._cheetah_status_column)
+            ).setText("Cancelling")
+
+    def _remove_processing(self) -> None:
+        # Ask if the user is sure they want to remove the processing results. If yes -
+        # remove selected directories.
+        selected: _SelectedRows = self._get_selected_rows()
+        selected_proc_dirs: List[str] = []
+        selected_indices: List[QtCore.QModelIndex] = []
+        i: int
+        for i in range(len(selected.proc_dirs)):
+            if selected.proc_dirs[i] not in ("---", ""):
+                selected_proc_dirs.append(selected.proc_dirs[i])
+                selected_indices.append(selected.indices[i])
+        if len(selected_proc_dirs) == 0:
+            return
+
+        message_dirs: str = "\n".join(selected_proc_dirs)
+        reply: Any = QtWidgets.QMessageBox.question(
+            self,
+            "",
+            f"Are you sure you want to remove all processing results of the selected "
+            f"runs?\n\n"
+            f"The following directories will be removed:\n{message_dirs}",
+            QtWidgets.QMessageBox.Yes,
+            QtWidgets.QMessageBox.No,
+        )
+        if reply == QtWidgets.QMessageBox.No:
+            return
+
+        self.experiment.remove_processing_results(selected_proc_dirs)
+        for index in selected_indices:
+            self._data_model.itemFromIndex(
+                index.siblingAtColumn(self._cheetah_status_column)
+            ).setText("Removing")
 
     def _process_runs(self, streaming: bool = False) -> None:
         # Starts a ProcessThread which submits processing of selected runs
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
+        selected: _SelectedRows = self._get_selected_rows()
         selected_runs: List[str] = [
-            self.experiment.crawler_table_id_to_raw_id(self._table.item(row, 0).text())
-            for row in selected_rows
+            self.experiment.crawler_table_id_to_raw_id(run_id)
+            for run_id in set(selected.runs)
         ]
         if len(selected_runs) == 0:
             return
-        first_selected_hdf5_dir: Union[str, None] = self._table.item(
-            selected_rows[0], self._table_column_names.index("H5Directory")
-        ).text()
-        if first_selected_hdf5_dir == "---":
-            first_selected_hdf5_dir = None
 
+        first_selected_hdf5_dir: Union[str, None] = selected.proc_dirs[0]
+        if first_selected_hdf5_dir in ("", "---"):
+            first_selected_hdf5_dir = None
         dialog: process_dialogs.RunProcessingDialog = (
             process_dialogs.RunProcessingDialog(
                 self.experiment.get_last_processing_config(first_selected_hdf5_dir),
@@ -600,28 +679,59 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
         if dialog.exec() == 0:
             return
-        else:
-            processing_config: TypeProcessingConfig = dialog.get_config()
-            self._process_thread: ProcessThread = ProcessThread(
-                self.experiment,
-                selected_runs,
-                processing_config,
-                streaming,
-            )
-            self._process_thread.started.connect(self._process_thread_started)
-            self._process_thread.finished.connect(self._process_thread_finished)
-            self._process_thread.finished.connect(self._process_thread.deleteLater)
-            self._process_thread.start()
 
-            cheetah_column: int = self._table_column_names.index("Cheetah")
-            row: int
-            for row in selected_rows:
-                self._table.setItem(
-                    row, cheetah_column, QtWidgets.QTableWidgetItem("Submitting")
+        processing_config: TypeProcessingConfig = dialog.get_config()
+        self._process_thread: ProcessThread = ProcessThread(
+            self.experiment,
+            selected_runs,
+            processing_config,
+            streaming,
+        )
+        self._process_thread.started.connect(self._process_thread_started)
+        self._process_thread.finished.connect(self._process_thread_finished)
+        self._process_thread.finished.connect(self._process_thread.deleteLater)
+        self._process_thread.start()
+
+        tag: str = processing_config["tag"]
+
+        selected_rows: Set[int] = set((int(row) for row in selected.rows))
+        row: int
+        for row in selected_rows:
+            index: QtCore.QModelIndex = self._data_model.index(row, 0)
+            index_to_change: QtCore.QModelIndex = index
+            change_existing_row: bool = False
+            if (
+                self._data_model.data(index.siblingAtColumn(self._dataset_tag_column))
+                == tag
+                or self._data_model.data(index.siblingAtColumn(self._proc_dir_column))
+                == "---"
+            ):
+                change_existing_row = True
+            elif self._data_model.hasChildren(index):
+                child_row: int
+                for child_row in range(self._data_model.rowCount(index)):
+                    if (
+                        self._data_model.data(
+                            index.child(child_row, self._dataset_tag_column),
+                        )
+                        == tag
+                    ):
+                        change_existing_row = True
+                        index_to_change = index.child(child_row, 0)
+                        break
+            if not change_existing_row:
+                self._data_model.itemFromIndex(index).insertRow(
+                    0, [QtGui.QStandardItem("") for _ in range(self._num_columns)]
                 )
-                self._table.item(row, cheetah_column).setBackground(
-                    self._status_colors["Submitting"]
-                )
+                index_to_change = index.child(0, 0)
+
+            self._data_model.itemFromIndex(
+                index_to_change.siblingAtColumn(self._dataset_tag_column),
+            ).setText(tag)
+
+            self._data_model.itemFromIndex(
+                index_to_change.siblingAtColumn(self._cheetah_status_column),
+            ).setText("Submitting")
 
     def _process_runs_streaming(self) -> None:
         self._process_runs(streaming=True)
@@ -652,58 +762,88 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if not self._crawler_csv_filename.exists():
             self._refresh_timer.start(60000)
             return
-        self._table.setSortingEnabled(False)
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        n_columns: int = len(self._table_column_names)
+
+        # Remember selected rows
+        selected_rows_run: List[str] = []
+        selected_rows_proc: List[str] = []
+        index: QtCore.QModelIndex
+        for index in self._tree.selectionModel().selectedRows():
+            if self._data_model.data(index) != "":
+                selected_rows_run.append(self._data_model.data(index))
+            else:
+                selected_rows_proc.append(
+                    self._data_model.data(index.siblingAtColumn(self._proc_dir_column))
+                )
+
+        # Remember collapsed rows
+        collapsed_rows: List[str] = []
+        row: int
+        for row in range(self._data_model.rowCount()):
+            index = self._data_model.index(row, 0)
+            if self._data_model.hasChildren(index) and not self._tree.isExpanded(index):
+                collapsed_rows.append(self._data_model.data(index))
+
+        # Remember scroll position
+        index = self._tree.indexAt(QtCore.QPoint(0, 0))
+        if self._data_model.data(index) != "":
+            scroll_run: str = self._data_model.data(index)
+        else:
+            scroll_run = self._data_model.data(index.parent())
+
+        # Read data from crawler CSV file
         fh: TextIO
         with open(self._crawler_csv_filename, "r") as fh:
             self._table_data = list(csv.DictReader(fh))
 
-        if len(self._table_data) == 0:
-            return
-        n_rows: int = len(self._table_data)
-        self._table.setRowCount(n_rows)
-        self._table.setColumnCount(n_columns)
-        self._table.updateGeometry()
-
-        column: int
-        row: int
-        name: str
+        # Update table
+        self._data_model.setRowCount(0)
+        root: Any = self._data_model.invisibleRootItem()
         data: Dict[str, Any]
-        for column, name in enumerate(self._table_column_names):
-            if name in self._table_data[0].keys():
-                for row, data in enumerate(self._table_data):
-                    value: str = data[name]
-                    item: Any = QtWidgets.QTableWidgetItem()
+        scroll_index: Optional[QtCore.QModelIndex] = None
+        for data in self._table_data:
+            if data["Run"] != "":
+                parent: Any = root
+            else:
+                parent = root.child(root.rowCount() - 1)
+            tree_row: List[Any] = []
+            key: str
+            for key in self._table_column_names:
+                item = QtGui.QStandardItem()
+                if key in data.keys():
                     try:
-                        item.setData(QtCore.Qt.DisplayRole, float(value))
+                        item.setData(float(data[key]), role=QtCore.Qt.DisplayRole)
                     except ValueError:
-                        item.setText(value)
-                    self._table.setItem(row, column, item)
+                        item.setText(data[key])
+                tree_row.append(item)
+            parent.appendRow(tree_row)
 
-                    self._table.item(row, column).setBackground(
-                        QtGui.QColor(255, 255, 255)
-                    )
-                    if name in ("Rawdata", "Cheetah"):
-                        if value in self._status_colors.keys():
-                            self._table.item(row, column).setBackground(
-                                self._status_colors[value]
-                            )
+            # Restore previous selection
+            if (
+                data["Run"] in selected_rows_run
+                or data["H5Directory"] in selected_rows_proc
+            ):
+                self._tree.selectionModel().select(
+                    self._data_model.indexFromItem(tree_row[0]),
+                    QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows,
+                )
 
-        self._table.resizeRowsToContents()
-        self._table.setSortingEnabled(True)
+            # Find index of the row to scroll to
+            if data["Run"] == scroll_run:
+                scroll_index = self._data_model.indexFromItem(tree_row[0])
 
-        # restore previous selection:
-        self._table.clearSelection()
-        self._table.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
-        for row in selected_rows:
-            self._table.selectRow(row)
-        self._table.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self._tree.expandAll()
+
+        # Collapse previously collapsed rows
+        for row in range(self._data_model.rowCount()):
+            index = self._data_model.index(row, 0)
+            if self._data_model.data(index) in collapsed_rows:
+                self._tree.setExpanded(index, False)
+
+        # Scroll to the previous position
+        if scroll_index is not None:
+            self._tree.scrollTo(scroll_index, self._tree.PositionAtTop)
 
         print(f"Table refreshed at {datetime.now()}")
-
         self._refresh_timer.start(60000)
 
     def _select_experiment(self) -> None:
@@ -753,35 +893,55 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _view_batch_log(self) -> None:
         # Shows the contents of batch.out file from the first of the selected runs in
         # a TextFileGui window.
-        if len(self._table.selectionModel().selectedRows()) == 0:
+        selected_proc_dirs: Tuple[str, ...] = self._get_selected_rows().proc_dirs
+        if len(selected_proc_dirs) == 0 or selected_proc_dirs[0] in ("---", ""):
             return
-        selected_row: int = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )[0]
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
         batch_file: pathlib.Path = (
-            self.experiment.get_proc_directory()
-            / self._table.item(selected_row, proc_dir_column).text()
-            / "batch.out"
+            self.experiment.get_proc_directory() / selected_proc_dirs[0] / "batch.out"
         )
         if not batch_file.exists():
             print(f"Batch log file {batch_file} doesn't exist.")
         else:
             TextFileViewer(str(batch_file), self)
 
+    def _view_om_log(self) -> None:
+        # Shows the contents of om.out file from the first of the selected runs in
+        # a TextFileGui window.
+        selected_proc_dirs: Tuple[str, ...] = self._get_selected_rows().proc_dirs
+        if len(selected_proc_dirs) == 0 or selected_proc_dirs[0] in ("---", ""):
+            return
+        batch_file: pathlib.Path = (
+            self.experiment.get_proc_directory() / selected_proc_dirs[0] / "om.out"
+        )
+        if not batch_file.exists():
+            print(f"OM log file {batch_file} doesn't exist.")
+        else:
+            TextFileViewer(str(batch_file), self)
+
+    def _view_crystfel_log(self) -> None:
+        # Shows the contents of crystfel.out file from the first of the selected runs in
+        # a TextFileGui window.
+        selected_proc_dirs: Tuple[str, ...] = self._get_selected_rows().proc_dirs
+        if len(selected_proc_dirs) == 0 or selected_proc_dirs[0] in ("---", ""):
+            return
+        batch_file: pathlib.Path = (
+            self.experiment.get_proc_directory()
+            / selected_proc_dirs[0]
+            / "crystfel.out"
+        )
+        if not batch_file.exists():
+            print(f"CrystFEL log file {batch_file} doesn't exist.")
+        else:
+            TextFileViewer(str(batch_file), self)
+
     def _view_status_file(self) -> None:
         # Shows the contents of status.txt file from the first of the selected runs in
         # a TextFileGui window.
-        if len(self._table.selectionModel().selectedRows()) == 0:
+        selected_proc_dirs: Tuple[str, ...] = self._get_selected_rows().proc_dirs
+        if len(selected_proc_dirs) == 0 or selected_proc_dirs[0] in ("---", ""):
             return
-        selected_row: int = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )[0]
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
         status_file: pathlib.Path = (
-            self.experiment.get_proc_directory()
-            / self._table.item(selected_row, proc_dir_column).text()
-            / "status.txt"
+            self.experiment.get_proc_directory() / selected_proc_dirs[0] / "status.txt"
         )
         if not status_file.exists():
             print(f"Status file {status_file} doesn't exist.")
@@ -790,15 +950,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _view_hits(self) -> None:
         # Launches Cheetah Viewer showing hits from selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected: _SelectedRows = self._get_selected_rows()
+        root_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
         selected_directories: List[str] = [
-            str(proc_dir / self._table.item(row, proc_dir_column).text())
-            for row in selected_rows
-            if self._table.item(row, proc_dir_column).text() != "---"
+            str(root_proc_dir / proc_dir)
+            for proc_dir in selected.proc_dirs
+            if proc_dir not in ("---", "")
         ]
         if len(selected_directories) == 0:
             return
@@ -809,15 +966,13 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         p: subprocess.Popen[bytes] = subprocess.Popen(viewer_command, shell=True)
 
     def _view_stream(self) -> None:
-        # Launches Cheetah Viewer showing stream files from selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        # Launches Cheetah Viewer showing stream files from selected runs
+        selected: _SelectedRows = self._get_selected_rows()
+        root_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
         selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
-            for row in selected_rows
+            root_proc_dir / proc_dir
+            for proc_dir in selected.proc_dirs
+            if proc_dir not in ("---", "")
         ]
         stream_files: List[str] = []
         dir: pathlib.Path
@@ -835,46 +990,41 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _view_hitrate(self) -> None:
         # Launches Cheetah Hitrate GUI for selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
-        row: int
-        frames_files: List[str] = []
-        for row in selected_rows:
-            filename: pathlib.Path = (
-                proc_dir / self._table.item(row, proc_dir_column).text() / "frames.txt"
-            )
-            if filename.exists():
-                frames_files.append(str(filename))
-
-        if len(frames_files) == 0:
+        selected: _SelectedRows = self._get_selected_rows()
+        root_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            root_proc_dir / proc_dir
+            for proc_dir in selected.proc_dirs
+            if proc_dir not in ("---", "")
+        ]
+        frame_files: List[str] = [
+            str(dir / "frames.txt")
+            for dir in selected_directories
+            if (dir / "frames.txt").exists()
+        ]
+        if len(frame_files) == 0:
             print("There's no frames.txt files in the selected directories yet.")
             return
 
-        input_str: str = " ".join(frames_files)
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        input_str: str = " ".join(frame_files)
         peakogram_gui_command: str = f"cheetah_hitrate.py {input_str}"
         print(peakogram_gui_command)
         subprocess.Popen(peakogram_gui_command, shell=True)
 
     def _view_peakogram(self) -> None:
         # Launches Cheetah Peakogram GUI for selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
-        row: int
-        peak_files: List[str] = []
-        for row in selected_rows:
-            filename: pathlib.Path = (
-                proc_dir / self._table.item(row, proc_dir_column).text() / "peaks.txt"
-            )
-            if filename.exists():
-                peak_files.append(str(filename))
-
+        selected: _SelectedRows = self._get_selected_rows()
+        root_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected_directories: List[pathlib.Path] = [
+            root_proc_dir / proc_dir
+            for proc_dir in selected.proc_dirs
+            if proc_dir not in ("---", "")
+        ]
+        peak_files: List[str] = [
+            str(dir / "peaks.txt")
+            for dir in selected_directories
+            if (dir / "peaks.txt").exists()
+        ]
         if len(peak_files) == 0:
             print("There's no peaks.txt files in the selected directories yet.")
             return
@@ -932,14 +1082,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         maskmaker: bool = False,
     ) -> None:
         # Launches Cheetah Viewer showing requested sums from selected runs.
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        selected: _SelectedRows = self._get_selected_rows()
+        root_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
         selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
-            for row in selected_rows
+            root_proc_dir / proc_dir
+            for proc_dir in selected.proc_dirs
+            if proc_dir not in ("---", "")
         ]
         sum_files: List[str] = []
         dir: pathlib.Path
@@ -965,14 +1113,14 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         subprocess.Popen(viewer_command, shell=True)
 
     def _cell_explorer(self) -> None:
-        selected_rows: List[int] = sorted(
-            (index.row() for index in self._table.selectionModel().selectedRows())
-        )
-        proc_dir_column: int = self._table_column_names.index("H5Directory")
-        proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+        # Launches CrystFEL cell_explorer with the first stream file found in the
+        # selected runs.
+        selected: _SelectedRows = self._get_selected_rows()
+        root_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
         selected_directories: List[pathlib.Path] = [
-            proc_dir / self._table.item(row, proc_dir_column).text()
-            for row in selected_rows
+            root_proc_dir / proc_dir
+            for proc_dir in selected.proc_dirs
+            if proc_dir not in ("---", "")
         ]
         stream_files: List[str] = []
         dir: pathlib.Path

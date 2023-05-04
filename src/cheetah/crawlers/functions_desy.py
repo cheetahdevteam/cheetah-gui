@@ -5,8 +5,7 @@ This module contains functions required by Cheetah GUI at P11 beamline at PETRA 
 """
 import pathlib
 import subprocess
-
-from typing import Tuple, TextIO
+from typing import TextIO, Tuple
 
 
 def guess_batch_queue_desy(path: pathlib.Path) -> str:
@@ -26,7 +25,7 @@ def guess_batch_queue_desy(path: pathlib.Path) -> str:
         The name of the appropriate batch queue if it is possible to guess from the
         experiment directory path, otherwise an empty string.
     """
-    return "all"
+    return "allcpu"
 
 
 def guess_experiment_id_desy(path: pathlib.Path) -> str:

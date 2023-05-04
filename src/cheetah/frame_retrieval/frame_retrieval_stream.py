@@ -1,25 +1,27 @@
 """
 Frame retrieval from CrystFEL stream files.
 """
-import h5py  # type: ignore
 import pathlib
 import subprocess
 from typing import Any, Dict, List, TextIO, Tuple, Union
+
+import h5py  # type: ignore
 
 try:
     from typing import TypedDict
 except:
     from typing_extensions import TypedDict
 
-from om.algorithms.generic import Binning
-from om.data_retrieval_layer import OmFrameDataRetrieval
-from om.utils.parameters import MonitorParams
-
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,
     TypePeakList,
 )
+
+from om.algorithms.generic import Binning, BinningPassthrough
+from om.data_retrieval_layer import OmEventDataRetrieval
+from om.lib.geometry import GeometryInformation
+from om.lib.parameters import MonitorParameters
 
 
 class _TypeStreamEvent(TypedDict):
@@ -70,8 +72,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
         """
         self._streams: Dict[str, TextIO] = {}
         self._events: List[_TypeStreamEvent] = []
-        self._om_retrievals: Dict[Tuple[str, str], OmFrameDataRetrieval] = {}
-        self._binning: Union[Binning, None] = None
+        self._om_retrievals: Dict[Tuple[str, str], OmEventDataRetrieval] = {}
         filename: str
         for filename in sources:
             offsets: List[int] = self._get_index(pathlib.Path(filename))
@@ -194,6 +195,31 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
         return chunk_data
 
+    def _initialize_binning(self, monitor_parameters: MonitorParameters) -> None:
+        # Initializes binning algorithm to be applied to all frames.
+        self._geometry_information = GeometryInformation(
+            geometry_filename=monitor_parameters.get_parameter(
+                group="crystallography",
+                parameter="geometry_file",
+                parameter_type=str,
+                required=True,
+            ),
+        )
+        if monitor_parameters.get_parameter(
+            group="crystallography",
+            parameter="post_processing_binning",
+            parameter_type=bool,
+            default=False,
+        ):
+            self._binning: Union[Binning, BinningPassthrough] = Binning(
+                parameters=monitor_parameters.get_parameter_group(group="binning"),
+                layout_info=self._geometry_information.get_layout_info(),
+            )
+        else:
+            self._binning = BinningPassthrough(
+                layout_info=self._geometry_information.get_layout_info()
+            )
+
     def get_event_list(self) -> List[str]:
         """
         Get the list of events from stream files.
@@ -251,15 +277,18 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 chunk_data["om_config"],
             ) not in self._om_retrievals:
                 try:
-                    monitor_params: MonitorParams = MonitorParams(
+                    monitor_params: MonitorParameters = MonitorParameters(
                         config=chunk_data["om_config"]
                     )
                     self._om_retrievals[
                         (chunk_data["om_source"], chunk_data["om_config"])
-                    ] = OmFrameDataRetrieval(
+                    ] = OmEventDataRetrieval(
                         source=chunk_data["om_source"],
                         monitor_parameters=monitor_params,
                     )
+                    if len(self._om_retrievals) == 1:
+                        # Initialize binning algorithm once to be applied to all frames
+                        self._initialize_binning(monitor_params)
                 except Exception as e:
                     print(
                         f"Couldn't initialize OM frame retrieval from "
@@ -267,25 +296,11 @@ class StreamRetrieval(CheetahFrameRetrieval):
                         f"{chunk_data['om_config']} config file: "
                     )
                     print(e)
-                if (
-                    chunk_data["om_source"],
-                    chunk_data["om_config"],
-                ) in self._om_retrievals and len(self._om_retrievals) == 1:
-                    # Initialize binning algorithm once to be applied to all frames
-                    if monitor_params.get_parameter(
-                        group="crystallography",
-                        parameter="binning",
-                        parameter_type=bool,
-                    ):
-                        self._binning = Binning(
-                            parameters=monitor_params.get_parameter_group(
-                                group="binning"
-                            ),
-                        )
+
             try:
                 om_data: Dict[str, Any] = self._om_retrievals[
                     (chunk_data["om_source"], chunk_data["om_config"])
-                ].retrieve_frame_data(event_id=chunk_data["om_event_id"], frame_id="0")
+                ].retrieve_event_data(event_id=chunk_data["om_event_id"])
                 if self._binning is not None:
                     event_data["data"] = self._binning.bin_detector_data(
                         data=om_data["detector_data"]

@@ -13,7 +13,6 @@ data_retrieval_layer:
     - "detector_distance"
     - "timestamp"
     - "event_id"
-    - "frame_id"
 
 cheetah:
   processed_directory: {{output_dir}}
@@ -25,8 +24,8 @@ cheetah:
   status_file_update_interval: 100
   class_sum_filename_prefix: "{{filename_prefix}}"
   hdf5_file_data_type: "uint16"
-  hdf5_file_compression: "gzip"
-  hdf5_file_compression_opts: 6
+  hdf5_file_compression: "bitshuffle_with_zstd"
+  hdf5_file_zstd_compression_level: 3
   hdf5_file_compression_shuffle: true
   hdf5_file_max_num_peaks: 1024
   hdf5_fields:
@@ -44,7 +43,6 @@ crystallography:
   geometry_is_optimized: false
   speed_report_interval: 100
   binning: false
-  binning_before_peakfinding: false
   responding_url: "ipc://{{output_dir}}/ipc-socket"
   external_data_request_list_size: 16
 
@@ -55,14 +53,6 @@ binning:
   bad_pixel_map_hdf5_path: /data/data
   min_good_pix_count: 3
   bad_pixel_value: -1
-
-correction:
-  dark_filename: null
-  dark_hdf5_path: null
-  gain_filename: null
-  gain_hdf5_path: null
-  mask_filename: null
-  mask_hdf5_path: null
 
 peakfinder8_peak_detection:
   detector_type: eiger16M

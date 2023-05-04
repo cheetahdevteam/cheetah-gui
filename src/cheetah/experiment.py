@@ -7,9 +7,9 @@ particular experiment and control its data processing.
 import pathlib
 import shutil
 import stat
-import yaml
+from typing import Any, Dict, List, TextIO, Union, cast
 
-from typing import List, Dict, TextIO, Union, Any, cast
+import yaml
 
 try:
     from typing import TypedDict
@@ -321,7 +321,7 @@ class CheetahExperiment:
             / process_template,
             self._process_directory / "process_template.sh",
         )
-        if "streaming_template" in resources:
+        if resources["streaming_template"] is not None:
             streaming_template: str = resources["streaming_template"]
             shutil.copyfile(
                 pathlib.Path(new_experiment_config["cheetah_resources"])
@@ -545,6 +545,33 @@ class CheetahExperiment:
                 print(error)
             else:
                 print(f"Killing job {run_dir}.")
+
+    def remove_processing_results(self, run_proc_dirs: List[str]) -> None:
+        """
+        Remove processing results.
+
+        This function removes all processing directories from the provided list.
+
+        Arguments:
+
+            run_proc_dirs: A list of processed run directories relative to the
+                experiment proc directory (as displayed in the Cheetah GUI table).
+        """
+        run_dir: str
+        for run_dir in run_proc_dirs:
+            try:
+                directory: pathlib.Path = self._proc_directory / run_dir
+                shutil.rmtree(directory)
+                print(f"Removing {directory}.")
+
+                # Remove empty directory tree
+                while directory.parent != self._proc_directory:
+                    directory = directory.parent
+                    if not any(directory.iterdir()):
+                        directory.rmdir()
+
+            except Exception as e:
+                print(f"Couldn't remove {run_dir}: {e}.")
 
     def process_runs(
         self,

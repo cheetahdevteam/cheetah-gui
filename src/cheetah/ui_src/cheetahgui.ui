@@ -207,7 +207,10 @@
        </layout>
       </item>
       <item>
-       <widget class="QTableWidget" name="table_status">
+       <widget class="QTreeView" name="tree_status">
+        <property name="styleSheet">
+         <string notr="true">QTreeView::item { padding: 5px }</string>
+        </property>
         <property name="lineWidth">
          <number>3</number>
         </property>
@@ -217,81 +220,24 @@
         <property name="horizontalScrollBarPolicy">
          <enum>Qt::ScrollBarAlwaysOn</enum>
         </property>
-        <property name="sortingEnabled">
+        <property name="editTriggers">
+         <set>QAbstractItemView::NoEditTriggers</set>
+        </property>
+        <property name="alternatingRowColors">
+         <bool>false</bool>
+        </property>
+        <property name="selectionMode">
+         <enum>QAbstractItemView::ExtendedSelection</enum>
+        </property>
+        <property name="indentation">
+         <number>20</number>
+        </property>
+        <property name="rootIsDecorated">
          <bool>true</bool>
         </property>
-        <property name="rowCount">
-         <number>10</number>
+        <property name="uniformRowHeights">
+         <bool>true</bool>
         </property>
-        <attribute name="horizontalHeaderCascadingSectionResizes">
-         <bool>false</bool>
-        </attribute>
-        <attribute name="horizontalHeaderDefaultSectionSize">
-         <number>90</number>
-        </attribute>
-        <attribute name="horizontalHeaderHighlightSections">
-         <bool>false</bool>
-        </attribute>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <row/>
-        <column>
-         <property name="text">
-          <string>Run</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Dataset</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Rawdata</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Cheetah</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>H5Directory</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Nprocessed</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Nhits</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Hitrate%</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Recipe</string>
-         </property>
-        </column>
-        <column>
-         <property name="text">
-          <string>Calibration</string>
-         </property>
-        </column>
        </widget>
       </item>
       <item>
@@ -334,6 +280,7 @@
     <addaction name="menuProcess_selected_runs"/>
     <addaction name="menu_cheetah_kill_processing"/>
     <addaction name="menu_cheetah_process_jungfrau_darks"/>
+    <addaction name="menu_cheetah_remove_processing"/>
    </widget>
    <widget class="QMenu" name="menuAnalysis">
     <property name="enabled">
@@ -372,8 +319,16 @@
     <property name="title">
      <string>Logs</string>
     </property>
+    <widget class="QMenu" name="menuStreaming_logs">
+     <property name="title">
+      <string>Streaming logs</string>
+     </property>
+     <addaction name="menu_log_om"/>
+     <addaction name="menu_log_crystfel"/>
+    </widget>
     <addaction name="menu_log_batch"/>
     <addaction name="menu_log_cheetah_status"/>
+    <addaction name="menuStreaming_logs"/>
    </widget>
    <widget class="QMenu" name="menuIndexing">
     <property name="title">
@@ -557,6 +512,21 @@
   <action name="menu_cheetah_process_streaming">
    <property name="text">
     <string>Stream hits to CrystFEL</string>
+   </property>
+  </action>
+  <action name="menu_log_om">
+   <property name="text">
+    <string>OM log file</string>
+   </property>
+  </action>
+  <action name="menu_log_crystfel">
+   <property name="text">
+    <string>CrystFEL log file</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_remove_processing">
+   <property name="text">
+    <string>Remove processing results</string>
    </property>
   </action>
  </widget>
