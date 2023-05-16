@@ -386,21 +386,28 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._refresh_timer.timeout.connect(self._refresh_table)
 
         self._refresh_table()
+        self.crawler_window: Optional[CrawlerGui] = None
 
         # Connect front panel buttons to actions
-        self._ui.button_refresh.clicked.connect(self._refresh_table)
-        self._ui.button_run_cheetah.clicked.connect(self._process_runs)
-        self._ui.button_run_streaming.clicked.connect(self._process_runs_streaming)
-        self._ui.button_kill_processing.clicked.connect(self._kill_processing)
-        self._ui.button_view_hits.clicked.connect(self._view_hits)
-        self._ui.button_view_stream.clicked.connect(self._view_stream)
-        self._ui.button_sum_blanks.clicked.connect(self._view_sum_blanks)
-        self._ui.button_sum_hits.clicked.connect(self._view_sum_hits)
-        self._ui.button_peak_powder.clicked.connect(self._view_powder_hits)
-        self._ui.button_peakogram.clicked.connect(self._view_peakogram)
+        self._ui.action_refresh_table.triggered.connect(self._refresh_table)
+        self._ui.action_crawler.toggled.connect(self._action_crawler_toggled)
+        self._ui.action_run_files.triggered.connect(self._process_runs)
+        self._ui.action_run_streaming.triggered.connect(self._process_runs_streaming)
+        self._ui.action_kill_processing.triggered.connect(self._kill_processing)
+        self._ui.action_remove_processing.triggered.connect(self._remove_processing)
+        self._ui.action_view_hits.triggered.connect(self._view_hits)
+        self._ui.action_view_stream.triggered.connect(self._view_stream)
+        self._ui.action_sum_of_blanks.triggered.connect(self._view_sum_blanks)
+        self._ui.action_sum_of_hits.triggered.connect(self._view_sum_hits)
+        self._ui.action_peak_powder.triggered.connect(self._view_powder_hits)
+        self._ui.action_peakogram.triggered.connect(self._view_peakogram)
+        self._ui.action_hitrate.triggered.connect(self._view_hitrate)
+        self._ui.action_cell_explorer.triggered.connect(self._cell_explorer)
 
         # File menu actions
-        self._ui.menu_file_start_crawler.triggered.connect(self._start_crawler)
+        self._ui.menu_file_start_crawler.triggered.connect(
+            self._action_start_crawler_triggered
+        )
 
         # Cheetah menu actions
         self._ui.menu_cheetah_process_runs.triggered.connect(self._process_runs)
@@ -441,19 +448,21 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_log_crystfel.triggered.connect(self._view_crystfel_log)
 
         # Disable action commands until enabled
-        self._ui.button_run_cheetah.setEnabled(False)
-        self._ui.button_run_streaming.setEnabled(False)
-        self._ui.button_kill_processing.setEnabled(False)
+        self._ui.action_run_files.setEnabled(False)
+        self._ui.action_run_streaming.setEnabled(False)
+        self._ui.action_kill_processing.setEnabled(False)
+        self._ui.action_remove_processing.setEnabled(False)
         self._ui.menu_file_start_crawler.setEnabled(False)
         self._ui.menu_cheetah_process_runs.setEnabled(False)
         self._ui.menu_cheetah_process_streaming.setEnabled(False)
         self._ui.menu_cheetah_kill_processing.setEnabled(False)
+        self._ui.menu_cheetah_remove_processing.setEnabled(False)
         self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
         if command:
             self._enable_commands()
-            self._start_crawler()
+            self._action_start_crawler_triggered()
 
         if self.experiment.get_detector() == "Jungfrau1M":
             self._ui.menu_cheetah_process_jungfrau_darks.setVisible(True)
@@ -464,18 +473,44 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _crawler_gui_closed(self) -> None:
         # Prints a message when Crawler GUI is closed.
+        self._ui.action_crawler.setChecked(False)
         print("Crawler closed.")
+
+    def _start_crawler(self) -> None:
+        # Starts new Crawler GUI.
+        print("Starting crawler")
+        self.crawler_window = CrawlerGui(self.experiment, self)
+        self.crawler_window.scan_finished.connect(self._refresh_table)
+        self.crawler_window.show()
+
+    def _stop_crawler(self) -> None:
+        # Stops Crawler GUI.
+        if self.crawler_window is not None:
+            self.crawler_window.close()
+
+    def _action_crawler_toggled(self, checked: bool) -> None:
+        # Starts or stops Crawler GUI.
+        if checked:
+            self._start_crawler()
+        else:
+            self._stop_crawler()
+
+    def _action_start_crawler_triggered(self) -> None:
+        # Triggers the action_crawler action.
+        self._ui.action_crawler.setChecked(True)
 
     def _enable_commands(self) -> None:
         # Enables "command operations": starting the crawler and processing runs.
-        self._ui.button_run_cheetah.setEnabled(True)
-        self._ui.button_kill_processing.setEnabled(True)
+        self._ui.action_run_files.setEnabled(True)
+        self._ui.action_kill_processing.setEnabled(True)
+        self._ui.action_remove_processing.setEnabled(True)
+        self._ui.action_crawler.setEnabled(True)
         self._ui.menu_file_start_crawler.setEnabled(True)
         self._ui.menu_cheetah_process_runs.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
         self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(True)
         if self.experiment._streaming_process is not None:
-            self._ui.button_run_streaming.setEnabled(True)
+            self._ui.action_run_streaming.setEnabled(True)
             self._ui.menu_cheetah_process_streaming.setEnabled(True)
 
     def _exit(self) -> None:
@@ -743,21 +778,21 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _process_thread_started(self) -> None:
         # Disables launching new processing jobs until the previous jobs are submitted
-        self._ui.button_run_cheetah.setEnabled(False)
-        self._ui.button_kill_processing.setEnabled(False)
+        self._ui.action_run_files.setEnabled(False)
+        self._ui.action_kill_processing.setEnabled(False)
         self._ui.menu_cheetah_process_runs.setEnabled(False)
         self._ui.menu_cheetah_kill_processing.setEnabled(False)
-        self._ui.button_run_streaming.setEnabled(False)
+        self._ui.action_run_streaming.setEnabled(False)
         self._ui.menu_cheetah_process_streaming.setEnabled(False)
 
     def _process_thread_finished(self) -> None:
         # Enables launching new processing jobs
-        self._ui.button_run_cheetah.setEnabled(True)
-        self._ui.button_kill_processing.setEnabled(True)
+        self._ui.action_run_files.setEnabled(True)
+        self._ui.action_kill_processing.setEnabled(True)
         self._ui.menu_cheetah_process_runs.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
         if self.experiment._streaming_process is not None:
-            self._ui.button_run_streaming.setEnabled(True)
+            self._ui.action_run_streaming.setEnabled(True)
             self._ui.menu_cheetah_process_streaming.setEnabled(True)
 
     def _refresh_table(self) -> None:
@@ -887,13 +922,6 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self.experiment = CheetahExperiment(
                 path, new_experiment_config=new_experiment_config
             )
-
-    def _start_crawler(self) -> None:
-        # Starts new Crawler GUI.
-        print("Starting crawler")
-        self.crawler_window = CrawlerGui(self.experiment, self)
-        self.crawler_window.scan_finished.connect(self._refresh_table)
-        self.crawler_window.show()
 
     def _view_batch_log(self) -> None:
         # Shows the contents of batch.out file from the first of the selected runs in

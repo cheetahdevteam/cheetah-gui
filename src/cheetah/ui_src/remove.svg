@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="80"
+   height="80"
+   viewBox="0 0 21.166666 21.166667"
+   version="1.1"
+   id="svg18643"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   sodipodi:docname="remove.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview18645"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="true"
+     inkscape:zoom="3.659624"
+     inkscape:cx="9.7004501"
+     inkscape:cy="35.386149"
+     inkscape:window-width="1698"
+     inkscape:window-height="1251"
+     inkscape:window-x="1779"
+     inkscape:window-y="106"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid20216" />
+  </sodipodi:namedview>
+  <defs
+     id="defs18640" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       style="fill:none;stroke-width:1.88798;stroke-dasharray:none"
+       id="g10358"
+       transform="matrix(0.84084658,0,0,0.84084658,0.49317437,0.49347651)">
+      <path
+         d="M 16,6 V 5.2 C 16,4.0799 16,3.51984 15.782,3.09202 15.5903,2.71569 15.2843,2.40973 14.908,2.21799 14.4802,2 13.9201,2 12.8,2 H 11.2 C 10.0799,2 9.51984,2 9.09202,2.21799 8.71569,2.40973 8.40973,2.71569 8.21799,3.09202 8,3.51984 8,4.0799 8,5.2 V 6 m 2,5.5 v 5 m 4,-5 v 5 M 3,6 h 18 m -2,0 v 11.2 c 0,1.6802 0,2.5202 -0.327,3.162 -0.2876,0.5645 -0.7465,1.0234 -1.311,1.311 C 16.7202,22 15.8802,22 14.2,22 H 9.8 C 8.11984,22 7.27976,22 6.63803,21.673 6.07354,21.3854 5.6146,20.9265 5.32698,20.362 5,19.7202 5,18.8802 5,17.2 V 6"
+         stroke="#000000"
+         stroke-width="2"
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         id="path10349"
+         style="stroke-width:1.88798;stroke-dasharray:none" />
+    </g>
+  </g>
+</svg>

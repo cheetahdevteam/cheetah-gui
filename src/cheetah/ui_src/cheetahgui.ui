@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1200</width>
-    <height>900</height>
+    <width>900</width>
+    <height>700</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -31,179 +31,6 @@
         <property name="sizeConstraint">
          <enum>QLayout::SetDefaultConstraint</enum>
         </property>
-        <item>
-         <widget class="QPushButton" name="button_refresh">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Refresh</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_run_cheetah">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Run Cheetah</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_run_streaming">
-          <property name="text">
-           <string>Run Cheetah+CrystFEL</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_kill_processing">
-          <property name="text">
-           <string>Kill processing</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_view_hits">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>View hits</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_view_stream">
-          <property name="text">
-           <string>View stream</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_sum_blanks">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Sum of blanks</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_sum_hits">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Sum of hits</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_peak_powder">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Peak powder</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="button_peakogram">
-          <property name="enabled">
-           <bool>true</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>120</width>
-            <height>25</height>
-           </size>
-          </property>
-          <property name="text">
-           <string>Peakogram</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <spacer name="horizontalSpacer">
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>40</width>
-            <height>20</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
        </layout>
       </item>
       <item>
@@ -252,7 +79,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1200</width>
+     <width>900</width>
      <height>20</height>
     </rect>
    </property>
@@ -345,6 +172,88 @@
    <addaction name="menuIndexing"/>
    <addaction name="menuLogs"/>
   </widget>
+  <widget class="QToolBar" name="toolBarMain">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <property name="movable">
+    <bool>false</bool>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::AllToolBarAreas</set>
+   </property>
+   <property name="iconSize">
+    <size>
+     <width>36</width>
+     <height>36</height>
+    </size>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_refresh_table"/>
+   <addaction name="action_crawler"/>
+  </widget>
+  <widget class="QToolBar" name="toolBarProcess">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="windowTitle">
+    <string>toolBar_2</string>
+   </property>
+   <property name="movable">
+    <bool>false</bool>
+   </property>
+   <property name="iconSize">
+    <size>
+     <width>36</width>
+     <height>36</height>
+    </size>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_run_files"/>
+   <addaction name="action_run_streaming"/>
+   <addaction name="action_kill_processing"/>
+   <addaction name="action_remove_processing"/>
+  </widget>
+  <widget class="QToolBar" name="toolBarView">
+   <property name="windowTitle">
+    <string>toolBar_3</string>
+   </property>
+   <property name="movable">
+    <bool>false</bool>
+   </property>
+   <property name="iconSize">
+    <size>
+     <width>36</width>
+     <height>36</height>
+    </size>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_view_hits"/>
+   <addaction name="action_sum_of_hits"/>
+   <addaction name="action_sum_of_blanks"/>
+   <addaction name="action_peak_powder"/>
+   <addaction name="separator"/>
+   <addaction name="action_view_stream"/>
+   <addaction name="action_cell_explorer"/>
+   <addaction name="separator"/>
+   <addaction name="action_hitrate"/>
+   <addaction name="action_peakogram"/>
+  </widget>
   <action name="menu_file_autorefresh">
    <property name="text">
     <string>Auto refresh table</string>
@@ -395,22 +304,22 @@
   </action>
   <action name="menu_powder_hits_sum">
    <property name="text">
-    <string>Virtual powder hits (class 1, detector corrected ADU sum)</string>
+    <string>Sum of hits</string>
    </property>
   </action>
   <action name="menu_powder_blanks_sum">
    <property name="text">
-    <string>Virtual powder blanks (class 0, detector corrected ADU sum)</string>
+    <string>Sum of blanks</string>
    </property>
   </action>
   <action name="menu_powder_peaks_hits">
    <property name="text">
-    <string>Peakfinder virtual powder hits (class 1)</string>
+    <string>Virtual peak powder (hits)</string>
    </property>
   </action>
   <action name="menu_powder_peaks_blanks">
    <property name="text">
-    <string>Peakfinder virtual powder blanks (class 0)</string>
+    <string>Virtual peak powder (blanks)</string>
    </property>
   </action>
   <action name="menu_log_batch">
@@ -508,10 +417,16 @@
    <property name="text">
     <string>Save hits to files</string>
    </property>
+   <property name="toolTip">
+    <string>Run Cheetah and save hits to files</string>
+   </property>
   </action>
   <action name="menu_cheetah_process_streaming">
    <property name="text">
     <string>Stream hits to CrystFEL</string>
+   </property>
+   <property name="toolTip">
+    <string>Run Cheetah and stream hits to CrystFEL</string>
    </property>
   </action>
   <action name="menu_log_om">
@@ -527,6 +442,192 @@
   <action name="menu_cheetah_remove_processing">
    <property name="text">
     <string>Remove processing results</string>
+   </property>
+  </action>
+  <action name="action_run_files">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>run_hdf5.svg</normaloff>run_hdf5.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Run Cheetah</string>
+   </property>
+   <property name="toolTip">
+    <string>Run Cheetah and save hits to disk</string>
+   </property>
+  </action>
+  <action name="action_run_streaming">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>run_streaming.svg</normaloff>run_streaming.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Run Cheetah+CrystFEL</string>
+   </property>
+   <property name="toolTip">
+    <string>Run Cheetah and stream hits to CrystFEL</string>
+   </property>
+  </action>
+  <action name="action_refresh_table">
+   <property name="icon">
+    <iconset>
+     <normaloff>refresh.svg</normaloff>refresh.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Refresh table</string>
+   </property>
+   <property name="toolTip">
+    <string>Refresh table</string>
+   </property>
+  </action>
+  <action name="action_crawler">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>crawler.svg</normaloff>crawler.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Crawler</string>
+   </property>
+   <property name="toolTip">
+    <string>Start/stop crawler</string>
+   </property>
+  </action>
+  <action name="action_kill_processing">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>stop.svg</normaloff>stop.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Kill processing</string>
+   </property>
+   <property name="toolTip">
+    <string>Kill processing jobs</string>
+   </property>
+  </action>
+  <action name="action_remove_processing">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>remove.svg</normaloff>remove.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Remove processing</string>
+   </property>
+   <property name="toolTip">
+    <string>Remove processing results</string>
+   </property>
+  </action>
+  <action name="action_view_hits">
+   <property name="icon">
+    <iconset>
+     <normaloff>view_hits.svg</normaloff>view_hits.svg</iconset>
+   </property>
+   <property name="text">
+    <string>View hits</string>
+   </property>
+   <property name="toolTip">
+    <string>View hits</string>
+   </property>
+  </action>
+  <action name="action_view_stream">
+   <property name="icon">
+    <iconset>
+     <normaloff>view_stream2.svg</normaloff>view_stream2.svg</iconset>
+   </property>
+   <property name="text">
+    <string>View stream</string>
+   </property>
+   <property name="toolTip">
+    <string>View CrystFEL stream file</string>
+   </property>
+  </action>
+  <action name="action_sum_of_hits">
+   <property name="icon">
+    <iconset>
+     <normaloff>sum_hits.svg</normaloff>sum_hits.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Sum of hits</string>
+   </property>
+   <property name="toolTip">
+    <string>View sum of hits</string>
+   </property>
+  </action>
+  <action name="action_sum_of_blanks">
+   <property name="icon">
+    <iconset>
+     <normaloff>sum_blanks.svg</normaloff>sum_blanks.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Sum of blanks</string>
+   </property>
+   <property name="toolTip">
+    <string>View sum of blanks</string>
+   </property>
+  </action>
+  <action name="action_peak_powder">
+   <property name="icon">
+    <iconset>
+     <normaloff>view_peakpowder.svg</normaloff>view_peakpowder.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Peak powder</string>
+   </property>
+   <property name="toolTip">
+    <string>View virtual peak powder</string>
+   </property>
+  </action>
+  <action name="action_hitrate">
+   <property name="icon">
+    <iconset>
+     <normaloff>hitrate.svg</normaloff>hitrate.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Hit rate</string>
+   </property>
+   <property name="toolTip">
+    <string>View hitrate plot</string>
+   </property>
+  </action>
+  <action name="action_peakogram">
+   <property name="icon">
+    <iconset>
+     <normaloff>peakogram.svg</normaloff>peakogram.svg</iconset>
+   </property>
+   <property name="text">
+    <string>peakogram</string>
+   </property>
+   <property name="toolTip">
+    <string>View peakogram</string>
+   </property>
+  </action>
+  <action name="action_cell_explorer">
+   <property name="icon">
+    <iconset>
+     <normaloff>cell_explorer.svg</normaloff>cell_explorer.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Cell explorer</string>
+   </property>
+   <property name="toolTip">
+    <string>Open cell explorer</string>
    </property>
   </action>
  </widget>

@@ -89,7 +89,7 @@ class CheetahExperiment:
                 dictionary or None. If the value of this parameter is None `path` must
                 point to already existing cheetah/gui directory.
 
-            gui: Whether experiment is intialized from the GUI. Defaults to True.
+            gui: Whether experiment is initialized from the GUI. Defaults to True.
         """
         if new_experiment_config:
             self._setup_new_experiment(new_experiment_config)
