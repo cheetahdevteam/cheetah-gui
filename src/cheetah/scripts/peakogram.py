@@ -236,7 +236,6 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         )
         peakogram: NDArray[numpy.float_] = data["peakogram"]
         peakogram[numpy.where(peakogram == 0)] = numpy.nan
-        print(peakogram.shape)
         self._peakogram_plot_image_view.setImage(
             numpy.log(peakogram),
             pos=(0, 0),

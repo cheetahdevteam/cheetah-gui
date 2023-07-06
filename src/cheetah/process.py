@@ -4,6 +4,7 @@ Cheetah Process.
 This module contains classes and functions that allow configuring and launching Cheetah
 processing jobs.
 """
+import logging
 import pathlib
 import shutil
 import stat
@@ -20,6 +21,8 @@ except:
 
 from cheetah.crawlers import facilities
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
+
+logger = logging.getLogger(__name__)
 
 
 class _TypeOmConfigTemplateData(TypedDict, total=False):
@@ -208,7 +211,7 @@ class CheetahProcess:
             status["Status"] = "Cancelled"
             self._write_status_file(status_filename, status)
         else:
-            print(error)
+            logger.error(error)
         return error
 
     def process_run(
@@ -256,17 +259,17 @@ class CheetahProcess:
         output_directory: pathlib.Path = self._proc_directory / output_directory_name
 
         if output_directory.is_dir():
-            print(
+            logger.info(
                 f"Moving to existing data directory {output_directory}\n"
                 f"Deleting previous files"
             )
             try:
                 shutil.rmtree(output_directory)
             except Exception as e:
-                print(f"Couldn't clean {output_directory}: {e}.")
+                logger.error(f"Couldn't clean {output_directory}: {e}.")
                 return
         else:
-            print(f"Creating hdf5 data directory {output_directory}")
+            logger.info(f"Creating hdf5 data directory {output_directory}")
         output_directory.mkdir(parents=True)
 
         # Copy input files to the output directory
@@ -291,7 +294,7 @@ class CheetahProcess:
         else:
             mask_file = "null"
 
-        print(f"Copying configuration file: {om_config_template_file}")
+        logger.info(f"Copying configuration file: {om_config_template_file}")
         om_config_file: pathlib.Path = output_directory / "monitor.yaml"
 
         fh: TextIO

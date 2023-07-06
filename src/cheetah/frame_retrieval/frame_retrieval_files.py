@@ -1,6 +1,7 @@
 """
 Frame retrieval from files.
 """
+import logging
 import h5py  # type: ignore
 
 from typing import Any, Dict, List, Union
@@ -88,7 +89,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
         for filename in sources:
             fh: Any = h5py.File(filename, "r")
             if self._hdf5_data_path not in fh:
-                print(
+                logging.warning(
                     f"Could not find {self._hdf5_data_path} dataset in {filename}. "
                     f"Skipping this file."
                 )
@@ -177,7 +178,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
 
             if self._hdf5_peaks_path:
                 if self._hdf5_peaks_path not in self._multi_event_files[filename]:
-                    print(
+                    logging.warning(
                         f"Peaks dataset {self._hdf5_peaks_path} not found in "
                         f"{filename}."
                     )
@@ -196,7 +197,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
 
             if self._photon_energy_path:
                 if self._photon_energy_path not in self._multi_event_files[filename]:
-                    print(
+                    logging.warning(
                         f"Photon energy dataset {self._photon_energy_path} not found "
                         f"in {filename}."
                     )
@@ -207,7 +208,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
 
             if self._clen_path:
                 if self._clen_path not in self._multi_event_files[filename]:
-                    print(
+                    logging.warning(
                         f"Detector distance dataset {self._clen_path} not found "
                         f"in {filename}."
                     )

@@ -6,14 +6,11 @@ This module contains the implementation of the main Cheetah GUI.
 import csv
 import os
 import pathlib
-import subprocess
 import sys
-from datetime import datetime
 from operator import itemgetter
 from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
 
 import click  # type: ignore
-import yaml
 from ansi2html import Ansi2HTMLConverter  # type: ignore
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
 
@@ -22,11 +19,17 @@ try:
 except:
     from typing_extensions import Literal  # type: ignore
 
+import logging
+import logging.config
+
 from cheetah import __file__ as cheetah_src_path
 from cheetah.crawlers.base import Crawler, TypeTableRow
 from cheetah.dialogs import process_dialogs, setup_dialogs
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
+from cheetah.utils.logging import LoggingPopen, QtHandler, logging_config
+
+logger = logging.getLogger("cheetah")
 
 
 class _CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -336,6 +339,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
         self.show()
 
+        # Set up log view
+        self._logview: Any = self._ui.log_textedit
+        handler: logging.Handler = QtHandler(self)
+        handler.new_record.connect(self._logview.appendPlainText)
+        logger.addHandler(handler)
+
         # Load experiment
         self._select_experiment()
         self.setWindowTitle(f"Cheetah GUI: {self.experiment.get_working_directory()}")
@@ -350,7 +359,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._dataset_tag_column: int = self._table_column_names.index("Dataset")
         self._num_columns: int = len(self._table_column_names)
 
-        self._tree: Any = self._ui.tree_status
+        self._tree: Any = self._ui.status_treeview
         self._data_model: Any = QtGui.QStandardItemModel()
         self._data_model.setHorizontalHeaderLabels(self._table_column_names)
         self._tree.setModel(self._data_model)
@@ -474,11 +483,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _crawler_gui_closed(self) -> None:
         # Prints a message when Crawler GUI is closed.
         self._ui.action_crawler.setChecked(False)
-        print("Crawler closed.")
+        logger.info("Crawler closed.")
 
     def _start_crawler(self) -> None:
         # Starts new Crawler GUI.
-        print("Starting crawler")
+        logger.info("Starting crawler")
         self.crawler_window = CrawlerGui(self.experiment, self)
         self.crawler_window.scan_finished.connect(self._refresh_table)
         self.crawler_window.show()
@@ -527,6 +536,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self,
     ) -> _SelectedRows:
         # Get selected rows, run IDs and proc directories
+        if len(self._tree.selectionModel().selectedRows()) == 0:
+            return _SelectedRows(tuple(), tuple(), tuple(), tuple())
+
         selected: List[Tuple[float, str, str, QtCore.QModelIndex]] = []
         index: QtCore.QModelIndex
         for index in self._tree.selectionModel().selectedRows():
@@ -568,8 +580,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             f"{process_darks_script} {input_str} -e {crawler_config} "
             f"-c {selected_config} --copy-templates"
         )
-        print(process_darks_command)
-        subprocess.Popen(process_darks_command, shell=True)
+        logger.info(f"Running command: {process_darks_command}")
+        LoggingPopen(
+            logger.getChild("process_jungfrau_darks"), process_darks_command, shell=True
+        )
         row: float
         for row in selected.rows:
             self._data_model.item(int(row), self._cheetah_status_column).setText(
@@ -582,7 +596,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self.experiment.get_last_processing_config()["config_template"]
         )
         if not config_template.exists():
-            print(
+            logger.error(
                 f"Could not find processing config template, file {config_template} "
                 f"doesn't exist."
             )
@@ -607,7 +621,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         experiment_id: str = self.experiment.get_id()
         psana_detector_name: str = self._get_psana_detector_name()
         if not psana_detector_name:
-            print(
+            logger.error(
                 "Could not extract psana detector name from the processing config "
                 "template."
             )
@@ -615,7 +629,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         psana_mask_script: pathlib.Path = calib_directory / "psana_mask.py"
         if not psana_mask_script.exists():
-            print("Could not find psana_mask.py script in cheetah/calib directory.")
+            logger.error(
+                "Could not find psana_mask.py script in cheetah/calib directory."
+            )
             return
 
         psana_source: str = (
@@ -632,8 +648,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             f"{psana_mask_script} -s {psana_source} -d {psana_detector_name} "
             f"-o {output_filename}"
         )
-        print(command)
-        subprocess.Popen(command, shell=True)
+        logger.info(f"Running command: {command}")
+        LoggingPopen(logger.getChild("psana_mask"), command, shell=True)
 
     def _kill_processing(self) -> None:
         # Ask if the user is sure they want to kill the jobs. If yes - try to kill the
@@ -883,7 +899,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if scroll_index is not None:
             self._tree.scrollTo(scroll_index, self._tree.PositionAtTop)
 
-        print(f"Table refreshed at {datetime.now()}")
+        logger.info(f"Table refreshed.")
         self._refresh_timer.start(60000)
 
     def _select_experiment(self) -> None:
@@ -911,7 +927,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _setup_new_experiment(self, path: pathlib.Path) -> None:
         # Sets up new Cheetah experiment.
-        print(path)
+        logger.info(f"Selected directory: {path}")
         dialog: setup_dialogs.SetupNewExperimentDialog = (
             setup_dialogs.SetupNewExperimentDialog(path, self)
         )
@@ -933,7 +949,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self.experiment.get_proc_directory() / selected_proc_dirs[0] / "batch.out"
         )
         if not batch_file.exists():
-            print(f"Batch log file {batch_file} doesn't exist.")
+            logger.error(f"Batch log file {batch_file} doesn't exist.")
         else:
             TextFileViewer(str(batch_file), self)
 
@@ -947,7 +963,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self.experiment.get_proc_directory() / selected_proc_dirs[0] / "om.out"
         )
         if not batch_file.exists():
-            print(f"OM log file {batch_file} doesn't exist.")
+            logger.error(f"OM log file {batch_file} doesn't exist.")
         else:
             TextFileViewer(str(batch_file), self)
 
@@ -963,7 +979,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             / "crystfel.out"
         )
         if not batch_file.exists():
-            print(f"CrystFEL log file {batch_file} doesn't exist.")
+            logger.error(f"CrystFEL log file {batch_file} doesn't exist.")
         else:
             TextFileViewer(str(batch_file), self)
 
@@ -977,7 +993,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             self.experiment.get_proc_directory() / selected_proc_dirs[0] / "status.txt"
         )
         if not status_file.exists():
-            print(f"Status file {status_file} doesn't exist.")
+            logger.error(f"Status file {status_file} doesn't exist.")
         else:
             TextFileViewer(str(status_file), self)
 
@@ -995,8 +1011,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         input_str: str = " ".join(selected_directories)
         geometry: str = self.experiment.get_last_processing_config()["geometry"]
         viewer_command: str = f"cheetah_viewer.py {input_str} -i dir -g {geometry}"
-        print(viewer_command)
-        p: subprocess.Popen[bytes] = subprocess.Popen(viewer_command, shell=True)
+        logger.info(f"Running command: {viewer_command}")
+        LoggingPopen(logger.getChild("viewer"), viewer_command, shell=True)
 
     def _view_stream(self) -> None:
         # Launches Cheetah Viewer showing stream files from selected runs
@@ -1014,12 +1030,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             for file in dir.glob("*.stream"):
                 stream_files.append(str(file))
         if len(stream_files) == 0:
-            print(f"There's no stream files in the selected directories yet.")
+            logger.info(f"There's no stream files in the selected directories yet.")
             return
         input_str: str = " ".join(stream_files)
         viewer_command: str = f"cheetah_viewer.py -i stream {input_str}"
-        print(viewer_command)
-        subprocess.Popen(viewer_command, shell=True)
+        logger.info(f"Running command: {viewer_command}")
+        LoggingPopen(logger.getChild("viewer"), viewer_command, shell=True)
 
     def _view_hitrate(self) -> None:
         # Launches Cheetah Hitrate GUI for selected runs.
@@ -1036,13 +1052,13 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             if (dir / "frames.txt").exists()
         ]
         if len(frame_files) == 0:
-            print("There's no frames.txt files in the selected directories yet.")
+            logger.info("There's no frames.txt files in the selected directories yet.")
             return
 
         input_str: str = " ".join(frame_files)
-        peakogram_gui_command: str = f"cheetah_hitrate.py {input_str}"
-        print(peakogram_gui_command)
-        subprocess.Popen(peakogram_gui_command, shell=True)
+        command: str = f"cheetah_hitrate.py {input_str}"
+        logger.info(f"Running command: {command}")
+        LoggingPopen(logger.getChild("hitrate"), command, shell=True)
 
     def _view_peakogram(self) -> None:
         # Launches Cheetah Peakogram GUI for selected runs.
@@ -1059,14 +1075,14 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             if (dir / "peaks.txt").exists()
         ]
         if len(peak_files) == 0:
-            print("There's no peaks.txt files in the selected directories yet.")
+            logger.info("There's no peaks.txt files in the selected directories yet.")
             return
 
         input_str: str = " ".join(peak_files)
         geometry: str = self.experiment.get_last_processing_config()["geometry"]
-        peakogram_gui_command: str = f"cheetah_peakogram.py {input_str} -g {geometry}"
-        print(peakogram_gui_command)
-        subprocess.Popen(peakogram_gui_command, shell=True)
+        command: str = f"cheetah_peakogram.py {input_str} -g {geometry}"
+        logger.info(f"Running command: {command}")
+        LoggingPopen(logger.getChild("peakogram"), command, shell=True)
 
     def _view_mask(self) -> None:
         # Open mask file selection dialog and launches Cheetah Viewer on the selected
@@ -1085,8 +1101,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         viewer_command: str = (
             f"cheetah_viewer.py {filename} -d /data/data -g {geometry}"
         )
-        print(viewer_command)
-        subprocess.Popen(viewer_command, shell=True)
+        logger.info(f"Running command: {viewer_command}")
+        LoggingPopen(logger.getChild("viewer"), viewer_command, shell=True)
 
     def _view_powder_hits(self) -> None:
         # Launches Cheetah Viewer showing the hits peakpowder.
@@ -1129,7 +1145,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             for file in dir.glob(f"*-class{sum_class}-sum.h5"):
                 sum_files.append(str(file))
         if len(sum_files) == 0:
-            print(
+            logger.info(
                 f"There's no class{sum_class} sum files in the selected directories yet."
             )
             return
@@ -1142,8 +1158,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         viewer_command: str = (
             f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry} {extra}"
         )
-        print(viewer_command)
-        subprocess.Popen(viewer_command, shell=True)
+        logger.info(f"Running command: {viewer_command}")
+        LoggingPopen(logger.getChild("viewer"), viewer_command, shell=True)
 
     def _cell_explorer(self) -> None:
         # Launches CrystFEL cell_explorer with the first stream file found in the
@@ -1162,13 +1178,16 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             for file in dir.glob("*.stream"):
                 stream_files.append(str(file))
         if len(stream_files) == 0:
-            print(f"There's no stream files in the selected directories yet.")
+            logger.info(f"There's no stream files in the selected directories yet.")
             return
         command: str = f"cell_explorer {stream_files[0]}"
-        print(command)
-        subprocess.Popen(command, shell=True)
+        logger.info(f"Running command: {command}")
+        LoggingPopen(logger.getChild("cell_explorer"), command, shell=True)
 
     def keyPressEvent(self, event):
+        """
+        Process key press events.
+        """
         if event.key() == QtCore.Qt.Key_Delete:
             self._remove_processing()
         else:
@@ -1189,13 +1208,29 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 @click.option(  # type: ignore
     "--command", "-c", "command", is_flag=True, default=False, hidden=True
 )
-def main(command: bool) -> None:
+@click.option(  # type: ignore
+    "--verbose",
+    "-v",
+    "verbose",
+    is_flag=True,
+    default=False,
+    help="Print logging messages to console.",
+)
+def main(command: bool, verbose: bool) -> None:
     """
     Cheetah GUI. This script starts the main Cheetah window. If started from the
     existing Cheetah experiment directory containing crawler.config file experiment
     will be loaded automatically. Otherwise, a new experiment selection dialog will be
     opened.
     """
+    # Create logging directory if it doesn't exist.
+    (pathlib.Path.home() / ".cheetah/logs").mkdir(parents=True, exist_ok=True)
+
+    # Set up logging.
+    if verbose:
+        logging_config["loggers"]["cheetah"]["handlers"].append("console_gui")
+    logging.config.dictConfig(logging_config)
+
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = CheetahGui(command)
     sys.exit(app.exec_())

@@ -4,6 +4,7 @@ Cheetah Crawler's base classes.
 This module contains base classes for Cheetah Crawlers.
 """
 import csv
+import logging
 import pathlib
 import time
 from abc import ABC, abstractmethod
@@ -17,6 +18,8 @@ try:
     from typing import Literal, TypedDict
 except:
     from typing_extensions import Literal, TypedDict  # type: ignore
+
+logger = logging.getLogger("cheetah.crawler")
 
 
 class TypeProcStatusItem(TypedDict):
@@ -435,18 +438,17 @@ class Crawler(ABC):
             self._raw_directory_scan_enabled is False
             and self._proc_directory_scan_enabled is False
         ):
-            print(
-                "Crawler: both raw and hdf5 directory scanning is disabled, "
-                "doing nothing."
+            logger.info(
+                "Both raw and hdf5 directory scanning is disabled,doing nothing."
             )
         raw_status: List[TypeRawStatusItem]
         proc_status: List[TypeProcStatusItem]
         raw_status, proc_status = self._read_table()
         if self._raw_directory_scan_enabled:
-            print("Crawler: scanning raw directory")
+            logger.info("Scanning raw directory")
             raw_status = self._scan_raw_directory()
         if self._proc_directory_scan_enabled:
-            print("Crawler: scanning hdf5 directory")
+            logger.info("Scanning hdf5 directory")
             proc_status = self._scan_proc_directory()
         proc_status = sorted(proc_status, key=itemgetter("update_time"), reverse=True)
 
@@ -496,4 +498,3 @@ class Crawler(ABC):
                     n_proc_items_run += 1
 
         self._write_table(table_rows)
-    

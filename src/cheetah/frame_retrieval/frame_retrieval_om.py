@@ -1,10 +1,9 @@
 """
 Frame retrieval from OM data retrieval.
 """
+import logging
 
 from typing import Any, Dict, List, TextIO, cast
-
-import numpy.typing
 
 try:
     from typing import TypedDict
@@ -84,14 +83,14 @@ class OmRetrieval(CheetahFrameRetrieval):
         for filename in sources:
             fh: TextIO
             if filename not in parameters["om_sources"].keys():
-                print(
+                logging.warning(
                     f"OM source string for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
                 continue
 
             if filename not in parameters["om_configs"].keys():
-                print(
+                logging.warning(
                     f"OM config file for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
@@ -110,12 +109,11 @@ class OmRetrieval(CheetahFrameRetrieval):
                             monitor_parameters=monitor_params,
                         )
                     except Exception as e:
-                        print(
+                        logging.exception(
                             f"Couldn't initialize OM frame retrieval from "
                             f"{parameters['om_sources'][filename]} source using "
                             f"{parameters['om_configs'][filename]} config file: "
                         )
-                        print(e)
                         continue
                     self._events.extend(
                         [{"filename": filename, "event_id": eid} for eid in event_ids]

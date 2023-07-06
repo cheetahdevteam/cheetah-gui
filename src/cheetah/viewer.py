@@ -3,10 +3,12 @@ Cheetah Viewer.
 
 This module contains Cheetah image viewer.
 """
+import logging
+import logging.config
 import pathlib
 import sys
 from random import randrange
-from typing import Any, Dict, List, TextIO, Tuple, Union, cast
+from typing import Any, Dict, List, TextIO, Tuple, Union
 
 import click  # type: ignore
 import h5py  # type: ignore
@@ -19,6 +21,7 @@ from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
 from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
+from cheetah.utils.logging import logging_config
 from numpy.typing import NDArray
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
 from scipy import constants  # type: ignore
@@ -34,6 +37,8 @@ from om.lib.geometry import (
     _load_crystfel_geometry_from_file,
     _read_crystfel_geometry_from_text,
 )
+
+logger = logging.getLogger("cheetah_viewer")
 
 
 class Viewer(QtWidgets.QMainWindow):  # type: ignore
@@ -108,7 +113,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             mask_file: Any
             with h5py.File(self._mask_filename) as mask_file:
                 if self._mask_hdf5_path not in mask_file:
-                    print(
+                    logger.warning(
                         f"Dataset {self._mask_hdf5_path} not found in the mask file "
                         f"{self._mask_filename}."
                     )
@@ -133,7 +138,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._events: List[str] = self._frame_retrieval.get_event_list()
         self._num_events: int = len(self._events)
         if self._num_events == 0:
-            sys.exit("No images can be retrieved from the input sources.")
+            logger.info("No images can be retrieved from the input sources.")
+            sys.exit(0)
 
         self._current_event_index: int = 0
         self._retrieve_current_data()
@@ -462,7 +468,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 ]
             )
         except (TypeError, KeyError):
-            print(
+            logger.warning(
                 "Beam energy or detector distance information is not available. "
                 "Resolution rings cannot be drawn."
             )
@@ -1018,7 +1024,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self, "Select mask file", str(path / name), filter="*.h5"
         )[0]
         if filename:
-            print(f"Saving new mask to {filename}.")
+            logger.info(f"Saving new mask to {filename}.")
             with h5py.File(filename, "w") as fh:
                 fh.create_dataset("/data/data", data=(1 - self._maskmaker_mask))
 
@@ -1221,20 +1227,25 @@ def main(
     \b
     Usage example: cheetah_viewer.py -i stream lyso_*.stream
     """
+    # Set up logging.
+    logging.config.dictConfig(logging_config)
+
     geometry_lines: List[str] = []
     if input_type != "stream" and geometry_filename is None:
-        sys.exit(
-            f"Error: Missing option '--geometry' / '-g'.\n"
+        logger.error(
+            f"Missing option '--geometry' / '-g'."
             f"Geometry file is required for input type '{input_type}'."
         )
+        sys.exit(1)
 
     if input_type == "om":
-        print("Activating frame retrieval from OM data retrieval layer.")
+        logger.info("Activating frame retrieval from OM data retrieval layer.")
         if not pathlib.Path(om_config).is_file():
-            sys.exit(
-                f"Error: Invalid value for '--om-config' / '-c': Path {om_config} "
+            logger.error(
+                f"Invalid value for '--om-config' / '-c': Path {om_config} "
                 f"does not exist."
             )
+            sys.exit(1)
         input_file: str = input_files[0]
         parameters: Dict[str, Any] = {
             "om_sources": {input_file: om_source},
@@ -1261,7 +1272,7 @@ def main(
         for input_path in input_files:
             dir: pathlib.Path = pathlib.Path(input_path)
             if not dir.is_dir():
-                print(f"Skipping input source {dir}: is not a directory.")
+                logger.warning(f"Skipping input source {dir}: is not a directory.")
                 continue
             process_config: pathlib.Path = dir / "process.config"
             if process_config.is_file():
@@ -1271,7 +1282,9 @@ def main(
                     config["Process script template data"]["om_config"]
                 )
             else:
-                print(f"Skipping input source {dir}: {process_config} file not found.")
+                logger.warning(
+                    f"Skipping input source {dir}: {process_config} file not found."
+                )
                 continue
 
             hits_file: pathlib.Path = dir / "hits.lst"
@@ -1291,15 +1304,15 @@ def main(
                     h5_files.append(str(filename))
 
         if len(sources) > 0:
-            print("Loading hits from the following files:")
+            logger.info("Loading hits from the following files:")
             source: str
             for source in sources:
-                print(source)
+                logger.info(f"  - {source}")
 
         frame_retrieval = OmRetrieval(sources, parameters)
         if len(frame_retrieval.get_event_list()) == 0:
             if len(h5_files) > 0:
-                print(
+                logger.info(
                     "Couldn't retrieve any images from selected runs using OM frame "
                     "retrieval. Trying to load images from HDF5 files."
                 )
@@ -1308,29 +1321,30 @@ def main(
                 parameters["hdf5_peaks_path"] = "/entry_1/result_1"
                 frame_retrieval = H5FilesRetrieval(h5_files, parameters)
             else:
-                print(
+                logger.info(
                     "Couldn't retrieve any images from selected runs using OM frame "
                     "retrieval and there's no .h5 or .cxi files in the selected "
                     "directories yet."
                 )
     elif input_type == "stream":
-        print("Activating frame retrieval from CrystFEL stream files.")
+        logger.info("Activating frame retrieval from CrystFEL stream files.")
         stream_filename: str
         if geometry_filename is None:
             for stream_filename in input_files:
                 geometry_lines = _get_geometry_file_contents(stream_filename)
                 if len(geometry_lines) > 0:
-                    print(f"Using geometry file contents from {stream_filename}.")
+                    logger.info(f"Using geometry file contents from {stream_filename}.")
                     break
             if len(geometry_lines) == 0:
-                sys.exit(
+                logger.error(
                     "Couldn't extract geometry file contents from the input stream "
                     "files. Please provide a geometry file ('--geometry' / '-g')."
                 )
+                sys.exit(1)
 
         frame_retrieval = StreamRetrieval(input_files, {})
     else:
-        print("Activating frame retrieval from HDF5 files.")
+        logger.info("Activating frame retrieval from HDF5 files.")
         parameters = _get_hdf5_retrieval_parameters(geometry_filename)
         if hdf5_data_path:
             parameters["hdf5_data_path"] = hdf5_data_path
@@ -1349,6 +1363,7 @@ def main(
     else:
         open_tab = 0
 
+    sys.stdout.flush()
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(frame_retrieval, geometry_lines, mask_filename, hdf5_mask_path, open_tab)
     sys.exit(app.exec_())

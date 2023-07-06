@@ -133,7 +133,7 @@ class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
         # This function gets the list of previously opened experiments from
         # ~/.cheetah-crawler2.
         logfile_path: pathlib.Path = pathlib.Path.expanduser(
-            pathlib.Path("~/.cheetah-crawler2")
+            pathlib.Path(pathlib.Path.home() / ".cheetah/experiments_history")
         )
         if pathlib.Path(logfile_path).is_file():
             fh: TextIO

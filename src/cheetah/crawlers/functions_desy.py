@@ -3,9 +3,12 @@ P11 functions.
 
 This module contains functions required by Cheetah GUI at P11 beamline at PETRA III.
 """
+import logging
 import pathlib
 import subprocess
 from typing import TextIO, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def guess_batch_queue_desy(path: pathlib.Path) -> str:
@@ -161,9 +164,11 @@ def prepare_om_source_biocars_mccd(
     command = (
         f'find {data_directory} -maxdepth 1 -name "*.mccd" | sort > {output_filename}'
     )
-    print(
-        subprocess.run(command, shell=True, capture_output=True).stderr.decode("utf-8")
-    )
+    error_message: str = subprocess.run(
+        command, shell=True, capture_output=True
+    ).stderr.decode("utf-8")
+    if error_message:
+        logger.error(error_message)
 
     return str(output_filename)
 
@@ -247,8 +252,10 @@ def prepare_om_source_p09_lambda(
         f'find {data_directory} -maxdepth 1 -name "*m01*.nxs" | sort > '
         f"{output_filename}"
     )
-    print(
-        subprocess.run(command, shell=True, capture_output=True).stderr.decode("utf-8")
-    )
+    error_message: str = subprocess.run(
+        command, shell=True, capture_output=True
+    ).stderr.decode("utf-8")
+    if error_message:
+        logger.error(error_message)
 
     return str(output_filename)

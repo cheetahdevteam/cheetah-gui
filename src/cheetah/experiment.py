@@ -4,6 +4,7 @@ Cheetah Experiment.
 This module contains classes and functions that provide information related to a 
 particular experiment and control its data processing.
 """
+import logging
 import pathlib
 import shutil
 import stat
@@ -20,6 +21,8 @@ from cheetah.crawlers import TypeDetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
 from cheetah.process import CheetahProcess, TypeProcessingConfig
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
+
+logger = logging.getLogger(__name__)
 
 
 class TypeExperimentConfig(TypedDict):
@@ -199,10 +202,8 @@ class CheetahExperiment:
         self._crawler_config_filename: pathlib.Path = (
             self._gui_directory / "crawler.config"
         )
-        print(
-            f"Going to selected experiment: {self._gui_directory}\n"
-            f"Loading configuration file: {self._crawler_config_filename}"
-        )
+        logger.info(f"Going to selected experiment: {self._gui_directory}")
+        logger.info(f"Loading configuration file: {self._crawler_config_filename}")
         fh: TextIO
         with open(self._crawler_config_filename, "r") as fh:
             crawler_config: Dict[str, Any] = yaml.safe_load(fh.read())
@@ -247,7 +248,7 @@ class CheetahExperiment:
         # Sets up new experiment. Creates new Cheetah directory structure, writes
         # cheetah/gui/crawler.config file and copies required resources to
         # cheetah/calib and cheetah/process.
-        print("Setting up new experiment\n")
+        logger.info("Setting up new experiment\n")
         self._facility = new_experiment_config["facility"]
         self._instrument = new_experiment_config["instrument"]
         self._detector = new_experiment_config["detector"]
@@ -255,7 +256,7 @@ class CheetahExperiment:
         self._base_path = self._raw_directory.parent
         self._experiment_id = new_experiment_config["experiment_id"]
 
-        print(
+        logger.info(
             f"Creating new Cheetah directory:\n{new_experiment_config['output_dir']}\n"
         )
         self._gui_directory = pathlib.Path(new_experiment_config["output_dir"]) / "gui"
@@ -283,7 +284,7 @@ class CheetahExperiment:
         ][new_experiment_config["instrument"]]["detectors"][
             new_experiment_config["detector"]
         ]
-        print(
+        logger.info(
             f"Copying {new_experiment_config['detector']} geometry and mask to \n"
             f"{self._calib_directory}\n"
         )
@@ -303,7 +304,7 @@ class CheetahExperiment:
         )
         self._last_mask = self._calib_directory / resources["calib_resources"]["mask"]
 
-        print(
+        logger.info(
             f"Copying OM config and process script templates to \n"
             f"{self._process_directory}\n"
         )
@@ -542,9 +543,9 @@ class CheetahExperiment:
         for run_dir in run_proc_dirs:
             error: str = self._cheetah_process.kill_processing(run_dir)
             if error != "":
-                print(error)
+                logger.error(error)
             else:
-                print(f"Killing job {run_dir}.")
+                logger.info(f"Killing job {run_dir}.")
 
     def remove_processing_results(self, run_proc_dirs: List[str]) -> None:
         """
@@ -562,7 +563,7 @@ class CheetahExperiment:
             try:
                 directory: pathlib.Path = self._proc_directory / run_dir
                 shutil.rmtree(directory)
-                print(f"Removing {directory}.")
+                logger.info(f"Removing {directory}.")
 
                 # Remove empty directory tree
                 while directory.parent != self._proc_directory:
@@ -571,7 +572,7 @@ class CheetahExperiment:
                         directory.rmdir()
 
             except Exception as e:
-                print(f"Couldn't remove {run_dir}: {e}.")
+                logger.error(f"Couldn't remove {run_dir}: {e}.")
 
     def process_runs(
         self,
@@ -624,7 +625,7 @@ class CheetahExperiment:
         run_id: str
         if streaming:
             if self._streaming_process is None:
-                print("Streaming processing is not set up for this experiment.")
+                logger.error("Streaming processing is not set up for this experiment.")
                 return
             for run_id in run_ids:
                 self._streaming_process.process_run(
