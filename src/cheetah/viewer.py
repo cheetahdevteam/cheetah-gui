@@ -3,31 +3,42 @@ Cheetah Viewer.
 
 This module contains Cheetah image viewer.
 """
+import logging
+import logging.config
+import pathlib
+import sys
+from random import randrange
+from typing import Any, Dict, List, TextIO, Tuple, Union
+
 import click  # type: ignore
 import h5py  # type: ignore
 import numpy
 import numpy.typing
-import pathlib
-import sys
-import yaml
-
-from om.utils import crystfel_geometry
-from PyQt5 import QtGui, QtCore, QtWidgets, uic  # type: ignore
 import pyqtgraph  # type: ignore
-from random import randrange
-from scipy import constants  # type: ignore
-from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
-from typing import Any, List, Dict, Union, Tuple, TextIO, cast
-from numpy.typing import NDArray
-
+import yaml
 from cheetah import __file__ as cheetah_src_path
-from cheetah.frame_retrieval.base import (
-    CheetahFrameRetrieval,
-    TypeEventData,
-)
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
 from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
+from cheetah.utils.logging import logging_config
+from numpy.typing import NDArray
+from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
+from scipy import constants  # type: ignore
+from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
+
+from om.lib.geometry import (
+    DataVisualizer,
+    TypeBeam,
+    TypeDetector,
+    TypePixelMaps,
+    TypeVisualizationPixelMaps,
+    _compute_pix_maps,
+    _load_crystfel_geometry_from_file,
+    _read_crystfel_geometry_from_text,
+)
+
+logger = logging.getLogger("cheetah_viewer")
 
 
 class Viewer(QtWidgets.QMainWindow):  # type: ignore
@@ -102,7 +113,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             mask_file: Any
             with h5py.File(self._mask_filename) as mask_file:
                 if self._mask_hdf5_path not in mask_file:
-                    print(
+                    logger.warning(
                         f"Dataset {self._mask_hdf5_path} not found in the mask file "
                         f"{self._mask_filename}."
                     )
@@ -112,9 +123,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                     mask_img: NDArray[Any] = numpy.zeros(
                         self._visual_img_shape, dtype=mask.dtype
                     )
-                    mask_img[
-                        self._visual_pixelmap_y.ravel(), self._visual_pixelmap_x.ravel()
-                    ] = mask.ravel()
+                    self._data_visualizer.visualize_data(
+                        data=mask, array_for_visualization=mask_img
+                    )
                     self._mask: NDArray[Any] = numpy.zeros(
                         shape=mask_img.T.shape + (4,)
                     )
@@ -127,7 +138,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._events: List[str] = self._frame_retrieval.get_event_list()
         self._num_events: int = len(self._events)
         if self._num_events == 0:
-            sys.exit("No images can be retrieved from the input sources.")
+            logger.info("No images can be retrieved from the input sources.")
+            sys.exit(0)
 
         self._current_event_index: int = 0
         self._retrieve_current_data()
@@ -305,54 +317,48 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._image_widget.scene.sigMouseClicked.connect(self._mouse_clicked)
 
     def _load_geometry(self, geometry_lines: List[str]) -> None:
-        # Loads CrystFEL goemetry using om.utils module.
-        self._geometry: crystfel_geometry.TypeDetector
-        beam: crystfel_geometry.TypeBeam
-        self._geometry, beam, __ = crystfel_geometry.read_crystfel_geometry(
+        # Loads CrystFEL goemetry using om.lib.geometry module.
+        self._geometry: TypeDetector
+        beam: TypeBeam
+        self._geometry, beam, _ = _read_crystfel_geometry_from_text(
             text_lines=geometry_lines
         )
-        self._pixelmaps: crystfel_geometry.TypePixelMaps = (
-            crystfel_geometry.compute_pix_maps(geometry=self._geometry)
-        )
-
         first_panel: str = list(self._geometry["panels"].keys())[0]
+
+        # Pixel size (in 1/m)
         self._pixel_size: float = self._geometry["panels"][first_panel]["res"]
+        # Detector distance
         self._clen_from: str = self._geometry["panels"][first_panel]["clen_from"]
         if self._clen_from == "":
             self._clen: float = self._geometry["panels"][first_panel]["clen"]
         self._coffset: float = self._geometry["panels"][first_panel]["coffset"]
+        # Photon energy
         self._photon_energy_from: str = beam["photon_energy_from"]
         if self._photon_energy_from == "":
             self._photon_energy: float = beam["photon_energy"]
+        # Mask file
         self._mask_filename = self._geometry["panels"][first_panel]["mask_file"]
         self._mask_hdf5_path = self._geometry["panels"][first_panel]["mask"]
 
-        y_minimum: int = (
-            2
-            * int(max(abs(self._pixelmaps["y"].max()), abs(self._pixelmaps["y"].min())))
-            + 2
-        )
-        x_minimum: int = (
-            2
-            * int(max(abs(self._pixelmaps["x"].max()), abs(self._pixelmaps["x"].min())))
-            + 2
-        )
-        self._data_shape: Tuple[int, ...] = self._pixelmaps["x"].shape
-        self._visual_img_shape: Tuple[int, int] = (y_minimum, x_minimum)
+        pixel_maps: TypePixelMaps = _compute_pix_maps(geometry=self._geometry)
+        self._data_visualizer: DataVisualizer = DataVisualizer(pixel_maps=pixel_maps)
+
+        self._data_shape: Tuple[int, ...] = pixel_maps["x"].shape
+        self._visual_img_shape: Tuple[
+            int, int
+        ] = self._data_visualizer.get_min_array_shape_for_visualization()
         self._img_center_x: int = int(self._visual_img_shape[1] / 2)
         self._img_center_y: int = int(self._visual_img_shape[0] / 2)
-        self._visual_pixelmap_x: NDArray[numpy.int32] = cast(
-            NDArray[numpy.int32],
-            numpy.array(self._pixelmaps["x"], dtype=numpy.int32)
-            + self._visual_img_shape[1] // 2
-            - 1,
+
+        self._visualization_pixel_maps: TypeVisualizationPixelMaps = (
+            self._data_visualizer.get_visualization_pixel_maps()
         )
-        self._visual_pixelmap_y: NDArray[numpy.int32] = cast(
-            NDArray[numpy.int32],
-            numpy.array(self._pixelmaps["y"], dtype=numpy.int32)
-            + self._visual_img_shape[0] // 2
-            - 1,
-        )
+        self._flattened_visualization_pixel_map_y = self._visualization_pixel_maps[
+            "y"
+        ].flatten()
+        self._flattened_visualization_pixel_map_x = self._visualization_pixel_maps[
+            "x"
+        ].flatten()
 
     def _tab_changed(self) -> None:
         if self._current_tab == 1:
@@ -462,7 +468,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 ]
             )
         except (TypeError, KeyError):
-            print(
+            logger.warning(
                 "Beam energy or detector distance information is not available. "
                 "Resolution rings cannot be drawn."
             )
@@ -579,10 +585,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             data: NDArray[Any] = self._current_event_data["data"]
         else:
             data = self._empty_frame
-        self._frame_data_img[
-            self._visual_pixelmap_y.ravel(), self._visual_pixelmap_x.ravel()
-        ] = data.ravel().astype(self._frame_data_img.dtype)
 
+        self._data_visualizer.visualize_data(
+            data=data, array_for_visualization=self._frame_data_img
+        )
         if self._ui.auto_range_cb.isChecked():
             values = data.flatten()
             values.sort()
@@ -645,8 +651,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
                 ] + int(round(peak_fs))
-                y_in_frame: float = self._visual_pixelmap_y.ravel()[peak_index_in_slab]
-                x_in_frame: float = self._visual_pixelmap_x.ravel()[peak_index_in_slab]
+                y_in_frame: float = self._flattened_visualization_pixel_map_y[
+                    peak_index_in_slab
+                ]
+                x_in_frame: float = self._flattened_visualization_pixel_map_x[
+                    peak_index_in_slab
+                ]
                 peak_list_x_in_frame.append(y_in_frame)
                 peak_list_y_in_frame.append(x_in_frame)
         self._peak_canvas.setData(
@@ -710,8 +720,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
                 ] + int(round(peak_fs))
-                y_in_frame: float = self._visual_pixelmap_y.ravel()[peak_index_in_slab]
-                x_in_frame: float = self._visual_pixelmap_x.ravel()[peak_index_in_slab]
+                y_in_frame: float = self._flattened_visualization_pixel_map_y[
+                    peak_index_in_slab
+                ]
+                x_in_frame: float = self._flattened_visualization_pixel_map_x[
+                    peak_index_in_slab
+                ]
                 peak_list_x_in_frame.append(y_in_frame)
                 peak_list_y_in_frame.append(x_in_frame)
             pen: Any = pyqtgraph.mkPen(
@@ -778,7 +792,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if self._current_tab == 1:
             # self._maskmaker_visual_mask[:] = 0
             self._maskmaker_visual_mask[
-                self._visual_pixelmap_x.ravel(), self._visual_pixelmap_y.ravel()
+                self._flattened_visualization_pixel_map_x,
+                self._flattened_visualization_pixel_map_y,
             ] = self._maskmaker_mask.ravel()
             mask_image: NDArray[Any] = numpy.zeros(
                 shape=self._maskmaker_visual_mask.shape + (4,)
@@ -804,10 +819,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         size: Tuple[float, float] = self._rectangular_roi.size()
         self._mask_original_pixels(
             numpy.where(
-                (self._visual_pixelmap_x >= corner[0] - 0.5)
-                & (self._visual_pixelmap_x <= corner[0] + size[0] - 0.5)
-                & (self._visual_pixelmap_y >= corner[1] - 0.5)
-                & (self._visual_pixelmap_y <= corner[1] + size[1] - 0.5)
+                (self._visualization_pixel_maps["x"] >= corner[0] - 0.5)
+                & (self._visualization_pixel_maps["x"] <= corner[0] + size[0] - 0.5)
+                & (self._visualization_pixel_maps["y"] >= corner[1] - 0.5)
+                & (self._visualization_pixel_maps["y"] <= corner[1] + size[1] - 0.5)
             )
         )
 
@@ -821,8 +836,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         )
         rsquared_map: NDArray[numpy.float_] = (
             self._visual_pixelmap_x - center[0]
-        ) ** 2 + (self._visual_pixelmap_y - center[1]) ** 2
-        self._mask_original_pixels(numpy.where(rsquared_map <= radius ** 2))
+        ) ** 2 + (self.self._visualization_pixel_maps["y"] - center[1]) ** 2
+        self._mask_original_pixels(numpy.where(rsquared_map <= radius**2))
 
     def _mask_outside_histogram(self) -> None:
         self._mask_original_pixels(
@@ -882,7 +897,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_original_pixels(
             numpy.where(
                 visual_mask[
-                    self._visual_pixelmap_y.ravel(), self._visual_pixelmap_x.ravel()
+                    self._flattened_visualization_pixel_map_y,
+                    self._flattened_visualization_pixel_map_x,
                 ].reshape(self._data_shape)
                 == 1
             ),
@@ -957,8 +973,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         ygrid: NDArray[numpy.float_]
         xgrid, ygrid = numpy.ogrid[-corner : size - corner, -corner : size - corner]
         kernel: NDArray[numpy.float_] = numpy.zeros((size, size, 4))
-        kernel[:, :, 0][xgrid ** 2 + ygrid ** 2 < radius ** 2] = 1
-        kernel[:, :, 3][xgrid ** 2 + ygrid ** 2 < radius ** 2] = 1
+        kernel[:, :, 0][xgrid**2 + ygrid**2 < radius**2] = 1
+        kernel[:, :, 3][xgrid**2 + ygrid**2 < radius**2] = 1
         return kernel
 
     def _change_brush_size(self) -> None:
@@ -1008,7 +1024,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self, "Select mask file", str(path / name), filter="*.h5"
         )[0]
         if filename:
-            print(f"Saving new mask to {filename}.")
+            logger.info(f"Saving new mask to {filename}.")
             with h5py.File(filename, "w") as fh:
                 fh.create_dataset("/data/data", data=(1 - self._maskmaker_mask))
 
@@ -1016,11 +1032,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     # This function is used internally to get parameters for hdf5 data retrieval from
     # the geometry file.
-    geometry: crystfel_geometry.TypeDetector
-    beam: crystfel_geometry.TypeBeam
-    geometry, beam, __ = crystfel_geometry.load_crystfel_geometry(
-        filename=geometry_filename
-    )
+    geometry: TypeDetector
+    beam: TypeBeam
+    geometry, beam, __ = _load_crystfel_geometry_from_file(filename=geometry_filename)
     first_panel: str = list(geometry["panels"].keys())[0]
     return {
         "hdf5_data_path": geometry["panels"][first_panel]["data"],
@@ -1213,19 +1227,25 @@ def main(
     \b
     Usage example: cheetah_viewer.py -i stream lyso_*.stream
     """
+    # Set up logging.
+    logging.config.dictConfig(logging_config)
+
+    geometry_lines: List[str] = []
     if input_type != "stream" and geometry_filename is None:
-        sys.exit(
-            f"Error: Missing option '--geometry' / '-g'.\n"
+        logger.error(
+            f"Missing option '--geometry' / '-g'."
             f"Geometry file is required for input type '{input_type}'."
         )
+        sys.exit(1)
 
     if input_type == "om":
-        print("Activating frame retrieval from OM data retrieval layer.")
+        logger.info("Activating frame retrieval from OM data retrieval layer.")
         if not pathlib.Path(om_config).is_file():
-            sys.exit(
-                f"Error: Invalid value for '--om-config' / '-c': Path {om_config} "
+            logger.error(
+                f"Invalid value for '--om-config' / '-c': Path {om_config} "
                 f"does not exist."
             )
+            sys.exit(1)
         input_file: str = input_files[0]
         parameters: Dict[str, Any] = {
             "om_sources": {input_file: om_source},
@@ -1252,7 +1272,7 @@ def main(
         for input_path in input_files:
             dir: pathlib.Path = pathlib.Path(input_path)
             if not dir.is_dir():
-                print(f"Skipping input source {dir}: is not a directory.")
+                logger.warning(f"Skipping input source {dir}: is not a directory.")
                 continue
             process_config: pathlib.Path = dir / "process.config"
             if process_config.is_file():
@@ -1262,7 +1282,9 @@ def main(
                     config["Process script template data"]["om_config"]
                 )
             else:
-                print(f"Skipping input source {dir}: {process_config} file not found.")
+                logger.warning(
+                    f"Skipping input source {dir}: {process_config} file not found."
+                )
                 continue
 
             hits_file: pathlib.Path = dir / "hits.lst"
@@ -1282,15 +1304,15 @@ def main(
                     h5_files.append(str(filename))
 
         if len(sources) > 0:
-            print("Loading hits from the following files:")
+            logger.info("Loading hits from the following files:")
             source: str
             for source in sources:
-                print(source)
+                logger.info(f"  - {source}")
 
         frame_retrieval = OmRetrieval(sources, parameters)
         if len(frame_retrieval.get_event_list()) == 0:
             if len(h5_files) > 0:
-                print(
+                logger.info(
                     "Couldn't retrieve any images from selected runs using OM frame "
                     "retrieval. Trying to load images from HDF5 files."
                 )
@@ -1299,29 +1321,30 @@ def main(
                 parameters["hdf5_peaks_path"] = "/entry_1/result_1"
                 frame_retrieval = H5FilesRetrieval(h5_files, parameters)
             else:
-                print(
+                logger.info(
                     "Couldn't retrieve any images from selected runs using OM frame "
                     "retrieval and there's no .h5 or .cxi files in the selected "
                     "directories yet."
                 )
     elif input_type == "stream":
-        print("Activating frame retrieval from CrystFEL stream files.")
+        logger.info("Activating frame retrieval from CrystFEL stream files.")
         stream_filename: str
         if geometry_filename is None:
             for stream_filename in input_files:
                 geometry_lines = _get_geometry_file_contents(stream_filename)
                 if len(geometry_lines) > 0:
-                    print(f"Using geometry file contents from {stream_filename}.")
+                    logger.info(f"Using geometry file contents from {stream_filename}.")
                     break
             if len(geometry_lines) == 0:
-                sys.exit(
+                logger.error(
                     "Couldn't extract geometry file contents from the input stream "
                     "files. Please provide a geometry file ('--geometry' / '-g')."
                 )
+                sys.exit(1)
 
         frame_retrieval = StreamRetrieval(input_files, {})
     else:
-        print("Activating frame retrieval from HDF5 files.")
+        logger.info("Activating frame retrieval from HDF5 files.")
         parameters = _get_hdf5_retrieval_parameters(geometry_filename)
         if hdf5_data_path:
             parameters["hdf5_data_path"] = hdf5_data_path
@@ -1340,6 +1363,7 @@ def main(
     else:
         open_tab = 0
 
+    sys.stdout.flush()
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(frame_retrieval, geometry_lines, mask_filename, hdf5_mask_path, open_tab)
     sys.exit(app.exec_())

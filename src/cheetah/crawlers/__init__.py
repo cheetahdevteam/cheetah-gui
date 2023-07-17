@@ -7,8 +7,7 @@ modules in this package.
 """
 
 import pathlib
-
-from typing import Any, Dict, Callable, Type
+from typing import Callable, Dict, Optional, Type
 
 try:
     from typing import TypedDict
@@ -16,28 +15,27 @@ except:
     from typing_extensions import TypedDict
 
 from cheetah.crawlers.base import Crawler
-from cheetah.crawlers.crawler_lcls import LclsCrawler
-from cheetah.crawlers.crawler_p11 import P11EigerCrawler
 from cheetah.crawlers.crawler_biocars import BioCarsMccdCrawler
 from cheetah.crawlers.crawler_jungfrau import Jungfrau1MCrawler
+from cheetah.crawlers.crawler_lcls import LclsCrawler
 from cheetah.crawlers.crawler_p09 import P09LambdaCrawler
-
+from cheetah.crawlers.crawler_p11 import P11EigerCrawler
+from cheetah.crawlers.functions_desy import (
+    guess_batch_queue_desy,
+    guess_experiment_id_desy,
+    guess_raw_directory_desy,
+    prepare_om_source_biocars_mccd,
+    prepare_om_source_jungfrau1M,
+    prepare_om_source_p09_lambda,
+    prepare_om_source_p11_eiger,
+)
+from cheetah.crawlers.functions_generic import kill_slurm_job
 from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
     guess_experiment_id_lcls,
     guess_raw_directory_lcls,
     prepare_om_source_lcls,
 )
-from cheetah.crawlers.functions_desy import (
-    guess_batch_queue_desy,
-    guess_experiment_id_desy,
-    guess_raw_directory_desy,
-    prepare_om_source_p11_eiger,
-    prepare_om_source_biocars_mccd,
-    prepare_om_source_jungfrau1M,
-    prepare_om_source_p09_lambda,
-)
-from cheetah.crawlers.functions_generic import kill_slurm_job
 
 
 class TypeDetectorInfo(TypedDict):
@@ -58,6 +56,8 @@ class TypeDetectorInfo(TypedDict):
 
         process_template: The name of the process script template file.
 
+        streaming_template: The name of the streaming script template file (optional).
+
         prepare_om_source: A function which prepares OM data source for data processing.
 
         crawler: Cheetah Crawler class for the facility.
@@ -67,6 +67,7 @@ class TypeDetectorInfo(TypedDict):
     calib_resources: Dict[str, str]
     om_config_template: str
     process_template: str
+    streaming_template: Optional[str]
     prepare_om_source: Callable[[str, str, pathlib.Path, pathlib.Path], str]
     crawler: Type[Crawler]
 
@@ -129,6 +130,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "mfx_epix_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_lcls,
                         "crawler": LclsCrawler,
                     },
@@ -140,6 +142,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "mfx_rayonix_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_lcls,
                         "crawler": LclsCrawler,
                     },
@@ -150,6 +153,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "mfx_cspad_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_lcls,
                         "crawler": LclsCrawler,
                     },
@@ -165,6 +169,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "cxi_jungfrau_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_lcls,
                         "crawler": LclsCrawler,
                     },
@@ -175,6 +180,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "cxi_cspad_template.yaml",
                         "process_template": "lcls_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_lcls,
                         "crawler": LclsCrawler,
                     },
@@ -197,6 +203,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "p09_lambda_template.yaml",
                         "process_template": "desy_slurm_template.sh",
+                        "streaming_template": "desy_slurm_streaming_template.sh",
                         "prepare_om_source": prepare_om_source_p09_lambda,
                         "crawler": P09LambdaCrawler,
                     }
@@ -211,6 +218,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "p11_eiger_template.yaml",
                         "process_template": "desy_slurm_template.sh",
+                        "streaming_template": "desy_slurm_streaming_template.sh",
                         "prepare_om_source": prepare_om_source_p11_eiger,
                         "crawler": P11EigerCrawler,
                     }
@@ -233,6 +241,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "biocars_mccd_template.yaml",
                         "process_template": "desy_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_biocars_mccd,
                         "crawler": BioCarsMccdCrawler,
                     },
@@ -244,6 +253,7 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         },
                         "om_config_template": "jungfrau1M_template.yaml",
                         "process_template": "desy_slurm_template.sh",
+                        "streaming_template": None,
                         "prepare_om_source": prepare_om_source_jungfrau1M,
                         "crawler": Jungfrau1MCrawler,
                     },

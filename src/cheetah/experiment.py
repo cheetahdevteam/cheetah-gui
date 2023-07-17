@@ -4,12 +4,13 @@ Cheetah Experiment.
 This module contains classes and functions that provide information related to a 
 particular experiment and control its data processing.
 """
+import logging
 import pathlib
 import shutil
 import stat
-import yaml
+from typing import Any, Dict, List, TextIO, Union, cast
 
-from typing import List, Dict, TextIO, Union, Any, cast
+import yaml
 
 try:
     from typing import TypedDict
@@ -20,6 +21,8 @@ from cheetah.crawlers import TypeDetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
 from cheetah.process import CheetahProcess, TypeProcessingConfig
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
+
+logger = logging.getLogger(__name__)
 
 
 class TypeExperimentConfig(TypedDict):
@@ -89,7 +92,7 @@ class CheetahExperiment:
                 dictionary or None. If the value of this parameter is None `path` must
                 point to already existing cheetah/gui directory.
 
-            gui: Whether experiment is intialized from the GUI. Defaults to True.
+            gui: Whether experiment is initialized from the GUI. Defaults to True.
         """
         if new_experiment_config:
             self._setup_new_experiment(new_experiment_config)
@@ -114,6 +117,19 @@ class CheetahExperiment:
             self._raw_directory,
             self._proc_directory,
         )
+        if (self._process_directory / "streaming_template.sh").exists():
+            self._streaming_process: Union[None, CheetahProcess] = CheetahProcess(
+                self._facility,
+                self._instrument,
+                self._detector,
+                self._experiment_id,
+                self._process_directory / "streaming_template.sh",
+                self._raw_directory,
+                self._proc_directory,
+                streaming=True,
+            )
+        else:
+            self._streaming_process = None
 
         if gui:
             self._update_previous_experiments_list()
@@ -186,10 +202,8 @@ class CheetahExperiment:
         self._crawler_config_filename: pathlib.Path = (
             self._gui_directory / "crawler.config"
         )
-        print(
-            f"Going to selected experiment: {self._gui_directory}\n"
-            f"Loading configuration file: {self._crawler_config_filename}"
-        )
+        logger.info(f"Going to selected experiment: {self._gui_directory}")
+        logger.info(f"Loading configuration file: {self._crawler_config_filename}")
         fh: TextIO
         with open(self._crawler_config_filename, "r") as fh:
             crawler_config: Dict[str, Any] = yaml.safe_load(fh.read())
@@ -234,7 +248,7 @@ class CheetahExperiment:
         # Sets up new experiment. Creates new Cheetah directory structure, writes
         # cheetah/gui/crawler.config file and copies required resources to
         # cheetah/calib and cheetah/process.
-        print("Setting up new experiment\n")
+        logger.info("Setting up new experiment\n")
         self._facility = new_experiment_config["facility"]
         self._instrument = new_experiment_config["instrument"]
         self._detector = new_experiment_config["detector"]
@@ -242,7 +256,7 @@ class CheetahExperiment:
         self._base_path = self._raw_directory.parent
         self._experiment_id = new_experiment_config["experiment_id"]
 
-        print(
+        logger.info(
             f"Creating new Cheetah directory:\n{new_experiment_config['output_dir']}\n"
         )
         self._gui_directory = pathlib.Path(new_experiment_config["output_dir"]) / "gui"
@@ -270,7 +284,7 @@ class CheetahExperiment:
         ][new_experiment_config["instrument"]]["detectors"][
             new_experiment_config["detector"]
         ]
-        print(
+        logger.info(
             f"Copying {new_experiment_config['detector']} geometry and mask to \n"
             f"{self._calib_directory}\n"
         )
@@ -290,7 +304,7 @@ class CheetahExperiment:
         )
         self._last_mask = self._calib_directory / resources["calib_resources"]["mask"]
 
-        print(
+        logger.info(
             f"Copying OM config and process script templates to \n"
             f"{self._process_directory}\n"
         )
@@ -308,6 +322,14 @@ class CheetahExperiment:
             / process_template,
             self._process_directory / "process_template.sh",
         )
+        if resources["streaming_template"] is not None:
+            streaming_template: str = resources["streaming_template"]
+            shutil.copyfile(
+                pathlib.Path(new_experiment_config["cheetah_resources"])
+                / "templates"
+                / streaming_template,
+                self._process_directory / "streaming_template.sh",
+            )
 
         self._crawler_config_filename = self._gui_directory / "crawler.config"
         self._crawler_scan_raw_dir = True
@@ -521,14 +543,42 @@ class CheetahExperiment:
         for run_dir in run_proc_dirs:
             error: str = self._cheetah_process.kill_processing(run_dir)
             if error != "":
-                print(error)
+                logger.error(error)
             else:
-                print(f"Killing job {run_dir}.")
+                logger.info(f"Killing job {run_dir}.")
+
+    def remove_processing_results(self, run_proc_dirs: List[str]) -> None:
+        """
+        Remove processing results.
+
+        This function removes all processing directories from the provided list.
+
+        Arguments:
+
+            run_proc_dirs: A list of processed run directories relative to the
+                experiment proc directory (as displayed in the Cheetah GUI table).
+        """
+        run_dir: str
+        for run_dir in run_proc_dirs:
+            try:
+                directory: pathlib.Path = self._proc_directory / run_dir
+                shutil.rmtree(directory)
+                logger.info(f"Removing {directory}.")
+
+                # Remove empty directory tree
+                while directory.parent != self._proc_directory:
+                    directory = directory.parent
+                    if not any(directory.iterdir()):
+                        directory.rmdir()
+
+            except Exception as e:
+                logger.error(f"Couldn't remove {run_dir}: {e}.")
 
     def process_runs(
         self,
         run_ids: List[str],
         processing_config: Union[TypeProcessingConfig, None],
+        streaming: bool,
         queue: Union[str, None] = None,
         n_processes: Union[int, None] = None,
     ) -> None:
@@ -573,13 +623,25 @@ class CheetahExperiment:
                 self._last_mask = None
 
         run_id: str
-        for run_id in run_ids:
-            self._cheetah_process.process_run(
-                run_id,
-                processing_config,
-                queue,
-                n_processes,
-            )
+        if streaming:
+            if self._streaming_process is None:
+                logger.error("Streaming processing is not set up for this experiment.")
+                return
+            for run_id in run_ids:
+                self._streaming_process.process_run(
+                    run_id,
+                    processing_config,
+                    queue,
+                    n_processes,
+                )
+        else:
+            for run_id in run_ids:
+                self._cheetah_process.process_run(
+                    run_id,
+                    processing_config,
+                    queue,
+                    n_processes,
+                )
         self.write_crawler_config()
 
     def start_crawler(self) -> Crawler:

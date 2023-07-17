@@ -1,25 +1,28 @@
 """
 Frame retrieval from CrystFEL stream files.
 """
-import h5py  # type: ignore
+import logging
 import pathlib
 import subprocess
 from typing import Any, Dict, List, TextIO, Tuple, Union
+
+import h5py  # type: ignore
 
 try:
     from typing import TypedDict
 except:
     from typing_extensions import TypedDict
 
-from om.algorithms.generic import Binning
-from om.data_retrieval_layer import OmFrameDataRetrieval
-from om.utils.parameters import MonitorParams
-
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,
     TypePeakList,
 )
+
+from om.algorithms.generic import Binning, BinningPassthrough
+from om.data_retrieval_layer import OmEventDataRetrieval
+from om.lib.geometry import GeometryInformation
+from om.lib.parameters import MonitorParameters
 
 
 class _TypeStreamEvent(TypedDict):
@@ -70,13 +73,12 @@ class StreamRetrieval(CheetahFrameRetrieval):
         """
         self._streams: Dict[str, TextIO] = {}
         self._events: List[_TypeStreamEvent] = []
-        self._om_retrievals: Dict[Tuple[str, str], OmFrameDataRetrieval] = {}
-        self._om_binning: Union[Binning, None] = None
+        self._om_retrievals: Dict[Tuple[str, str], OmEventDataRetrieval] = {}
         filename: str
         for filename in sources:
             offsets: List[int] = self._get_index(pathlib.Path(filename))
             if len(offsets) == 0:
-                print(f"No events found in {filename}.")
+                logging.info(f"No events found in {filename}.")
                 continue
             self._streams[filename] = open(filename, "r")
             self._events.extend(
@@ -117,31 +119,36 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 index_mtime: float = float(fh.readline().split("=")[1])
                 offsets: List[int] = [int(line) for line in fh]
             if index_mtime >= stream_mtime:
-                print(f"Loading chunk offsets from {index_filename}.")
+                logging.info(f"Loading chunk offsets from {index_filename}.")
                 return offsets
             else:
-                print(f"Index file {index_filename} is outdated, creating new index.")
+                logging.info(
+                    f"Index file {index_filename} is outdated, creating new index."
+                )
         else:
-            print(f"Index file {index_filename} doesn't exist, creating new index.")
+            logging.info(f"Creating new index.")
 
         command: str = (
             f"grep --byte-offset 'Begin chunk' {stream_filename} "
             "| awk '{print $1}' FS=':'"
         )
-        print(command)
+        logging.info(f"Running command: {command}")
+        output: subprocess.CompletedProcess = subprocess.run(
+            command, shell=True, capture_output=True
+        )
+        if output.stderr:
+            logging.error(output.stderr.decode())
 
-        stream_mtime = stream_filename.stat().st_mtime
-        output: bytes = subprocess.check_output(command, shell=True)
-
+        offsets: List[int] = [int(line) for line in output.stdout.split()]
         try:
             with open(index_filename, "w") as fh:
-                print(f"Creating new index file {index_filename}.")
-                fh.write(f"stream_mtime={stream_mtime}\n")
-                fh.write(output.decode("utf-8"))
-        except PermissionError:
-            pass
+                fh.write(f"stream_mtime={stream_filename.stat().st_mtime}\n")
+                fh.write(output.stdout.decode())
+                logging.info(f"Writing new index file {index_filename}.")
+        except PermissionError as e:
+            logging.warning(f"Couldn't write index file {index_filename}:\n{e}")
 
-        return [int(line) for line in output.strip().split()]
+        return offsets
 
     def _parse_chunk(self, event: _TypeStreamEvent) -> _TypeChunkData:
         # Parses stream chunk and returns chunk data.
@@ -195,6 +202,31 @@ class StreamRetrieval(CheetahFrameRetrieval):
             line = stream.readline()
 
         return chunk_data
+
+    def _initialize_binning(self, monitor_parameters: MonitorParameters) -> None:
+        # Initializes binning algorithm to be applied to all frames.
+        self._geometry_information = GeometryInformation(
+            geometry_filename=monitor_parameters.get_parameter(
+                group="crystallography",
+                parameter="geometry_file",
+                parameter_type=str,
+                required=True,
+            ),
+        )
+        if monitor_parameters.get_parameter(
+            group="crystallography",
+            parameter="post_processing_binning",
+            parameter_type=bool,
+            default=False,
+        ):
+            self._binning: Union[Binning, BinningPassthrough] = Binning(
+                parameters=monitor_parameters.get_parameter_group(group="binning"),
+                layout_info=self._geometry_information.get_layout_info(),
+            )
+        else:
+            self._binning = BinningPassthrough(
+                layout_info=self._geometry_information.get_layout_info()
+            )
 
     def get_event_list(self) -> List[str]:
         """
@@ -253,41 +285,29 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 chunk_data["om_config"],
             ) not in self._om_retrievals:
                 try:
-                    monitor_params: MonitorParams = MonitorParams(
+                    monitor_params: MonitorParameters = MonitorParameters(
                         config=chunk_data["om_config"]
                     )
                     self._om_retrievals[
                         (chunk_data["om_source"], chunk_data["om_config"])
-                    ] = OmFrameDataRetrieval(
+                    ] = OmEventDataRetrieval(
                         source=chunk_data["om_source"],
                         monitor_parameters=monitor_params,
                     )
+                    if len(self._om_retrievals) == 1:
+                        # Initialize binning algorithm once to be applied to all frames
+                        self._initialize_binning(monitor_params)
                 except Exception as e:
-                    print(
+                    logging.exception(
                         f"Couldn't initialize OM frame retrieval from "
                         f"{chunk_data['om_source']} source using "
-                        f"{chunk_data['om_config']} config file: "
+                        f"{chunk_data['om_config']} config file:"
                     )
-                    print(e)
-                if (
-                    chunk_data["om_source"],
-                    chunk_data["om_config"],
-                ) in self._om_retrievals and len(self._om_retrievals) == 1:
-                    # Initialize binning algorithm once to be applied to all frames
-                    if monitor_params.get_parameter(
-                        group="crystallography",
-                        parameter="binning",
-                        parameter_type=bool,
-                    ):
-                        self._binning = Binning(
-                            parameters=monitor_params.get_parameter_group(
-                                group="binning"
-                            ),
-                        )
+
             try:
                 om_data: Dict[str, Any] = self._om_retrievals[
                     (chunk_data["om_source"], chunk_data["om_config"])
-                ].retrieve_frame_data(event_id=chunk_data["om_event_id"], frame_id="0")
+                ].retrieve_event_data(event_id=chunk_data["om_event_id"])
                 if self._binning is not None:
                     event_data["data"] = self._binning.bin_detector_data(
                         data=om_data["detector_data"]
@@ -296,11 +316,10 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     event_data["data"] = om_data["detector_data"]
                 event_data["source"] = chunk_data["om_event_id"]
             except Exception as e:
-                print(
+                logging.exception(
                     f"Couldn't extract image data for event id "
                     f"{chunk_data['om_event_id']}:"
                 )
-                print(e)
 
         elif chunk_data["image_filename"] and chunk_data["event"] is not None:
             try:
@@ -313,7 +332,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     "source"
                 ] = f"{chunk_data['image_filename']} // {chunk_data['event']}"
             except:
-                print(
+                logging.exception(
                     f"Couldn't extract image data from {chunk_data['image_filename']},"
                     f" event //{chunk_data['event']}"
                 )

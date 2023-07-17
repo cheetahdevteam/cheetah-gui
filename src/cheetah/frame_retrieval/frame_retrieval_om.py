@@ -1,8 +1,8 @@
 """
 Frame retrieval from OM data retrieval.
 """
+import logging
 
-import numpy.typing
 from typing import Any, Dict, List, TextIO, cast
 
 try:
@@ -10,16 +10,17 @@ try:
 except:
     from typing_extensions import TypedDict
 
-from om.algorithms.crystallography import Peakfinder8PeakDetection
-from om.algorithms.crystallography import TypePeakList as OmTypePeakList
-from om.data_retrieval_layer import OmFrameDataRetrieval
-from om.utils.parameters import MonitorParams
-from om.utils.crystfel_geometry import TypePixelMaps, pixel_maps_from_geometry_file
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,
     TypePeakList,
 )
+
+from om.algorithms.crystallography import TypePeakList as OmTypePeakList
+from om.data_retrieval_layer import OmEventDataRetrieval
+from om.lib.crystallography import CrystallographyPeakFinding
+from om.lib.geometry import GeometryInformation
+from om.lib.parameters import MonitorParameters
 
 
 class _TypeOmEvent(TypedDict):
@@ -60,7 +61,7 @@ class OmRetrieval(CheetahFrameRetrieval):
             parameters: A dictionary containing configuration parameters for data
                 retrieval from OM data retrieval layer.
 
-                The following parameteres are requires:
+                The following parameteres are required:
 
                 * `om_sources`: A dictionary where the keys are each of the provided
                   `sources` and the values are corresponding to them OM source strings.
@@ -74,22 +75,22 @@ class OmRetrieval(CheetahFrameRetrieval):
                   `sources` and the values are corresponding to then Cheetah peak list
                   files.
         """
-        self._om_retrievals: Dict[str, OmFrameDataRetrieval] = {}
+        self._om_retrievals: Dict[str, OmEventDataRetrieval] = {}
         self._events: List[_TypeOmEvent] = []
         self._peak_lists: Dict[str, Dict[str, TypePeakList]] = {}
-        self._peakfinders: Dict[str, Peakfinder8PeakDetection] = {}
+        self._peakfinders: Dict[str, CrystallographyPeakFinding] = {}
         filename: str
         for filename in sources:
             fh: TextIO
             if filename not in parameters["om_sources"].keys():
-                print(
+                logging.warning(
                     f"OM source string for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
                 continue
 
             if filename not in parameters["om_configs"].keys():
-                print(
+                logging.warning(
                     f"OM config file for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
@@ -100,20 +101,19 @@ class OmRetrieval(CheetahFrameRetrieval):
                 event_ids: List[str] = [line.strip() for line in fh]
                 if len(event_ids) > 0:
                     try:
-                        monitor_params: MonitorParams = MonitorParams(
+                        monitor_params: MonitorParameters = MonitorParameters(
                             config=parameters["om_configs"][filename]
                         )
-                        self._om_retrievals[filename] = OmFrameDataRetrieval(
+                        self._om_retrievals[filename] = OmEventDataRetrieval(
                             source=parameters["om_sources"][filename],
                             monitor_parameters=monitor_params,
                         )
                     except Exception as e:
-                        print(
+                        logging.exception(
                             f"Couldn't initialize OM frame retrieval from "
                             f"{parameters['om_sources'][filename]} source using "
                             f"{parameters['om_configs'][filename]} config file: "
                         )
-                        print(e)
                         continue
                     self._events.extend(
                         [{"filename": filename, "event_id": eid} for eid in event_ids]
@@ -139,21 +139,17 @@ class OmRetrieval(CheetahFrameRetrieval):
                             parameters["peak_lists"][filename], bin_size
                         )
                     else:
-                        pixelmaps: TypePixelMaps = pixel_maps_from_geometry_file(
-                            filename=monitor_params.get_parameter(
+                        geometry_information: GeometryInformation = GeometryInformation(
+                            geometry_filename=monitor_params.get_parameter(
                                 group="crystallography",
                                 parameter="geometry_file",
                                 parameter_type=str,
                                 required=True,
                             )
                         )
-                        self._peakfinders[filename] = Peakfinder8PeakDetection(
-                            parameters=monitor_params.get_parameter_group(
-                                group="peakfinder8_peak_detection"
-                            ),
-                            radius_pixel_map=cast(
-                                numpy.typing.NDArray[numpy.float_], pixelmaps["radius"]
-                            ),
+                        self._peakfinders[filename] = CrystallographyPeakFinding(
+                            parameters=monitor_params,
+                            geometry_information=geometry_information,
                         )
 
         self._num_events: int = len(self._events)
@@ -231,8 +227,8 @@ class OmRetrieval(CheetahFrameRetrieval):
         filename: str = self._events[event_index]["filename"]
         event_id: str = self._events[event_index]["event_id"]
 
-        data: Dict[str, Any] = self._om_retrievals[filename].retrieve_frame_data(
-            event_id=event_id, frame_id="0"
+        data: Dict[str, Any] = self._om_retrievals[filename].retrieve_event_data(
+            event_id=event_id
         )
 
         event_data["data"] = data["detector_data"]
@@ -243,7 +239,7 @@ class OmRetrieval(CheetahFrameRetrieval):
             event_data["peaks"] = self._peak_lists[filename][event_id]
         elif filename in self._peakfinders.keys():
             peak_list: OmTypePeakList = self._peakfinders[filename].find_peaks(
-                data=event_data["data"]
+                detector_data=event_data["data"]
             )
             event_data["peaks"] = {
                 "num_peaks": peak_list["num_peaks"],

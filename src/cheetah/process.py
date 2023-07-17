@@ -4,14 +4,15 @@ Cheetah Process.
 This module contains classes and functions that allow configuring and launching Cheetah
 processing jobs.
 """
-import jinja2
+import logging
 import pathlib
 import shutil
 import stat
 import subprocess
-import yaml
+from typing import Any, Callable, Dict, TextIO, Union
 
-from typing import Callable, TextIO, Union, Dict, Any
+import jinja2
+import yaml
 
 try:
     from typing import Literal, TypedDict
@@ -21,11 +22,16 @@ except:
 from cheetah.crawlers import facilities
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
 
+logger = logging.getLogger(__name__)
+
 
 class _TypeOmConfigTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill OM config
     # template, which can be used to process data from a single run.
 
+    processing_layer: Union[
+        Literal["CheetahProcessing"], Literal["StreamingCheetahProcessing"]
+    ]
     psana_calib_dir: pathlib.Path
     output_dir: pathlib.Path
     experiment_id: str
@@ -35,7 +41,7 @@ class _TypeOmConfigTemplateData(TypedDict, total=False):
     mask_file: Union[pathlib.Path, Literal["null"]]
 
 
-class _TypeProcessScriptTemplateData(TypedDict):
+class _TypeProcessScriptTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill process script
     # template, which can be used to process data from a single run.
 
@@ -44,6 +50,9 @@ class _TypeProcessScriptTemplateData(TypedDict):
     n_processes: int
     om_source: str
     om_config: pathlib.Path
+    filename_prefix: str
+    geometry_file: pathlib.Path
+    output_dir: pathlib.Path
 
 
 class TypeProcessingConfig(TypedDict):
@@ -81,6 +90,7 @@ class CheetahProcess:
         process_template: pathlib.Path,
         raw_directory: pathlib.Path,
         proc_directory: pathlib.Path,
+        streaming: bool = False,
     ) -> None:
         """
         Cheetah Process.
@@ -122,6 +132,13 @@ class CheetahProcess:
         self._kill_processing_job: Callable[[str], str] = facilities[self._facility][
             "kill_processing_job"
         ]
+        if streaming:
+            self._om_processing_layer: Union[
+                Literal["CheetahProcessing"],
+                Literal["StreamingCheetahProcessing"],
+            ] = "StreamingCheetahProcessing"
+        else:
+            self._om_processing_layer = "CheetahProcessing"
 
     def _raw_id_to_proc_id(self, raw_id: str) -> str:
         # Converts raw run ID to processed run ID by replacing all "-" signs with "_".
@@ -193,6 +210,8 @@ class CheetahProcess:
         if error == "":
             status["Status"] = "Cancelled"
             self._write_status_file(status_filename, status)
+        else:
+            logger.error(error)
         return error
 
     def process_run(
@@ -231,17 +250,8 @@ class CheetahProcess:
                 parameter will be inserted in the process script template. If this
                 parameter is None, 12 nodes will be used. Defaults to None.
         """
-        om_config_template_file: pathlib.Path = pathlib.Path(config["config_template"])
-        tag: str = config["tag"]
-        geometry_file: pathlib.Path = pathlib.Path(config["geometry"])
-        if config["mask"]:
-            mask_file: Union[pathlib.Path, Literal["null"]] = pathlib.Path(
-                config["mask"]
-            )
-        else:
-            mask_file = "null"
-
         proc_id: str = self._raw_id_to_proc_id(run_id)
+        tag: str = config["tag"]
         if tag:
             output_directory_name: str = f"{proc_id}-{tag}"
         else:
@@ -249,16 +259,42 @@ class CheetahProcess:
         output_directory: pathlib.Path = self._proc_directory / output_directory_name
 
         if output_directory.is_dir():
-            print(
+            logger.info(
                 f"Moving to existing data directory {output_directory}\n"
                 f"Deleting previous files"
             )
-            shutil.rmtree(output_directory)
+            try:
+                shutil.rmtree(output_directory)
+            except Exception as e:
+                logger.error(f"Couldn't clean {output_directory}: {e}.")
+                return
         else:
-            print(f"Creating hdf5 data directory {output_directory}")
+            logger.info(f"Creating hdf5 data directory {output_directory}")
         output_directory.mkdir(parents=True)
 
-        print(f"Copying configuration file: {om_config_template_file}")
+        # Copy input files to the output directory
+        input_files_directory: pathlib.Path = output_directory / "input_files"
+        input_files_directory.mkdir()
+
+        om_config_template_file: pathlib.Path = (
+            input_files_directory / pathlib.Path(config["config_template"]).name
+        )
+        shutil.copy(config["config_template"], om_config_template_file)
+
+        geometry_file: pathlib.Path = (
+            input_files_directory / pathlib.Path(config["geometry"]).name
+        )
+        shutil.copy(config["geometry"], geometry_file)
+
+        if config["mask"]:
+            mask_file: Union[pathlib.Path, Literal["null"]] = (
+                input_files_directory / pathlib.Path(config["mask"]).name
+            )
+            shutil.copy(config["mask"], mask_file)
+        else:
+            mask_file = "null"
+
+        logger.info(f"Copying configuration file: {om_config_template_file}")
         om_config_file: pathlib.Path = output_directory / "monitor.yaml"
 
         fh: TextIO
@@ -266,6 +302,7 @@ class CheetahProcess:
             om_config_template: jinja2.Template = jinja2.Template(fh.read())
 
         om_config_data: _TypeOmConfigTemplateData = {
+            "processing_layer": self._om_processing_layer,
             "psana_calib_dir": self._raw_directory.parent / "calib",
             "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
@@ -294,6 +331,9 @@ class CheetahProcess:
             "n_processes": n_processes,
             "om_source": om_source,
             "om_config": om_config_file,
+            "filename_prefix": proc_id.split("/")[-1],
+            "output_dir": output_directory,
+            "geometry_file": geometry_file,
         }
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))

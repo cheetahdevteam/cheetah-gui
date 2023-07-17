@@ -8,12 +8,18 @@ adu_per_photon = 1
 res = 13333.3   ; 75 micron pixel size
 
 ; These lines describe the data layout for the Eiger native multi-event files
-dim0 = %
-dim1 = ss
-dim2 = fs
-data = /entry/data/data
+; dim0 = %
+; dim1 = ss
+; dim2 = fs
+; data = /entry/data/data
 
-peak_info_location = /entry_1/result_1
+peak_list = peak_list
+
+dim0 = ss
+dim1 = fs
+data = detector_data
+
+; peak_info_location = /entry_1/result_1
 
 ; Uncomment these lines if you have a separate bad pixel map (recommended!)
 ; mask_file = /path/to/mask.h5
