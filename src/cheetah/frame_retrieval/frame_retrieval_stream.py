@@ -18,6 +18,7 @@ from cheetah.frame_retrieval.base import (
     TypeEventData,
     TypePeakList,
 )
+from cheetah.utils.logging import log_subprocess_run_output
 
 from om.algorithms.generic import Binning, BinningPassthrough
 from om.data_retrieval_layer import OmEventDataRetrieval
@@ -138,8 +139,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
         output: subprocess.CompletedProcess = subprocess.run(
             command, shell=True, capture_output=True
         )
-        if output.stderr:
-            logger.error(output.stderr.decode())
+        log_subprocess_run_output(output, logger, only_errors=True)
 
         offsets: List[int] = [int(line) for line in output.stdout.split()]
         try:

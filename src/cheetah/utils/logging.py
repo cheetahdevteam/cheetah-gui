@@ -67,6 +67,30 @@ Logging configuration dictionary.
 """
 
 
+def log_subprocess_run_output(
+    output: subprocess.CompletedProcess,
+    logger: logging.Logger,
+    only_errors: bool = False,
+) -> None:
+    """
+    Log the output of a subprocess run.
+
+    Arguments:
+
+        output: The output of the subprocess run.
+
+        logger: The logging.Logger instance to use for logging the output.
+    """
+    line: str
+    for line in output.stderr.decode().splitlines():
+        if line:
+            logger.error(line)
+    if not only_errors:
+        for line in output.stdout.decode().splitlines():
+            if line:
+                logger.info(line)
+
+
 class LoggingPopen(subprocess.Popen):
     """
     See documentation of the `__init__` function.
