@@ -9,7 +9,7 @@ import pathlib
 import shutil
 import stat
 import subprocess
-from typing import Any, Callable, Dict, TextIO, Union
+from typing import Any, Callable, Dict, TextIO, Union, Optional
 
 import jinja2
 import yaml
@@ -21,6 +21,7 @@ except:
 
 from cheetah.crawlers import facilities
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
+from cheetah.utils.logging import log_subprocess_run_output
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,27 @@ class _TypeProcessScriptTemplateData(TypedDict, total=False):
     filename_prefix: str
     geometry_file: pathlib.Path
     output_dir: pathlib.Path
+    cell_file_arg: str
+    indexing_arg: str
+    extra_args: str
+
+
+class TypeIndexingConfig(TypedDict):
+    """
+    A dictionary storing indexing configuration parameters.
+
+    Attributes:
+
+        cell_file: The path of the cell file passed to indexamajig `-p` argument.
+
+        indexing: Indexing methods passed to indexamajig `--indexing` argument.
+
+        extra_args: Extra arguments passed to the indexamajig command.
+    """
+
+    cell_file: str
+    indexing: str
+    extra_args: str
 
 
 class TypeProcessingConfig(TypedDict):
@@ -68,12 +90,17 @@ class TypeProcessingConfig(TypedDict):
         geometry: The path of the geometry file.
 
         mask: The path of the mask file.
+
+        indexing_config: A [TypeIndexingConfig][cheetah.process.TypeIndexingConfig]
+            dictionary containing indexing configuration parameters or None if indexing
+            is not used.
     """
 
     config_template: str
     tag: str
     geometry: str
     mask: str
+    indexing_config: Optional[TypeIndexingConfig]
 
 
 class CheetahProcess:
@@ -218,8 +245,8 @@ class CheetahProcess:
         self,
         run_id: str,
         config: TypeProcessingConfig,
-        queue: Union[str, None] = None,
-        n_processes: Union[int, None] = None,
+        queue: Optional[str] = None,
+        n_processes: Optional[int] = None,
     ) -> None:
         """
         Launch processing of a single run.
@@ -325,6 +352,16 @@ class CheetahProcess:
             queue = facilities[self._facility]["guess_batch_queue"](self._raw_directory)
         if not n_processes:
             n_processes = 12
+
+        if config["indexing_config"]:
+            cell_file_arg: str = f"-p {config['indexing_config']['cell_file']}"
+            indexing_arg: str = f"--indexing={config['indexing_config']['indexing']}"
+            extra_args: str = config["indexing_config"]["extra_args"]
+        else:
+            cell_file_arg = ""
+            indexing_arg = ""
+            extra_args = ""
+
         process_script_data: _TypeProcessScriptTemplateData = {
             "queue": queue,
             "job_name": output_directory_name,
@@ -334,12 +371,19 @@ class CheetahProcess:
             "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
             "geometry_file": geometry_file,
+            "cell_file_arg": cell_file_arg,
+            "indexing_arg": indexing_arg,
+            "extra_args": extra_args,
         }
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))
 
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
-        subprocess.run(f"{process_script}", cwd=output_directory)
+        output: subprocess.CompletedProcess = subprocess.run(
+            f"{process_script}", cwd=output_directory, shell=True, capture_output=True
+        )
+        log_subprocess_run_output(output, logger)
+
         self._write_status_file(
             output_directory / "status.txt", {"Status": "Submitted"}
         )

@@ -731,6 +731,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         dialog: process_dialogs.RunProcessingDialog = (
             process_dialogs.RunProcessingDialog(
                 self.experiment.get_last_processing_config(first_selected_hdf5_dir),
+                streaming,
                 self,
             )
         )
@@ -1181,7 +1182,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if len(stream_files) == 0:
             logger.info(f"There's no stream files in the selected directories yet.")
             return
-        command: str = f"cell_explorer {stream_files[0]}"
+        command: str = f"cell_explorer {stream_files[0]} 2>&1"
         logger.info(f"Running command: {command}")
         LoggingPopen(logger.getChild("cell_explorer"), command, shell=True)
 

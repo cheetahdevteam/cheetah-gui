@@ -16,11 +16,14 @@ module load maxwell crystfel/0-devel
 indexamajig --zmq-input=ipc:///{{output_dir}}/ipc-socket --zmq-request=next  \
 	-g {{geometry_file}} -j 16 --peaks=msgpack --copy-header=timestamp --copy-header=event_id \
 	--copy-header=source --copy-header=configuration_file --data-format=msgpack \
-	--indexing=asdf --asdf-fast --no-revalidate -o {{filename_prefix}}.stream  > crystfel.out 2>&1 &
+	{{cell_file_arg}} {{indexing_arg}} {{extra_args}} \
+	-o {{filename_prefix}}.stream > crystfel.out 2>&1 &
 
 pid=$!
 
 mpirun -n 16 om_monitor.py {{om_source}} -c {{om_config}} > om.out 2>&1
+
+sleep 60
 kill -10 $pid
 rm -rf indexamajig.*
 

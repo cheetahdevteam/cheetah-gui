@@ -8,10 +8,10 @@ parameters and launching data processing.
 import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any
+from typing import Any, Optional
 
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
-from cheetah.process import TypeProcessingConfig
+from cheetah.process import TypeProcessingConfig, TypeIndexingConfig
 
 
 class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
@@ -22,6 +22,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
     def __init__(
         self,
         last_config: TypeProcessingConfig,
+        streaming: bool = False,
         parent: Any = None,
     ) -> None:
         """
@@ -80,6 +81,27 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         mask_layout.addWidget(self._mask_button)
         form_layout.addRow("Mask file: ", mask_layout)
 
+        self._cell_file_le: Any = QtWidgets.QLineEdit()
+        self._cell_file_button: Any = QtWidgets.QPushButton("Browse")
+        self._cell_file_button.clicked.connect(self._select_cell_file)
+        cell_file_layout: Any = QtWidgets.QHBoxLayout()
+        cell_file_layout.addWidget(self._cell_file_le)
+        cell_file_layout.addWidget(self._cell_file_button)
+        self._indexing_le: Any = QtWidgets.QLineEdit()
+        self._extra_args_le: Any = QtWidgets.QLineEdit()
+
+        self._streaming: bool = streaming
+        if self._streaming:
+            form_layout.addRow("Unit cell file: ", cell_file_layout)
+            form_layout.addRow("Indexing methods [--indexing=]: ", self._indexing_le)
+            form_layout.addRow("Extra indexamajig arguments: ", self._extra_args_le)
+            if last_config["indexing_config"]:
+                self._cell_file_le.setText(last_config["indexing_config"]["cell_file"])
+                self._indexing_le.setText(last_config["indexing_config"]["indexing"])
+                self._extra_args_le.setText(
+                    last_config["indexing_config"]["extra_args"]
+                )
+
         self._button_box: Any = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok
         )
@@ -115,6 +137,16 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             if not mask_file.is_file():
                 PathDoesNotExistDialog(mask_file.parent, mask_file.name, self).exec()
                 return
+        if self._streaming and self._config["indexing_config"]:
+            if self._config["indexing_config"]["cell_file"]:
+                cell_file: pathlib.Path = pathlib.Path(
+                    self._config["indexing_config"]["cell_file"]
+                )
+                if not cell_file.is_file():
+                    PathDoesNotExistDialog(
+                        cell_file.parent, cell_file.name, self
+                    ).exec()
+                    return
         self.done(1)
 
     def _cancel(self) -> None:
@@ -123,11 +155,20 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
 
     def _check_config(self) -> None:
         # Checks that all required fields are filled, if not disables "OK" button.
+        if self._streaming:
+            indexing_config: Optional[TypeIndexingConfig] = {
+                "cell_file": self._cell_file_le.text(),
+                "indexing": self._indexing_le.text().replace(" ", ""),
+                "extra_args": self._extra_args_le.text(),
+            }
+        else:
+            indexing_config = None
         self._config: TypeProcessingConfig = {
             "config_template": self._template_le.text(),
             "tag": self._tag_le.text(),
             "geometry": self._geometry_le.text(),
             "mask": self._mask_le.text(),
+            "indexing_config": indexing_config,
         }
         if not self._config["config_template"] or not self._config["geometry"]:
             self._button_box.buttons()[0].setEnabled(False)
@@ -174,6 +215,20 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         file_selection_dialog.setNameFilter("*.h5")
         if file_selection_dialog.exec_():
             self._mask_le.setText(file_selection_dialog.selectedFiles()[0])
+            self._check_config()
+
+    def _select_cell_file(self) -> None:
+        # Opens file selection dialog to select *.cell or *.pdb file.
+        path: pathlib.Path = pathlib.Path(self._cell_file_le.text()).parent
+        if not path.exists():
+            path = pathlib.Path.cwd()
+        file_selection_dialog: Any = QtWidgets.QFileDialog(
+            self, "Select unit cell file", str(path)
+        )
+        file_selection_dialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
+        file_selection_dialog.setNameFilter("*.cell *.pdb")
+        if file_selection_dialog.exec_():
+            self._cell_file_le.setText(file_selection_dialog.selectedFiles()[0])
             self._check_config()
 
     def get_config(

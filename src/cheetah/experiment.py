@@ -8,7 +8,7 @@ import logging
 import pathlib
 import shutil
 import stat
-from typing import Any, Dict, List, TextIO, Union, cast
+from typing import Any, Dict, List, TextIO, cast, Optional
 
 import yaml
 
@@ -19,7 +19,7 @@ except:
 
 from cheetah.crawlers import TypeDetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
-from cheetah.process import CheetahProcess, TypeProcessingConfig
+from cheetah.process import CheetahProcess, TypeProcessingConfig, TypeIndexingConfig
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class CheetahExperiment:
     def __init__(
         self,
         path: pathlib.Path,
-        new_experiment_config: Union[None, TypeExperimentConfig] = None,
+        new_experiment_config: Optional[TypeExperimentConfig] = None,
         gui: bool = True,
     ) -> None:
         """
@@ -118,7 +118,7 @@ class CheetahExperiment:
             self._proc_directory,
         )
         if (self._process_directory / "streaming_template.sh").exists():
-            self._streaming_process: Union[None, CheetahProcess] = CheetahProcess(
+            self._streaming_process: Optional[CheetahProcess] = CheetahProcess(
                 self._facility,
                 self._instrument,
                 self._detector,
@@ -167,6 +167,7 @@ class CheetahExperiment:
                             self._last_process_config_filename
                         ),
                         "cheetah_tag": self._last_tag,
+                        "indexing_config": self._last_indexing_config,
                     },
                     Dumper=CheetahSafeDumper,
                     sort_keys=False,
@@ -235,12 +236,18 @@ class CheetahExperiment:
             pathlib.Path(crawler_config["geometry"]), self._base_path
         )
         if crawler_config["mask"]:
-            self._last_mask: Union[pathlib.Path, None] = self._resolve_path(
+            self._last_mask: Optional[pathlib.Path] = self._resolve_path(
                 pathlib.Path(crawler_config["mask"]), self._base_path
             )
         else:
             self._last_mask = None
         self._last_tag: str = crawler_config["cheetah_tag"]
+        if "indexing_config" in crawler_config:
+            self._last_indexing_config: Optional[TypeIndexingConfig] = crawler_config[
+                "indexing_config"
+            ]
+        else:
+            self._last_indexing_config = None
 
     def _setup_new_experiment(
         self, new_experiment_config: TypeExperimentConfig
@@ -337,6 +344,7 @@ class CheetahExperiment:
 
         self._last_process_config_filename = self._process_directory / "template.yaml"
         self._last_tag = ""
+        self._last_indexing_config = None
 
     def _update_previous_experiments_list(self) -> None:
         # Updates the list of experiments in ~/.cheetah-crawler2, setting current
@@ -452,7 +460,7 @@ class CheetahExperiment:
         return self._instrument
 
     def get_last_processing_config(
-        self, run_proc_dir: Union[str, None] = None
+        self, run_proc_dir: Optional[str] = None
     ) -> TypeProcessingConfig:
         """
         Get the last processing config.
@@ -479,15 +487,21 @@ class CheetahExperiment:
             if process_config_filename.is_file():
                 fh: TextIO
                 with open(process_config_filename, "r") as fh:
-                    run_process_config: Dict[str, Any] = yaml.safe_load(fh)
-                return cast(
-                    TypeProcessingConfig, run_process_config["Processing config"]
-                )
+                    run_process_config: Dict[str, Any] = yaml.safe_load(fh)[
+                        "Processing config"
+                    ]
+                if (
+                    "indexing_config" not in run_process_config
+                    or run_process_config["indexing_config"] is None
+                ):
+                    run_process_config["indexing_config"] = self._last_indexing_config
+                return cast(TypeProcessingConfig, run_process_config)
         return {
             "config_template": str(self._last_process_config_filename),
             "tag": self._last_tag,
             "geometry": str(self._last_geometry),
             "mask": str(self._last_mask) if self._last_mask else "",
+            "indexing_config": self._last_indexing_config,
         }
 
     def get_raw_directory(self) -> pathlib.Path:
@@ -577,10 +591,10 @@ class CheetahExperiment:
     def process_runs(
         self,
         run_ids: List[str],
-        processing_config: Union[TypeProcessingConfig, None],
+        processing_config: Optional[TypeProcessingConfig],
         streaming: bool,
-        queue: Union[str, None] = None,
-        n_processes: Union[int, None] = None,
+        queue: Optional[str] = None,
+        n_processes: Optional[int] = None,
     ) -> None:
         """
         Launch processing of a list of runs.
@@ -621,6 +635,8 @@ class CheetahExperiment:
                 self._last_mask = pathlib.Path(processing_config["mask"])
             else:
                 self._last_mask = None
+            if processing_config["indexing_config"]:
+                self._last_indexing_config = processing_config["indexing_config"]
 
         run_id: str
         if streaming:
