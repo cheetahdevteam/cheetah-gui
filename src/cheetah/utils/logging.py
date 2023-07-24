@@ -54,6 +54,11 @@ logging_config: Dict[str, Any] = {
             "handlers": ["console_simple"],
             "propagate": False,
         },
+        "cheetah.frame_retrieval": {
+            "level": "INFO",
+            "handlers": ["console_simple"],
+            "propagate": False,
+        },
     },
     "root": {"level": "INFO", "handlers": ["console_gui"]},
 }
@@ -114,7 +119,7 @@ class LoggingPopen(subprocess.Popen):
 
 class GuiFormatter(logging.Formatter):
     """
-    See documentation of the `format` function.
+    See documentation of the `__init__` function.
     """
 
     info_fmt: str = "[%(asctime)s.%(msecs)03d] %(name)s - %(message)s"
@@ -158,7 +163,7 @@ class GuiFormatter(logging.Formatter):
 
 class SimpleFormatter(logging.Formatter):
     """
-    See documentation of the `format` function.
+    See documentation of the `__init__` function.
     """
 
     info_fmt: str = "%(message)s"

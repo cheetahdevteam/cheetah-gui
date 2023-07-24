@@ -22,6 +22,8 @@ from om.lib.crystallography import CrystallographyPeakFinding
 from om.lib.geometry import GeometryInformation
 from om.lib.parameters import MonitorParameters
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 class _TypeOmEvent(TypedDict):
     # A dictionary used internally to store information about a single data event which
@@ -83,14 +85,14 @@ class OmRetrieval(CheetahFrameRetrieval):
         for filename in sources:
             fh: TextIO
             if filename not in parameters["om_sources"].keys():
-                logging.warning(
+                logger.warning(
                     f"OM source string for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
                 continue
 
             if filename not in parameters["om_configs"].keys():
-                logging.warning(
+                logger.warning(
                     f"OM config file for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
@@ -109,7 +111,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                             monitor_parameters=monitor_params,
                         )
                     except Exception as e:
-                        logging.exception(
+                        logger.exception(
                             f"Couldn't initialize OM frame retrieval from "
                             f"{parameters['om_sources'][filename]} source using "
                             f"{parameters['om_configs'][filename]} config file: "

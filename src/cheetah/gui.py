@@ -29,7 +29,7 @@ from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
 from cheetah.utils.logging import LoggingPopen, QtHandler, logging_config
 
-logger = logging.getLogger("cheetah")
+logger: logging.Logger = logging.getLogger("cheetah")
 
 
 class _CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -182,7 +182,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         This class is initialized when Cheetah processing is triggered for a list of
         runs from Cheetah GUI, creating a separate Qt thread. When the thread is
         started it calls the [run][cheetah.gui.ProcessThread.run] function, which
-        launches processing for each run in the list calling.
+        launches processing for each run in the list.
 
         Arguments:
             experiment: An instance of
@@ -517,6 +517,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_file_start_crawler.setEnabled(True)
         self._ui.menu_cheetah_process_runs.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
+        self._ui.menu_cheetah_remove_processing.setEnabled(True)
         self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(True)
         if self.experiment._streaming_process is not None:
             self._ui.action_run_streaming.setEnabled(True)

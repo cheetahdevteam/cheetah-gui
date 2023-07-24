@@ -24,6 +24,8 @@ from om.data_retrieval_layer import OmEventDataRetrieval
 from om.lib.geometry import GeometryInformation
 from om.lib.parameters import MonitorParameters
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 
 class _TypeStreamEvent(TypedDict):
     # A dictionary used internally to store information about a single data event in a
@@ -78,7 +80,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
         for filename in sources:
             offsets: List[int] = self._get_index(pathlib.Path(filename))
             if len(offsets) == 0:
-                logging.info(f"No events found in {filename}.")
+                logger.info(f"No events found in {filename}.")
                 continue
             self._streams[filename] = open(filename, "r")
             self._events.extend(
@@ -119,34 +121,34 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 index_mtime: float = float(fh.readline().split("=")[1])
                 offsets: List[int] = [int(line) for line in fh]
             if index_mtime >= stream_mtime:
-                logging.info(f"Loading chunk offsets from {index_filename}.")
+                logger.info(f"Loading chunk offsets from {index_filename}.")
                 return offsets
             else:
-                logging.info(
+                logger.info(
                     f"Index file {index_filename} is outdated, creating new index."
                 )
         else:
-            logging.info(f"Creating new index.")
+            logger.info(f"Creating new index.")
 
         command: str = (
             f"grep --byte-offset 'Begin chunk' {stream_filename} "
             "| awk '{print $1}' FS=':'"
         )
-        logging.info(f"Running command: {command}")
+        logger.info(f"Running command: {command}")
         output: subprocess.CompletedProcess = subprocess.run(
             command, shell=True, capture_output=True
         )
         if output.stderr:
-            logging.error(output.stderr.decode())
+            logger.error(output.stderr.decode())
 
         offsets: List[int] = [int(line) for line in output.stdout.split()]
         try:
             with open(index_filename, "w") as fh:
                 fh.write(f"stream_mtime={stream_filename.stat().st_mtime}\n")
                 fh.write(output.stdout.decode())
-                logging.info(f"Writing new index file {index_filename}.")
+                logger.info(f"Writing new index file {index_filename}.")
         except PermissionError as e:
-            logging.warning(f"Couldn't write index file {index_filename}:\n{e}")
+            logger.warning(f"Couldn't write index file {index_filename}:\n{e}")
 
         return offsets
 
@@ -298,7 +300,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                         # Initialize binning algorithm once to be applied to all frames
                         self._initialize_binning(monitor_params)
                 except Exception as e:
-                    logging.exception(
+                    logger.exception(
                         f"Couldn't initialize OM frame retrieval from "
                         f"{chunk_data['om_source']} source using "
                         f"{chunk_data['om_config']} config file:"
@@ -316,7 +318,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     event_data["data"] = om_data["detector_data"]
                 event_data["source"] = chunk_data["om_event_id"]
             except Exception as e:
-                logging.exception(
+                logger.exception(
                     f"Couldn't extract image data for event id "
                     f"{chunk_data['om_event_id']}:"
                 )
@@ -332,7 +334,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     "source"
                 ] = f"{chunk_data['image_filename']} // {chunk_data['event']}"
             except:
-                logging.exception(
+                logger.exception(
                     f"Couldn't extract image data from {chunk_data['image_filename']},"
                     f" event //{chunk_data['event']}"
                 )
