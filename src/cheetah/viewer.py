@@ -34,7 +34,6 @@ from om.lib.geometry import (
     TypePixelMaps,
     TypeVisualizationPixelMaps,
     _compute_pix_maps,
-    _load_crystfel_geometry_from_file,
     _read_crystfel_geometry_from_text,
 )
 
@@ -1034,7 +1033,11 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     # the geometry file.
     geometry: TypeDetector
     beam: TypeBeam
-    geometry, beam, __ = _load_crystfel_geometry_from_file(filename=geometry_filename)
+    fh: TextIO
+    with open(geometry_filename, "r") as fh:
+        geometry, beam, __ = _read_crystfel_geometry_from_text(
+            text_lines=fh.readlines()
+        )
     first_panel: str = list(geometry["panels"].keys())[0]
     return {
         "hdf5_data_path": geometry["panels"][first_panel]["data"],
