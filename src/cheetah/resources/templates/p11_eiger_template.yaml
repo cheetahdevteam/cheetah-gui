@@ -1,6 +1,6 @@
 om:
   parallelization_layer: MpiParallelization
-  data_retrieval_layer: Eiger16MFilesDataRetrieval
+  data_retrieval_layer: EigerFilesDataRetrieval
   processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
@@ -42,12 +42,11 @@ crystallography:
   running_average_window_size: 200
   geometry_is_optimized: false
   speed_report_interval: 100
-  binning: false
+  post_processing_binning: false
   responding_url: "ipc://{{output_dir}}/ipc-socket"
   external_data_request_list_size: 16
 
 binning:
-  detector_type: eiger16M
   bin_size: 2
   bad_pixel_map_filename: {{mask_file}}
   bad_pixel_map_hdf5_path: /data/data
@@ -55,15 +54,14 @@ binning:
   bad_pixel_value: -1
 
 peakfinder8_peak_detection:
-  detector_type: eiger16M
   max_num_peaks: 2048
-  adc_threshold: 20
+  adc_threshold: 10
   minimum_snr: 5.0
-  min_pixel_count: 1
+  min_pixel_count: 2
   max_pixel_count: 50
-  local_bg_radius: 2
+  local_bg_radius: 4
   min_res: 10
-  max_res: 2000
+  max_res: 1200
   bad_pixel_map_filename: {{mask_file}}
   bad_pixel_map_hdf5_path: /data/data
   fast_mode: true
