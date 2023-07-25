@@ -430,6 +430,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_cheetah_remove_processing.triggered.connect(
             self._remove_processing
         )
+        self._ui.menu_cheetah_peakfinder_parameters.triggered.connect(
+            self._edit_peakfinder_parameters
+        )
 
         # Mask menu actions
         self._ui.menu_mask_maker.triggered.connect(self._open_maskmaker)
@@ -457,16 +460,29 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.menu_log_crystfel.triggered.connect(self._view_crystfel_log)
 
         # Disable action commands until enabled
-        self._ui.action_run_files.setEnabled(False)
-        self._ui.action_run_streaming.setEnabled(False)
-        self._ui.action_kill_processing.setEnabled(False)
-        self._ui.action_remove_processing.setEnabled(False)
-        self._ui.menu_file_start_crawler.setEnabled(False)
-        self._ui.menu_cheetah_process_runs.setEnabled(False)
-        self._ui.menu_cheetah_process_streaming.setEnabled(False)
-        self._ui.menu_cheetah_kill_processing.setEnabled(False)
-        self._ui.menu_cheetah_remove_processing.setEnabled(False)
-        self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(False)
+        self._action_commands: List[QtWidgets.QAction] = [
+            self._ui.action_run_files,
+            self._ui.action_run_streaming,
+            self._ui.action_kill_processing,
+            self._ui.action_remove_processing,
+            self._ui.action_crawler,
+            self._ui.menu_file_start_crawler,
+            self._ui.menu_cheetah_process_runs,
+            self._ui.menu_cheetah_process_streaming,
+            self._ui.menu_cheetah_kill_processing,
+            self._ui.menu_cheetah_remove_processing,
+            self._ui.menu_cheetah_process_jungfrau_darks,
+            self._ui.menu_cheetah_peakfinder_parameters,
+        ]
+        self._streaming_commands: List[QtWidgets.QAction] = [
+            self._ui.action_run_streaming,
+            self._ui.menu_cheetah_process_streaming,
+        ]
+        action: QtWidgets.QAction
+        for action in self._action_commands:
+            action.setEnabled(False)
+        for action in self._streaming_commands:
+            action.setEnabled(False)
         self._ui.menu_file_command.triggered.connect(self._enable_commands)
 
         if command:
@@ -510,18 +526,30 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _enable_commands(self) -> None:
         # Enables "command operations": starting the crawler and processing runs.
-        self._ui.action_run_files.setEnabled(True)
-        self._ui.action_kill_processing.setEnabled(True)
-        self._ui.action_remove_processing.setEnabled(True)
-        self._ui.action_crawler.setEnabled(True)
-        self._ui.menu_file_start_crawler.setEnabled(True)
-        self._ui.menu_cheetah_process_runs.setEnabled(True)
-        self._ui.menu_cheetah_kill_processing.setEnabled(True)
-        self._ui.menu_cheetah_remove_processing.setEnabled(True)
-        self._ui.menu_cheetah_process_jungfrau_darks.setEnabled(True)
+        action: QtWidgets.QAction
+        for action in self._action_commands:
+            action.setEnabled(True)
         if self.experiment._streaming_process is not None:
-            self._ui.action_run_streaming.setEnabled(True)
-            self._ui.menu_cheetah_process_streaming.setEnabled(True)
+            for action in self._streaming_commands:
+                action.setEnabled(True)
+
+    def _edit_peakfinder_parameters(self) -> None:
+        # Opens a dialog to select a config file and edit peakfinder parameters.
+        selected_proc_dirs: Tuple[str, ...] = self._get_selected_rows().proc_dirs
+        if len(selected_proc_dirs) == 0 or selected_proc_dirs[0] in ("---", ""):
+            first_selected_hdf5_dir: Optional[str] = None
+        else:
+            first_selected_hdf5_dir = selected_proc_dirs[0]
+        latest_config_template: str = self.experiment.get_last_processing_config(
+            first_selected_hdf5_dir
+        )["config_template"]
+        selected_config_template: str = QtWidgets.QFileDialog().getOpenFileName(
+            self, "Select config template file", latest_config_template, filter="*.yaml"
+        )[0]
+        if selected_config_template:
+            process_dialogs.PeakfinderParametersDialog(
+                selected_config_template, self
+            ).exec_()
 
     def _exit(self) -> None:
         # Prints a message on exit

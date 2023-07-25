@@ -88,7 +88,7 @@
      <x>0</x>
      <y>0</y>
      <width>900</width>
-     <height>20</height>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -116,6 +116,7 @@
     <addaction name="menu_cheetah_kill_processing"/>
     <addaction name="menu_cheetah_process_jungfrau_darks"/>
     <addaction name="menu_cheetah_remove_processing"/>
+    <addaction name="menu_cheetah_peakfinder_parameters"/>
    </widget>
    <widget class="QMenu" name="menuAnalysis">
     <property name="enabled">
@@ -256,11 +257,11 @@
    <addaction name="action_sum_of_blanks"/>
    <addaction name="action_peak_powder"/>
    <addaction name="separator"/>
-   <addaction name="action_view_stream"/>
-   <addaction name="action_cell_explorer"/>
-   <addaction name="separator"/>
    <addaction name="action_hitrate"/>
    <addaction name="action_peakogram"/>
+   <addaction name="separator"/>
+   <addaction name="action_view_stream"/>
+   <addaction name="action_cell_explorer"/>
   </widget>
   <action name="menu_file_autorefresh">
    <property name="text">
@@ -636,6 +637,11 @@
    </property>
    <property name="toolTip">
     <string>Open cell explorer</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_peakfinder_parameters">
+   <property name="text">
+    <string>Edit peakfinder parameters</string>
    </property>
   </action>
  </widget>
