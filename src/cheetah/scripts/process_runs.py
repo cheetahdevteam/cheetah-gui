@@ -7,7 +7,7 @@ This module contains Cheetah process script.
 import click  # type: ignore
 import pathlib
 
-from typing import Union, List
+from typing import Optional, List
 
 from cheetah.experiment import CheetahExperiment
 from cheetah.process import CheetahProcess, TypeProcessingConfig
@@ -88,11 +88,11 @@ def main(
     process_template: str,
     config_template: str,
     experiment_config: str,
-    geometry_filename: Union[str, None],
-    mask_filename: Union[str, None],
+    geometry_filename: Optional[str],
+    mask_filename: Optional[str],
     tag: str,
-    queue: Union[str, None],
-    n_processes: Union[int, None],
+    queue: Optional[str],
+    n_processes: Optional[int],
 ) -> None:
     """
     Cheetah Processing. This script launches processing of one or several runs. The runs

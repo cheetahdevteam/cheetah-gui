@@ -4,7 +4,7 @@ Frame retrieval from files.
 import logging
 import h5py  # type: ignore
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional
 
 try:
     from typing import TypedDict
@@ -71,17 +71,15 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
         """
         self._hdf5_data_path: str = parameters["hdf5_data_path"]
         if "hdf5_peaks_path" in parameters.keys():
-            self._hdf5_peaks_path: Union[str, None] = parameters["hdf5_peaks_path"]
+            self._hdf5_peaks_path: Optional[str] = parameters["hdf5_peaks_path"]
         else:
             self._hdf5_peaks_path = None
         if "photon_energy_path" in parameters.keys():
-            self._photon_energy_path: Union[str, None] = parameters[
-                "photon_energy_path"
-            ]
+            self._photon_energy_path: Optional[str] = parameters["photon_energy_path"]
         else:
             self._photon_energy_path = None
         if "clen_path" in parameters.keys():
-            self._clen_path: Union[str, None] = parameters["clen_path"]
+            self._clen_path: Optional[str] = parameters["clen_path"]
         else:
             self._clen_path = None
 

@@ -9,7 +9,7 @@ import pathlib
 import sys
 from sortedcontainers import SortedList  # type: ignore
 from scipy.ndimage.filters import uniform_filter1d  # type: ignore
-from typing import Any, List, Dict, Union, cast
+from typing import Any, List, Dict, Optional
 
 from numpy.typing import NDArray
 
@@ -53,7 +53,7 @@ class _FramesReader(FileReader):
             )
             self._num_new_events += 1
 
-    def _prepare_output(self) -> Union[None, Dict[str, Any]]:
+    def _prepare_output(self) -> Optional[Dict[str, Any]]:
         # Prepares output dictionary from accumulated data.
         if self._num_new_events == 0:
             return None

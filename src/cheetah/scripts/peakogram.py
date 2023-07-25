@@ -5,7 +5,7 @@ This module contains Cheetah peakogram GUI.
 """
 import pathlib
 import sys
-from typing import Any, Dict, List, Union, cast
+from typing import Any, Dict, List, Optional, cast
 
 import click  # type: ignore
 
@@ -80,7 +80,7 @@ class _PeaksReader(FileReader):
                 }
             )
 
-    def _prepare_output(self) -> Union[None, Dict[str, Any]]:
+    def _prepare_output(self) -> Optional[Dict[str, Any]]:
         # Prepares output dictionary from accumulated data. If there're new peaks in
         # the peak list adds them to the peakogram and returns the resulting peakogram
         # and the total number of loaded peaks.

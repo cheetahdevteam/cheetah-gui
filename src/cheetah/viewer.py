@@ -8,7 +8,7 @@ import logging.config
 import pathlib
 import sys
 from random import randrange
-from typing import Any, Dict, List, TextIO, Tuple, Union
+from typing import Any, Dict, List, TextIO, Tuple, Optional, Union
 
 import click  # type: ignore
 import h5py  # type: ignore
@@ -50,7 +50,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self,
         frame_retrieval: CheetahFrameRetrieval,
         geometry_lines: List[str],
-        mask_filename: Union[str, None] = None,
+        mask_filename: Optional[str] = None,
         mask_hdf5_path: str = "/data/data",
         open_tab: int = 0,
     ) -> None:
@@ -863,7 +863,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def _mask_original_pixels(
         self,
         pixels: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]],
-        mode: Union[None, str] = None,
+        mode: Optional[str] = None,
     ) -> None:
         if mode is None:
             mode = self._mask_mode
@@ -878,7 +878,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
     def _mask_visual_pixels(
         self,
         pixels: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]],
-        mode: Union[None, str] = None,
+        mode: Optional[str] = None,
     ) -> None:
         where_in_image: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = numpy.where(
             (pixels[0] >= 0)
@@ -1169,13 +1169,13 @@ def main(
     input_files: List[str],
     input_type: str,
     geometry_filename: str,
-    mask_filename: Union[str, None],
+    mask_filename: Optional[str],
     hdf5_mask_path: str,
-    hdf5_data_path: Union[str, None],
-    hdf5_peaks_path: Union[str, None],
+    hdf5_data_path: Optional[str],
+    hdf5_peaks_path: Optional[str],
     om_source: str,
     om_config: str,
-    om_peaks_file: Union[str, None],
+    om_peaks_file: Optional[str],
     maskmaker: bool,
 ) -> None:
     """

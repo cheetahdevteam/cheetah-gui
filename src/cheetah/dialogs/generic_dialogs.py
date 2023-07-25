@@ -8,7 +8,7 @@ Cheetah GUI programs.
 import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any, Union
+from typing import Any, Optional
 
 
 class PathDoesNotExistDialog(QtWidgets.QDialog):  # type: ignore
@@ -17,7 +17,7 @@ class PathDoesNotExistDialog(QtWidgets.QDialog):  # type: ignore
     """
 
     def __init__(
-        self, path: pathlib.Path, filename: Union[str, None] = None, parent: Any = None
+        self, path: pathlib.Path, filename: Optional[str] = None, parent: Any = None
     ) -> None:
         """
         Not existing path dialog.

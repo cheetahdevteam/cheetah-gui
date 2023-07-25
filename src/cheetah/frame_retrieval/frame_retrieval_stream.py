@@ -4,7 +4,7 @@ Frame retrieval from CrystFEL stream files.
 import logging
 import pathlib
 import subprocess
-from typing import Any, Dict, List, TextIO, Tuple, Union
+from typing import Any, Dict, List, TextIO, Tuple, Union, Optional
 
 import h5py  # type: ignore
 
@@ -40,7 +40,7 @@ class _TypeChunkData(TypedDict, total=False):
     # A dictionary used internally to store data extracted from a stream file chunk.
 
     image_filename: str
-    event: Union[int, None]
+    event: Optional[int]
     om_event_id: str
     om_source: str
     om_config: str

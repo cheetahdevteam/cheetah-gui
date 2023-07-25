@@ -8,7 +8,7 @@ import os
 import pathlib
 import sys
 from operator import itemgetter
-from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple
 
 import click  # type: ignore
 from ansi2html import Ansi2HTMLConverter  # type: ignore
@@ -753,7 +753,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if len(selected_runs) == 0:
             return
 
-        first_selected_hdf5_dir: Union[str, None] = selected.proc_dirs[0]
+        first_selected_hdf5_dir: Optional[str] = selected.proc_dirs[0]
         if first_selected_hdf5_dir in ("", "---"):
             first_selected_hdf5_dir = None
         dialog: process_dialogs.RunProcessingDialog = (

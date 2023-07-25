@@ -9,7 +9,7 @@ import os
 import pathlib
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any, List, TextIO, Union, Callable
+from typing import Any, List, TextIO, Callable, Optional
 
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
 from cheetah.crawlers import facilities
@@ -232,8 +232,8 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         cheetah_resources_layout: Any = QtWidgets.QHBoxLayout()
         cheetah_resources_layout.addWidget(self._cheetah_resources_le)
         cheetah_resources_layout.addWidget(self._cheetah_resources_button)
-        cheetah_resources_directory: Union[
-            pathlib.Path, None
+        cheetah_resources_directory: Optional[
+            pathlib.Path
         ] = self._guess_cheetah_resources_directory()
         if cheetah_resources_directory:
             self._cheetah_resources_le.setText(str(cheetah_resources_directory))
@@ -289,22 +289,22 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             self._instrument_cb.addItems(
                 facilities[self._facility]["instruments"].keys()
             )
-            instrument: Union[str, None] = self._guess_instrument()
+            instrument: Optional[str] = self._guess_instrument()
             if instrument:
                 index: int = self._instrument_cb.findText(instrument)
                 if index >= 0:
                     self._instrument_cb.setCurrentIndex(index)
         else:
             self._instrument_cb.setEnabled(False)
-        possible_raw_directory: Union[
-            pathlib.Path, None
+        possible_raw_directory: Optional[
+            pathlib.Path
         ] = self._guess_raw_data_directory()
         if possible_raw_directory is not None and possible_raw_directory.is_dir():
             self._raw_directory_le.setText(str(possible_raw_directory))
 
         self._check_config()
 
-    def _guess_cheetah_resources_directory(self) -> Union[pathlib.Path, None]:
+    def _guess_cheetah_resources_directory(self) -> Optional[pathlib.Path]:
         # Checks that cheetah package source contains resources. If it doesn't the user
         # must specify resources directory manually.
         path: pathlib.Path = pathlib.Path(cheetah_src_path).parent / "resources"
@@ -313,7 +313,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         else:
             return None
 
-    def _guess_experiment_id(self, path: pathlib.Path) -> Union[str, None]:
+    def _guess_experiment_id(self, path: pathlib.Path) -> Optional[str]:
         # Tries to guess experiment ID based on the facility and experiment path.
         if self._facility:
             function: Callable[[pathlib.Path], str] = facilities[self._facility][
@@ -323,7 +323,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         else:
             return None
 
-    def _guess_instrument(self) -> Union[str, None]:
+    def _guess_instrument(self) -> Optional[str]:
         # Tries to guess the instrument name based on experiment path.
         instrument: str
         for instrument in facilities[self._facility]["instruments"].keys():
@@ -333,7 +333,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
                 return instrument
         return None
 
-    def _guess_raw_data_directory(self) -> Union[pathlib.Path, None]:
+    def _guess_raw_data_directory(self) -> Optional[pathlib.Path]:
         # Tries to guess raw data directory based on experiment path.
         if self._facility:
             function: Callable[[pathlib.Path], pathlib.Path] = facilities[
@@ -362,7 +362,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         # This function is called when a different raw data directory is selected. It
         # tries to guess the experiment ID based on the new raw directory.
         raw_directory: str = self._raw_directory_le.text()
-        possible_experiment_id: Union[str, None] = self._guess_experiment_id(
+        possible_experiment_id: Optional[str] = self._guess_experiment_id(
             pathlib.Path(raw_directory)
         )
         if possible_experiment_id:

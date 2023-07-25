@@ -3,7 +3,7 @@ File reader base.
 """
 from abc import ABCMeta, abstractmethod
 
-from typing import Any, List, Dict, Set, TextIO, Union, cast
+from typing import Any, List, Dict, Set, TextIO, Optional
 from PyQt5 import QtCore, QtWidgets  # type: ignore
 
 
@@ -129,7 +129,7 @@ class FileReader(QtCore.QObject, metaclass=_QtMetaclass):  # type: ignore
         # This function is called when emit timer times out. It calls _prepare_output()
         # function and emits the output if it's not None.
         self._emit_timer.stop()
-        data: Union[None, Dict[str, Any]] = self._prepare_output()
+        data: Optional[Dict[str, Any]] = self._prepare_output()
         if data is not None:
             self.output.emit(data)
         if not self._sleep_timer.isActive():
@@ -141,6 +141,6 @@ class FileReader(QtCore.QObject, metaclass=_QtMetaclass):  # type: ignore
         pass
 
     @abstractmethod
-    def _prepare_output(self) -> Union[None, Dict[str, Any]]:
+    def _prepare_output(self) -> Optional[Dict[str, Any]]:
         # Prepare output dictionary from accumulated data.
         pass

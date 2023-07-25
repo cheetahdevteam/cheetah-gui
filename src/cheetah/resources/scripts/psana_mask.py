@@ -5,7 +5,7 @@ import h5py  # type: ignore
 import psana  # type: ignore
 import traceback
 
-from typing import Any, Tuple, Union
+from typing import Any, Tuple, Optional
 
 import numpy
 from numpy.typing import NDArray
@@ -112,7 +112,7 @@ def main(
         det: Any = psana.Detector(detector)
         for evt in ds.events():
             break
-        psana_mask: Union[None, NDArray[numpy.int_]] = det.mask(
+        psana_mask: Optional[NDArray[numpy.int_]] = det.mask(
             evt,
             calib=calib,
             status=status,
