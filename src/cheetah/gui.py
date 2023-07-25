@@ -462,13 +462,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Disable action commands until enabled
         self._action_commands: List[QtWidgets.QAction] = [
             self._ui.action_run_files,
-            self._ui.action_run_streaming,
             self._ui.action_kill_processing,
             self._ui.action_remove_processing,
             self._ui.action_crawler,
             self._ui.menu_file_start_crawler,
             self._ui.menu_cheetah_process_runs,
-            self._ui.menu_cheetah_process_streaming,
             self._ui.menu_cheetah_kill_processing,
             self._ui.menu_cheetah_remove_processing,
             self._ui.menu_cheetah_process_jungfrau_darks,
