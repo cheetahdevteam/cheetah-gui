@@ -44,16 +44,7 @@ crystallography:
   geometry_is_optimized: false
   speed_report_interval: 100
 
-correction:
-  dark_filename: null
-  dark_hdf5_path: null
-  gain_filename: null
-  gain_hdf5_path: null
-  mask_filename: null
-  mask_hdf5_path: null
-
 peakfinder8_peak_detection:
-  detector_type: lambda1M5
   max_num_peaks: 2048
   adc_threshold: 20
   minimum_snr: 5.0
