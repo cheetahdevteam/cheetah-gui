@@ -53,6 +53,8 @@ setup(
         "sortedcontainers",
         "ansi2html",
         "pyyaml",
+        "ruamel.yaml",
+        "ruamel.yaml.jinja2",
     ],
     extras_require={
         "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],
