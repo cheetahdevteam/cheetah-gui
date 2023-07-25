@@ -315,6 +315,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
 
     def _guess_experiment_id(self, path: pathlib.Path) -> Optional[str]:
         # Tries to guess experiment ID based on the facility and experiment path.
+        self._facility = self._facility_cb.currentText()
         if self._facility:
             function: Callable[[pathlib.Path], str] = facilities[self._facility][
                 "guess_experiment_id"

@@ -350,7 +350,7 @@ class CheetahExperiment:
         # Updates the list of experiments in ~/.cheetah-crawler2, setting current
         # experiment as the most recent one.
         logfile_path: pathlib.Path = pathlib.Path.expanduser(
-            pathlib.Path("~/.cheetah-crawler2")
+            pathlib.Path(pathlib.Path.home() / ".cheetah/experiments_history")
         )
         current_experiment: str = str(self._gui_directory) + "\n"
         if logfile_path.is_file():
