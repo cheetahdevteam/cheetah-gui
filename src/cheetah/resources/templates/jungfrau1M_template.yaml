@@ -13,7 +13,6 @@ data_retrieval_layer:
     - "detector_distance"
     - "timestamp"
     - "event_id"
-    - "frame_id"
   detector_dark_filenames:
     - "/path/to/dark_d0.h5"
     - "/path/to/dark_d1.h5"
