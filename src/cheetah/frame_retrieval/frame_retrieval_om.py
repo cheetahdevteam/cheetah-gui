@@ -172,12 +172,16 @@ class OmRetrieval(CheetahFrameRetrieval):
                 split_items: List[str] = line.split(",")
                 event_id = split_items[0].strip()
                 if event_id != previous_id:
-                    peaks[event_id] = {
-                        "num_peaks": int(split_items[1]),
-                        "fs": [],
-                        "ss": [],
-                    }
-                    previous_id = event_id
+                    try:
+                        peaks[event_id] = {
+                            "num_peaks": int(split_items[1]),
+                            "fs": [],
+                            "ss": [],
+                        }
+                        previous_id = event_id
+                    except ValueError:
+                        # TODO: figure out why it breaks here at random times
+                        continue
                 peaks[event_id]["fs"].append(
                     (float(split_items[2]) + 0.5) * bin_size - 0.5
                 )
