@@ -51,7 +51,7 @@ class _PeaksReader(FileReader):
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
 
-        self._radius_pixelmap: NDArray[numpy.float_] = GeometryInformation(
+        self._radius_pixelmap: NDArray[numpy.float_] = GeometryInformation.from_file(
             geometry_filename=parameters["geometry"]
         ).get_pixel_maps()["radius"]
 
