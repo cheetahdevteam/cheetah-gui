@@ -54,6 +54,7 @@ class _TypeProcessScriptTemplateData(TypedDict, total=False):
     filename_prefix: str
     geometry_file: pathlib.Path
     output_dir: pathlib.Path
+    experiment_id: str
     cell_file_arg: str
     indexing_arg: str
     extra_args: str
@@ -370,6 +371,7 @@ class CheetahProcess:
             "om_config": om_config_file,
             "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
+            "experiment_id": self._experiment_id,
             "geometry_file": geometry_file,
             "cell_file_arg": cell_file_arg,
             "indexing_arg": indexing_arg,

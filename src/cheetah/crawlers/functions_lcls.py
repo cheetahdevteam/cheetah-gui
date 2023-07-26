@@ -30,15 +30,15 @@ def guess_batch_queue_lcls(path: pathlib.Path) -> str:
     ffb_root: pathlib.Path = pathlib.Path("/cds/data/drpsrcf/")
     psana_root: pathlib.Path = pathlib.Path("/cds/data/psdm/")
     psana_old_root: pathlib.Path = pathlib.Path("/reg/d/psdm/")
-    sdf_root: pathlib.Path = pathlib.Path("/sdf/group/lcls/ds/data/")
+    sdf_root: pathlib.Path = pathlib.Path("/sdf/")
     if ffb_root in path.parents:
         return "anaq"
     elif psana_root in path.parents or psana_old_root in path.parents:
         return "psanaq"
     elif sdf_root in path.parents:
-        return "shared"
+        return "milano"
     else:
-        return ""
+        return "shared"
 
 
 def guess_experiment_id_lcls(path: pathlib.Path) -> str:
