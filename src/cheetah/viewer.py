@@ -1367,6 +1367,9 @@ def main(
         open_tab = 0
 
     sys.stdout.flush()
+    if len(frame_retrieval.get_event_list()) == 0:
+        return
+
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(frame_retrieval, geometry_lines, mask_filename, hdf5_mask_path, open_tab)
     sys.exit(app.exec_())
