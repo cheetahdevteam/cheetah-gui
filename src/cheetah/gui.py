@@ -8,7 +8,7 @@ import os
 import pathlib
 import sys
 from operator import itemgetter
-from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
 
 import click  # type: ignore
 from ansi2html import Ansi2HTMLConverter  # type: ignore
@@ -21,6 +21,8 @@ except:
 
 import logging
 import logging.config
+
+from om.lib.parameters import MonitorParameters
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.crawlers.base import Crawler, TypeTableRow
@@ -1030,6 +1032,36 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         else:
             TextFileViewer(str(status_file), self)
 
+    def _get_geometry_and_mask_arg_for_viewer(
+        self, proc_dir: Union[str, pathlib.Path]
+    ) -> str:
+        # Gets geometry and mask file arguments for the viewer from the monitor.yaml
+        # file in the proc directory.
+        om_config_file: pathlib.Path = pathlib.Path(proc_dir) / "monitor.yaml"
+        if om_config_file.exists():
+            monitor_params: MonitorParameters = MonitorParameters(
+                config=str(om_config_file)
+            )
+            geometry: str = monitor_params.get_parameter(
+                group="crystallography",
+                parameter="geometry_file",
+                parameter_type=str,
+                required=True,
+            )
+            mask: Optional[str] = monitor_params.get_parameter(
+                group="peakfinder8_peak_detection",
+                parameter="bad_pixel_map_filename",
+                parameter_type=str,
+                required=True,
+            )
+        else:
+            geometry = self.experiment.get_last_processing_config()["geometry"]
+            mask = None
+
+        geometry_arg: str = f"-g {geometry}"
+        mask_arg: str = f"-m {mask}" if mask is not None else ""
+        return f"{geometry_arg} {mask_arg}"
+
     def _view_hits(self) -> None:
         # Launches Cheetah Viewer showing hits from selected runs.
         selected: _SelectedRows = self._get_selected_rows()
@@ -1041,9 +1073,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         ]
         if len(selected_directories) == 0:
             return
+
         input_str: str = " ".join(selected_directories)
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
-        viewer_command: str = f"cheetah_viewer.py {input_str} -i dir -g {geometry}"
+        args: str = self._get_geometry_and_mask_arg_for_viewer(selected_directories[0])
+        viewer_command: str = f"cheetah_viewer.py {input_str} -i dir {args}"
         logger.info(f"Running command: {viewer_command}")
         LoggingPopen(logger.getChild("viewer"), viewer_command, shell=True)
 
@@ -1183,14 +1216,11 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             )
             return
         input_str: str = " ".join(sum_files)
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        args: str = self._get_geometry_and_mask_arg_for_viewer(selected_directories[0])
         if maskmaker:
-            extra: str = "--maskmaker"
-        else:
-            extra = ""
-        viewer_command: str = (
-            f"cheetah_viewer.py {input_str} -d {hdf5_dataset} -g {geometry} {extra}"
-        )
+            args += " --maskmaker"
+
+        viewer_command: str = f"cheetah_viewer.py {input_str} -d {hdf5_dataset} {args}"
         logger.info(f"Running command: {viewer_command}")
         LoggingPopen(logger.getChild("viewer"), viewer_command, shell=True)
 
