@@ -147,7 +147,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                                 parameter="geometry_file",
                                 parameter_type=str,
                                 required=True,
-                            )
+                            ),
                         )
                         self._peakfinders[filename] = CrystallographyPeakFinding(
                             parameters=monitor_params,
@@ -179,7 +179,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                             "ss": [],
                         }
                         previous_id = event_id
-                    except ValueError:
+                    except Exception as e:
                         # TODO: figure out why it breaks here at random times
                         continue
                 peaks[event_id]["fs"].append(
