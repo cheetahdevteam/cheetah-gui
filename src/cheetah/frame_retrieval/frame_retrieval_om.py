@@ -141,16 +141,18 @@ class OmRetrieval(CheetahFrameRetrieval):
                             parameters["peak_lists"][filename], bin_size
                         )
                     else:
-                        geometry_information: GeometryInformation = GeometryInformation(
-                            geometry_filename=monitor_params.get_parameter(
-                                group="crystallography",
-                                parameter="geometry_file",
-                                parameter_type=str,
-                                required=True,
-                            ),
+                        geometry_information: GeometryInformation = (
+                            GeometryInformation.from_file(
+                                geometry_filename=monitor_params.get_parameter(
+                                    group="crystallography",
+                                    parameter="geometry_file",
+                                    parameter_type=str,
+                                    required=True,
+                                )
+                            )
                         )
                         self._peakfinders[filename] = CrystallographyPeakFinding(
-                            parameters=monitor_params,
+                            monitor_parameters=monitor_params,
                             geometry_information=geometry_information,
                         )
 

@@ -834,8 +834,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             corner[1] + radius - 0.5,
         )
         rsquared_map: NDArray[numpy.float_] = (
-            self._visual_pixelmap_x - center[0]
-        ) ** 2 + (self.self._visualization_pixel_maps["y"] - center[1]) ** 2
+            self._visualization_pixel_maps["x"] - center[0]
+        ) ** 2 + (self._visualization_pixel_maps["y"] - center[1]) ** 2
         self._mask_original_pixels(numpy.where(rsquared_map <= radius**2))
 
     def _mask_outside_histogram(self) -> None:
