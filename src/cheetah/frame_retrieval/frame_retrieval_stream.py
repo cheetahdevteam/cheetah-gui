@@ -207,7 +207,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
     def _initialize_binning(self, monitor_parameters: MonitorParameters) -> None:
         # Initializes binning algorithm to be applied to all frames.
-        self._geometry_information = GeometryInformation(
+        self._geometry_information = GeometryInformation.from_file(
             geometry_filename=monitor_parameters.get_parameter(
                 group="crystallography",
                 parameter="geometry_file",
@@ -310,12 +310,9 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 om_data: Dict[str, Any] = self._om_retrievals[
                     (chunk_data["om_source"], chunk_data["om_config"])
                 ].retrieve_event_data(event_id=chunk_data["om_event_id"])
-                if self._binning is not None:
-                    event_data["data"] = self._binning.bin_detector_data(
-                        data=om_data["detector_data"]
-                    )
-                else:
-                    event_data["data"] = om_data["detector_data"]
+                event_data["data"] = self._binning.bin_detector_data(
+                    data=om_data["detector_data"]
+                )
                 event_data["source"] = chunk_data["om_event_id"]
             except Exception as e:
                 logger.exception(
