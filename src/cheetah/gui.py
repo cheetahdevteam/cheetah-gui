@@ -1052,7 +1052,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 group="peakfinder8_peak_detection",
                 parameter="bad_pixel_map_filename",
                 parameter_type=str,
-                required=True,
+                required=False,
             )
         else:
             geometry = self.experiment.get_last_processing_config()["geometry"]
