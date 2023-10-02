@@ -1,7 +1,7 @@
 om:
   parallelization_layer: MpiParallelization
   data_retrieval_layer: Lambda1M5FilesDataRetrieval
-  processing_layer: CheetahProcessing
+  processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
   calibration: false

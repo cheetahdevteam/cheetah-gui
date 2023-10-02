@@ -354,14 +354,17 @@ class CheetahProcess:
         if not n_processes:
             n_processes = 12
 
+        cell_file_arg = ""
+        indexing_arg = ""
+        extra_args = ""
         if config["indexing_config"]:
-            cell_file_arg: str = f"-p {config['indexing_config']['cell_file']}"
-            indexing_arg: str = f"--indexing={config['indexing_config']['indexing']}"
+            if config["indexing_config"]["cell_file"]:
+                cell_file_arg: str = f"-p {config['indexing_config']['cell_file']}"
+            if config["indexing_config"]["indexing"]:
+                indexing_arg: str = (
+                    f"--indexing={config['indexing_config']['indexing']}"
+                )
             extra_args: str = config["indexing_config"]["extra_args"]
-        else:
-            cell_file_arg = ""
-            indexing_arg = ""
-            extra_args = ""
 
         process_script_data: _TypeProcessScriptTemplateData = {
             "queue": queue,

@@ -259,3 +259,46 @@ def prepare_om_source_p09_lambda(
         logger.error(error_message)
 
     return str(output_filename)
+
+
+def prepare_om_source_p09_pilatus(
+    run_id: str,
+    experiment_id: str,
+    raw_directory: pathlib.Path,
+    run_proc_directory: pathlib.Path,
+) -> str:
+    """
+    Prepare OM data source for the processing of Pilatus data collected at P09
+    beamline at PETRA III.
+
+    The OM data source string for the data retrieval from Pilatus files is a text
+    file containing the list of Pilatus cbf files. This function writes the list of
+    names of all data files belonging to a given run to the files.lst file in the
+    `run_proc_directory`.
+
+    Arguments:
+
+        run_id: Run ID of the raw data.
+
+        experiment_id: Experiment ID.
+
+        raw_directory: The raw data directory path of the experiment.
+
+        run_proc_directory: The processed data directory path of the run.
+
+    Returns:
+
+        OM data source string.
+    """
+    data_directory: pathlib.Path = raw_directory / run_id
+    output_filename: pathlib.Path = run_proc_directory / "files.lst"
+    command = (
+        f'find {data_directory} -maxdepth 1 -name "*.cbf" | sort > {output_filename}'
+    )
+    error_message: str = subprocess.run(
+        command, shell=True, capture_output=True
+    ).stderr.decode("utf-8")
+    if error_message:
+        logger.error(error_message)
+
+    return str(output_filename)

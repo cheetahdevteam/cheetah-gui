@@ -203,6 +203,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         self._peakogram_plot_image_view = pyqtgraph.ImageView(
             view=self._peakogram_plot_widget.getPlotItem(),
         )
+        self._peakogram_plot_image_view.setHistogramLabel("Log(N peaks)")
         self._peakogram_plot_image_view.ui.roiBtn.hide()
         self._peakogram_plot_image_view.ui.menuBtn.hide()
         self._peakogram_plot_image_view.view.invertY(False)

@@ -18,7 +18,7 @@ from cheetah.crawlers.base import Crawler
 from cheetah.crawlers.crawler_biocars import BioCarsMccdCrawler
 from cheetah.crawlers.crawler_jungfrau import Jungfrau1MCrawler
 from cheetah.crawlers.crawler_lcls import LclsCrawler
-from cheetah.crawlers.crawler_p09 import P09LambdaCrawler
+from cheetah.crawlers.crawler_p09 import P09LambdaCrawler, P09PilatusCrawler
 from cheetah.crawlers.crawler_p11 import P11EigerCrawler
 from cheetah.crawlers.functions_desy import (
     guess_batch_queue_desy,
@@ -27,6 +27,7 @@ from cheetah.crawlers.functions_desy import (
     prepare_om_source_biocars_mccd,
     prepare_om_source_jungfrau1M,
     prepare_om_source_p09_lambda,
+    prepare_om_source_p09_pilatus,
     prepare_om_source_p11_eiger,
 )
 from cheetah.crawlers.functions_generic import kill_slurm_job
@@ -206,7 +207,18 @@ facilities: Dict[str, TypeFacilityInfo] = {
                         "streaming_template": "desy_slurm_streaming_template.sh",
                         "prepare_om_source": prepare_om_source_p09_lambda,
                         "crawler": P09LambdaCrawler,
-                    }
+                    },
+                    "Pilatus": {
+                        "calib_resources": {
+                            "geometry": "pilatus6M.geom",
+                            "mask": "mask_pilatus6M.h5",
+                        },
+                        "om_config_template": "p09_pilatus_template.yaml",
+                        "process_template": "desy_slurm_template.sh",
+                        "streaming_template": "desy_slurm_streaming_template.sh",
+                        "prepare_om_source": prepare_om_source_p09_pilatus,
+                        "crawler": P09PilatusCrawler,
+                    },
                 }
             },
             "P11": {
