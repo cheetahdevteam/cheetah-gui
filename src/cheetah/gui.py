@@ -896,15 +896,15 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             for key in self._table_column_names:
                 item = QtGui.QStandardItem()
                 if key in data.keys():
-                    if key == "Run":
-                        # Run ID should always be string
-                        item.setText(data[key])
-                    else:
+                    if key in ("Nprocessed", "Nindexed", "Hitrate", "Idxrate"):
                         # Try converting and displaying data as float
                         try:
                             item.setData(float(data[key]), role=QtCore.Qt.DisplayRole)
                         except ValueError:
                             item.setText(data[key])
+                    else:
+                        # All other data is displayed as text
+                        item.setText(data[key])
                 tree_row.append(item)
             parent.appendRow(tree_row)
 
