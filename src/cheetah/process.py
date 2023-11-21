@@ -157,9 +157,9 @@ class CheetahProcess:
         ][
             "prepare_om_source"
         ]
-        self._kill_processing_job: Callable[[str], str] = facilities[self._facility][
-            "kill_processing_job"
-        ]
+        self._kill_processing_job: Callable[[str, pathlib.Path], str] = facilities[
+            self._facility
+        ]["kill_processing_job"]
         if streaming:
             self._om_processing_layer: Union[
                 Literal["CheetahProcessing"],
@@ -170,7 +170,11 @@ class CheetahProcess:
 
     def _raw_id_to_proc_id(self, raw_id: str) -> str:
         # Converts raw run ID to processed run ID by replacing all "-" signs with "_".
-        return raw_id.replace("-", "_")
+        # Also adds "_" at the beginning of the string if it starts with ".".
+        proc_id: str = raw_id.replace("-", "_")
+        if proc_id[0] == ".":
+            proc_id = "_" + proc_id[1:]
+        return proc_id
 
     def _write_process_config_file(
         self,
@@ -234,7 +238,9 @@ class CheetahProcess:
         if status["Status"] == "Finished":
             return f"Processing job {run_proc_dir} is already finished."
 
-        error: str = self._kill_processing_job(run_proc_dir)
+        error: str = self._kill_processing_job(
+            run_proc_dir, self._proc_directory / run_proc_dir
+        )
         if error == "":
             status["Status"] = "Cancelled"
             self._write_status_file(status_filename, status)

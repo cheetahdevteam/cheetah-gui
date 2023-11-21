@@ -30,7 +30,7 @@ from cheetah.crawlers.functions_desy import (
     prepare_om_source_p09_pilatus,
     prepare_om_source_p11_eiger,
 )
-from cheetah.crawlers.functions_generic import kill_slurm_job
+from cheetah.crawlers.functions_generic import kill_slurm_job, kill_local_job
 from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
     guess_experiment_id_lcls,
@@ -115,7 +115,7 @@ class TypeFacilityInfo(TypedDict):
     guess_raw_directory: Callable[[pathlib.Path], pathlib.Path]
     guess_experiment_id: Callable[[pathlib.Path], str]
     guess_batch_queue: Callable[[pathlib.Path], str]
-    kill_processing_job: Callable[[str], str]
+    kill_processing_job: Callable[[str, pathlib.Path], str]
 
 
 facilities: Dict[str, TypeFacilityInfo] = {
@@ -276,6 +276,29 @@ facilities: Dict[str, TypeFacilityInfo] = {
         "guess_experiment_id": guess_experiment_id_desy,
         "guess_batch_queue": guess_batch_queue_desy,
         "kill_processing_job": kill_slurm_job,
+    },
+    "APS": {
+        "instruments": {
+            "BioCARS": {
+                "detectors": {
+                    "RayonixMccd16M": {
+                        "calib_resources": {
+                            "geometry": "mccd16M.geom",
+                            "mask": "mask_mccd16M.h5",
+                        },
+                        "om_config_template": "biocars_mccd_template.yaml",
+                        "process_template": "local_template.sh",
+                        "streaming_template": None,
+                        "prepare_om_source": prepare_om_source_biocars_mccd,
+                        "crawler": BioCarsMccdCrawler,
+                    },
+                }
+            },
+        },
+        "guess_raw_directory": lambda p: pathlib.Path(""),
+        "guess_experiment_id": lambda p: "",
+        "guess_batch_queue": lambda p: "",
+        "kill_processing_job": kill_local_job,
     },
 }
 """

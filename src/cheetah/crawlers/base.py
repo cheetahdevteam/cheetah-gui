@@ -218,7 +218,7 @@ class Crawler(ABC):
 
         This function converts unique identifier of the run derived from the raw data
         to the run ID of the processed data. It raplaces all "-" signs in the raw ID
-        by "_".
+        by "_". If the resulting string starts with "." it is replaced by "_".
 
         Arguments:
 
@@ -228,7 +228,10 @@ class Crawler(ABC):
 
             Run ID of the processed data.
         """
-        return raw_id.replace("-", "_")
+        proc_id: str = raw_id.replace("-", "_")
+        if proc_id[0] == ".":
+            proc_id = "_" + proc_id[1:]
+        return proc_id
 
     def _scan_proc_directory(self) -> List[TypeProcStatusItem]:
         # This function is called every time crawler updates the run table displayed

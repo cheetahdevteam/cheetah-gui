@@ -55,6 +55,7 @@ setup(
         "pyyaml",
         "ruamel.yaml",
         "ruamel.yaml.jinja2",
+        "psutil",
     ],
     extras_require={
         "docs": ["mkdocs", "mkdocstring", "mkdocs-click", "mkdocs-material"],
