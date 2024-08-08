@@ -4,11 +4,14 @@ Cheetah Process.
 This module contains classes and functions that allow configuring and launching Cheetah
 processing jobs.
 """
+
+import copy
 import logging
 import pathlib
 import shutil
 import stat
 import subprocess
+import time
 from typing import Any, Callable, Dict, TextIO, Union, Optional
 
 import jinja2
@@ -248,6 +251,25 @@ class CheetahProcess:
             logger.error(error)
         return error
 
+    def _copy_config_files(self, config: TypeProcessingConfig, directory: pathlib.Path):
+        # Copy configuration files to the output directory.
+        directory.mkdir(parents=True, exist_ok=True)
+        for key in ["config_template", "geometry", "mask"]:
+            if not config[key]:
+                continue
+            filename: pathlib.Path = directory / pathlib.Path(config[key]).name
+            shutil.copy(config[key], filename)
+            config[key] = str(filename)
+
+        if config["indexing_config"]:
+            if config["indexing_config"]["cell_file"]:
+                filename: pathlib.Path = (
+                    directory
+                    / pathlib.Path(config["indexing_config"]["cell_file"]).name
+                )
+                shutil.copy(config["indexing_config"]["cell_file"], filename)
+                config["indexing_config"]["cell_file"] = str(filename)
+
     def process_run(
         self,
         run_id: str,
@@ -284,6 +306,7 @@ class CheetahProcess:
                 parameter will be inserted in the process script template. If this
                 parameter is None, 12 nodes will be used. Defaults to None.
         """
+        input_config: TypeProcessingConfig = copy.deepcopy(config)
         proc_id: str = self._raw_id_to_proc_id(run_id)
         tag: str = config["tag"]
         if tag:
@@ -291,6 +314,10 @@ class CheetahProcess:
         else:
             output_directory_name = proc_id
         output_directory: pathlib.Path = self._proc_directory / output_directory_name
+
+        # Copy input files to a temporary directory
+        temp_directory: pathlib.Path = self._proc_directory / f"temp_{time.time_ns()}"
+        self._copy_config_files(config, temp_directory)
 
         if output_directory.is_dir():
             logger.info(
@@ -308,25 +335,13 @@ class CheetahProcess:
 
         # Copy input files to the output directory
         input_files_directory: pathlib.Path = output_directory / "input_files"
-        input_files_directory.mkdir()
+        self._copy_config_files(config, input_files_directory)
 
-        om_config_template_file: pathlib.Path = (
-            input_files_directory / pathlib.Path(config["config_template"]).name
+        om_config_template_file: pathlib.Path = pathlib.Path(config["config_template"])
+        geometry_file: pathlib.Path = pathlib.Path(config["geometry"])
+        mask_file: Union[pathlib.Path, Literal["null"]] = (
+            pathlib.Path(config["mask"]) if config["mask"] else "null"
         )
-        shutil.copy(config["config_template"], om_config_template_file)
-
-        geometry_file: pathlib.Path = (
-            input_files_directory / pathlib.Path(config["geometry"]).name
-        )
-        shutil.copy(config["geometry"], geometry_file)
-
-        if config["mask"]:
-            mask_file: Union[pathlib.Path, Literal["null"]] = (
-                input_files_directory / pathlib.Path(config["mask"]).name
-            )
-            shutil.copy(config["mask"], mask_file)
-        else:
-            mask_file = "null"
 
         logger.info(f"Copying configuration file: {om_config_template_file}")
         om_config_file: pathlib.Path = output_directory / "monitor.yaml"
@@ -395,9 +410,10 @@ class CheetahProcess:
         )
         log_subprocess_run_output(output, logger)
 
+        shutil.rmtree(temp_directory)
         self._write_status_file(
             output_directory / "status.txt", {"Status": "Submitted"}
         )
         self._write_process_config_file(
-            output_directory, config, process_script_data, om_config_data
+            output_directory, input_config, process_script_data, om_config_data
         )
