@@ -54,6 +54,7 @@ class _TypeProcessScriptTemplateData(TypedDict, total=False):
     n_processes: int
     om_source: str
     om_config: pathlib.Path
+    event_list_arg: str
     filename_prefix: str
     geometry_file: pathlib.Path
     output_dir: pathlib.Path
@@ -98,6 +99,9 @@ class TypeProcessingConfig(TypedDict):
         indexing_config: A [TypeIndexingConfig][cheetah.process.TypeIndexingConfig]
             dictionary containing indexing configuration parameters or None if indexing
             is not used.
+
+        event_list: The path of the event list file or None if all events should be
+            processed.
     """
 
     config_template: str
@@ -105,6 +109,7 @@ class TypeProcessingConfig(TypedDict):
     geometry: str
     mask: str
     indexing_config: Optional[TypeIndexingConfig]
+    event_list: Optional[str]
 
 
 class CheetahProcess:
@@ -254,7 +259,7 @@ class CheetahProcess:
     def _copy_config_files(self, config: TypeProcessingConfig, directory: pathlib.Path):
         # Copy configuration files to the output directory.
         directory.mkdir(parents=True, exist_ok=True)
-        for key in ["config_template", "geometry", "mask"]:
+        for key in ["config_template", "geometry", "mask", "event_list"]:
             if not config[key]:
                 continue
             filename: pathlib.Path = directory / pathlib.Path(config[key]).name
@@ -375,6 +380,10 @@ class CheetahProcess:
         if not n_processes:
             n_processes = 12
 
+        event_list_arg = ""
+        if config["event_list"]:
+            event_list_arg = f"--event-list={config['event_list']}"
+
         cell_file_arg = ""
         indexing_arg = ""
         extra_args = ""
@@ -393,6 +402,7 @@ class CheetahProcess:
             "n_processes": n_processes,
             "om_source": om_source,
             "om_config": om_config_file,
+            "event_list_arg": event_list_arg,
             "filename_prefix": proc_id.split("/")[-1],
             "output_dir": output_directory,
             "experiment_id": self._experiment_id,

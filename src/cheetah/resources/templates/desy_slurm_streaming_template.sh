@@ -7,7 +7,6 @@ sbatch << EOF
 
 #SBATCH -p {{queue}}
 #SBATCH -t 10:00:00
-#SBATCH --exclusive
 #SBATCH --job-name {{job_name}}
 #SBATCH --output batch.out
 
@@ -21,7 +20,7 @@ indexamajig --zmq-input=ipc:///{{output_dir}}/ipc-socket --zmq-request=next  \
 
 pid=$!
 
-mpirun -n 16 om_monitor.py {{om_source}} -c {{om_config}} > om.out 2>&1
+mpirun -n 16 om_monitor.py {{om_source}} -c {{om_config}} {{event_list_arg}} > om.out 2>&1
 
 sleep 60
 kill -10 $pid

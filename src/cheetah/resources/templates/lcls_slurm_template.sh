@@ -2,7 +2,7 @@
 
 echo "Using: " $(which om_monitor.py)
 
-FULLCOMMAND="mpirun om_monitor.py {{om_source}} -c {{om_config}}"
+FULLCOMMAND="mpirun om_monitor.py {{om_source}} -c {{om_config}} {{event_list_arg}}"
 echo $FULLCOMMAND
 
 sbatch << EOF

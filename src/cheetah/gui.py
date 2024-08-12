@@ -3,6 +3,7 @@ Cheetah GUI.
 
 This module contains the implementation of the main Cheetah GUI.
 """
+
 import csv
 import os
 import pathlib
@@ -177,6 +178,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         runs: List[str],
         config: TypeProcessingConfig,
         streaming: bool,
+        hit_files: Optional[Dict[str, pathlib.Path]] = None,
     ) -> None:
         """
         Process Thread.
@@ -206,6 +208,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         self._runs: List[str] = runs
         self._config: TypeProcessingConfig = config
         self._streaming: bool = streaming
+        self._hit_files: Optional[Dict[str, pathlib.Path]] = hit_files
 
     def run(self) -> None:
         """
@@ -214,7 +217,9 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         This function is called when ProcessThread is started. It calls Cheetah
         Experiment [process_runs][cheetah.experiment.Experiment.process_runs] function.
         """
-        self._experiment.process_runs(self._runs, self._config, self._streaming)
+        self._experiment.process_runs(
+            self._runs, self._config, self._streaming, self._hit_files
+        )
 
 
 class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
@@ -584,6 +589,24 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         return _SelectedRows(*zip(*sorted(selected, key=itemgetter(0))))  # type: ignore
 
+    def _get_hit_files_from_selected(
+        self, selected: _SelectedRows
+    ) -> Dict[str, pathlib.Path]:
+        # Get hit list files for selected runs
+        hit_files: Dict[str, pathlib.Path] = {}
+        for run_id, proc_dir in zip(selected.runs, selected.proc_dirs):
+            if proc_dir in ("---", ""):
+                continue
+            if run_id in hit_files:
+                continue
+            hits_file: Optional[pathlib.Path] = self.experiment.get_hits_filename(
+                proc_dir
+            )
+            if hits_file is not None:
+                hit_files[run_id] = hits_file
+
+        return hit_files
+
     def _process_jungfrau_darks(self) -> None:
         # Process selected Jungfrau 1M dark runs
         selected: _SelectedRows = self._get_selected_rows()
@@ -753,6 +776,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if len(selected_runs) == 0:
             return
 
+        hit_files: Dict[str, pathlib.Path] = self._get_hit_files_from_selected(selected)
+        if len(hit_files) == len(selected_runs):
+            process_hits_option: bool = True
+        else:
+            process_hits_option = False
+
         first_selected_hdf5_dir: Optional[str] = selected.proc_dirs[0]
         if first_selected_hdf5_dir in ("", "---"):
             first_selected_hdf5_dir = None
@@ -760,6 +789,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             process_dialogs.RunProcessingDialog(
                 self.experiment.get_last_processing_config(first_selected_hdf5_dir),
                 streaming,
+                process_hits_option,
                 self,
             )
         )
@@ -767,11 +797,30 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             return
 
         processing_config: TypeProcessingConfig = dialog.get_config()
+        process_hits: bool = dialog.process_hits()
+
+        if process_hits:
+            exp_proc_dir: pathlib.Path = self.experiment.get_proc_directory()
+            msg: str = "The hits from following files will be processed:\n" + "\n".join(
+                f"Run {run_id}: {hit_file.relative_to(exp_proc_dir)}"
+                for run_id, hit_file in hit_files.items()
+            )
+            reply: Any = QtWidgets.QMessageBox.information(
+                self,
+                "",
+                msg,
+                QtWidgets.QMessageBox.Ok,
+                QtWidgets.QMessageBox.Cancel,
+            )
+            if reply == QtWidgets.QMessageBox.Cancel:
+                return
+
         self._process_thread: ProcessThread = ProcessThread(
             self.experiment,
             selected_runs,
             processing_config,
             streaming,
+            hit_files if process_hits else None,
         )
         self._process_thread.started.connect(self._process_thread_started)
         self._process_thread.finished.connect(self._process_thread_finished)
@@ -779,8 +828,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._process_thread.start()
 
         tag: str = processing_config["tag"]
-
         selected_rows: Set[int] = set((int(row) for row in selected.rows))
+        self._update_rows_with_tag(tag, selected_rows)
+
+    def _update_rows_with_tag(self, tag: str, selected_rows: Set[int]) -> None:
         row: int
         for row in selected_rows:
             index: QtCore.QModelIndex = self._data_model.index(row, 0)

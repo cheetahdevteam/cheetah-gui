@@ -27,6 +27,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         self,
         last_config: TypeProcessingConfig,
         streaming: bool = False,
+        process_hits_option: bool = False,
         parent: Any = None,
     ) -> None:
         """
@@ -51,6 +52,11 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
 
         self._form: Any = QtWidgets.QGroupBox()
         form_layout: Any = QtWidgets.QFormLayout()
+
+        self._process_hits_cb: Any = QtWidgets.QCheckBox("")
+        self._process_hits_cb.setChecked(False)
+        if process_hits_option:
+            form_layout.addRow("Process hits only: ", self._process_hits_cb)
 
         self._template_le: Any = QtWidgets.QLineEdit()
         self._template_le.setText(last_config["config_template"])
@@ -179,6 +185,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             "geometry": self._geometry_le.text(),
             "mask": self._mask_le.text(),
             "indexing_config": indexing_config,
+            "event_list": None,
         }
         if not self._config["config_template"] or not self._config["geometry"]:
             self._button_box.buttons()[0].setEnabled(False)
@@ -265,6 +272,18 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             dictionary containing selected processing configuration parameters.
         """
         return self._config
+
+    def process_hits(self) -> bool:
+        """
+        Get process hits option.
+
+        This function is called when the dialog exits with signal 1, which means that
+        all selected processing configuration parameters are valid.
+
+        Returns:
+            A boolean value indicating if the process hits option is selected.
+        """
+        return self._process_hits_cb.isChecked()
 
 
 class PeakfinderParametersDialog(QtWidgets.QDialog):

@@ -4,6 +4,7 @@ Cheetah Experiment.
 This module contains classes and functions that provide information related to a 
 particular experiment and control its data processing.
 """
+
 import logging
 import pathlib
 import shutil
@@ -160,9 +161,11 @@ class CheetahExperiment:
                         "crawler_scan_raw_dir": self._crawler.raw_directory_scan_is_enabled(),
                         "crawler_scan_proc_dir": self._crawler.proc_directory_scan_is_enabled(),
                         "geometry": self._relative_to_base_path(self._last_geometry),
-                        "mask": self._relative_to_base_path(self._last_mask)
-                        if self._last_mask
-                        else "",
+                        "mask": (
+                            self._relative_to_base_path(self._last_mask)
+                            if self._last_mask
+                            else ""
+                        ),
                         "cheetah_config": self._relative_to_base_path(
                             self._last_process_config_filename
                         ),
@@ -502,6 +505,7 @@ class CheetahExperiment:
             "geometry": str(self._last_geometry),
             "mask": str(self._last_mask) if self._last_mask else "",
             "indexing_config": self._last_indexing_config,
+            "event_list": None,
         }
 
     def get_raw_directory(self) -> pathlib.Path:
@@ -539,6 +543,27 @@ class CheetahExperiment:
             The path of the processed data directory.
         """
         return self._proc_directory
+
+    def get_hits_filename(self, run_proc_dir: str) -> Optional[pathlib.Path]:
+        """
+        Get the path of the hits list file.
+
+        This function returns the path of the hits file from the provided processed run
+        directory. If the file doesn't exist, it returns None.
+
+        Arguments:
+
+            run_proc_dir: The relative path of the processed run directory.
+
+        Returns:
+
+            The path of the hits file or None if the file doesn't exist.
+        """
+        hits_filename: pathlib.Path = self._proc_directory / run_proc_dir / "hits.lst"
+        if hits_filename.is_file():
+            return hits_filename
+        else:
+            return None
 
     def kill_processing_jobs(self, run_proc_dirs: List[str]) -> None:
         """
@@ -593,6 +618,7 @@ class CheetahExperiment:
         run_ids: List[str],
         processing_config: Optional[TypeProcessingConfig],
         streaming: bool,
+        hit_files: Optional[Dict[str, pathlib.Path]] = None,
         queue: Optional[str] = None,
         n_processes: Optional[int] = None,
     ) -> None:
@@ -613,6 +639,8 @@ class CheetahExperiment:
                 this parameter is None the latest used processing configuration will be
                 used again.
 
+            streaming: Whether to process the data in streaming mode. Defaults to False.
+
             queue: The name of the batch queue where the processing job should be
                 submitted. This parameter will be passed to
                 [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run].
@@ -622,6 +650,8 @@ class CheetahExperiment:
                 parameter will be passed to
                 [CheetahProcess.process_run][cheetah.proces.CheetahProcess.process_run].
                 Defaults to None.
+
+            hit_files: A dictionary containing the paths to the hit files for each run.
         """
         if processing_config is None:
             processing_config = self.get_last_processing_config()
@@ -639,19 +669,26 @@ class CheetahExperiment:
                 self._last_indexing_config = processing_config["indexing_config"]
 
         run_id: str
-        if streaming:
-            if self._streaming_process is None:
-                logger.error("Streaming processing is not set up for this experiment.")
-                return
-            for run_id in run_ids:
-                self._streaming_process.process_run(
+        if streaming and self._streaming_process is None:
+            logger.error("Streaming processing is not set up for this experiment.")
+            return
+
+        for run_id in run_ids:
+            if hit_files is not None:
+                if run_id not in hit_files:
+                    logger.error(
+                        f"No hit file provided for run {run_id}. Skipping this run."
+                    )
+                    continue
+                processing_config["event_list"] = str(hit_files[run_id])
+            if streaming:
+                self._streaming_process.process_run(  # type: ignore
                     run_id,
                     processing_config,
                     queue,
                     n_processes,
                 )
-        else:
-            for run_id in run_ids:
+            else:
                 self._cheetah_process.process_run(
                     run_id,
                     processing_config,
