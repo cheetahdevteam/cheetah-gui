@@ -88,7 +88,7 @@
      <x>0</x>
      <y>0</y>
      <width>900</width>
-     <height>23</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -109,6 +109,7 @@
       <string>Process selected runs</string>
      </property>
      <addaction name="separator"/>
+     <addaction name="menu_cheetah_process_preview"/>
      <addaction name="menu_cheetah_process_runs"/>
      <addaction name="menu_cheetah_process_streaming"/>
     </widget>
@@ -228,6 +229,7 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="action_run_preview"/>
    <addaction name="action_run_files"/>
    <addaction name="action_run_streaming"/>
    <addaction name="action_kill_processing"/>
@@ -642,6 +644,26 @@
   <action name="menu_cheetah_peakfinder_parameters">
    <property name="text">
     <string>Edit peakfinder parameters</string>
+   </property>
+  </action>
+  <action name="menu_cheetah_process_preview">
+   <property name="text">
+    <string>Preview</string>
+   </property>
+  </action>
+  <action name="action_run_preview">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>run_preview.svg</normaloff>run_preview.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Run Cheetah Preview</string>
+   </property>
+   <property name="toolTip">
+    <string>Run Cheetah without saving hits to disk</string>
    </property>
   </action>
  </widget>

@@ -102,6 +102,9 @@ class TypeProcessingConfig(TypedDict):
 
         event_list: The path of the event list file or None if all events should be
             processed.
+
+        write_data_files: A boolean value indicating whether data HDF5 files should be
+            written.
     """
 
     config_template: str
@@ -110,6 +113,7 @@ class TypeProcessingConfig(TypedDict):
     mask: str
     indexing_config: Optional[TypeIndexingConfig]
     event_list: Optional[str]
+    write_data_files: bool
 
 
 class CheetahProcess:
@@ -275,6 +279,36 @@ class CheetahProcess:
                 shutil.copy(config["indexing_config"]["cell_file"], filename)
                 config["indexing_config"]["cell_file"] = str(filename)
 
+    def _setup_output_directory(
+        self, directory: pathlib.Path, config: TypeProcessingConfig
+    ) -> Optional[pathlib.Path]:
+        # Create output directory for the processed run.
+
+        # Copy input files to a temporary directory
+        temp_directory: pathlib.Path = self._proc_directory / f"temp_{time.time_ns()}"
+        self._copy_config_files(config, temp_directory)
+
+        if directory.is_dir():
+            logger.info(
+                f"Moving to existing data directory {directory}\n"
+                f"Deleting previous files"
+            )
+            try:
+                shutil.rmtree(directory)
+            except Exception as e:
+                logger.error(f"Couldn't clean {directory}: {e}.")
+                return None
+        else:
+            logger.info(f"Creating hdf5 data directory {directory}")
+        directory.mkdir(parents=True)
+
+        # Copy input files to the output directory
+        input_files_directory: pathlib.Path = directory / "input_files"
+        self._copy_config_files(config, input_files_directory)
+        shutil.rmtree(temp_directory)
+
+        return directory
+
     def process_run(
         self,
         run_id: str,
@@ -318,29 +352,11 @@ class CheetahProcess:
             output_directory_name: str = f"{proc_id}-{tag}"
         else:
             output_directory_name = proc_id
-        output_directory: pathlib.Path = self._proc_directory / output_directory_name
-
-        # Copy input files to a temporary directory
-        temp_directory: pathlib.Path = self._proc_directory / f"temp_{time.time_ns()}"
-        self._copy_config_files(config, temp_directory)
-
-        if output_directory.is_dir():
-            logger.info(
-                f"Moving to existing data directory {output_directory}\n"
-                f"Deleting previous files"
-            )
-            try:
-                shutil.rmtree(output_directory)
-            except Exception as e:
-                logger.error(f"Couldn't clean {output_directory}: {e}.")
-                return
-        else:
-            logger.info(f"Creating hdf5 data directory {output_directory}")
-        output_directory.mkdir(parents=True)
-
-        # Copy input files to the output directory
-        input_files_directory: pathlib.Path = output_directory / "input_files"
-        self._copy_config_files(config, input_files_directory)
+        output_directory: Optional[pathlib.Path] = self._setup_output_directory(
+            self._proc_directory / output_directory_name, config
+        )
+        if not output_directory:
+            return
 
         om_config_template_file: pathlib.Path = pathlib.Path(config["config_template"])
         geometry_file: pathlib.Path = pathlib.Path(config["geometry"])
@@ -351,6 +367,7 @@ class CheetahProcess:
         logger.info(f"Copying configuration file: {om_config_template_file}")
         om_config_file: pathlib.Path = output_directory / "monitor.yaml"
 
+        # Fill OM config template with the provided data
         fh: TextIO
         with open(om_config_template_file) as fh:
             om_config_template: jinja2.Template = jinja2.Template(fh.read())
@@ -368,13 +385,25 @@ class CheetahProcess:
         with open(om_config_file, "w") as fh:
             fh.write(om_config_template.render(om_config_data))
 
+        # If data files are not written, remove the HDF5 fields from the OM config file
+        if not config["write_data_files"]:
+            with open(om_config_file, "r") as fh:
+                om_config: Dict[str, Any] = yaml.safe_load(fh)
+            try:
+                om_config["cheetah"]["hdf5_fields"] = {}
+                with open(om_config_file, "w") as fh:
+                    fh.write(yaml.safe_dump(om_config))
+            except KeyError:
+                pass
+
+        # Fill process script template with the provided data
         process_script: pathlib.Path = output_directory / "process.sh"
         with open(self._process_template_file) as fh:
             process_template: jinja2.Template = jinja2.Template(fh.read())
+
         om_source: str = self._prepare_om_source(
             run_id, self._experiment_id, self._raw_directory, output_directory
         )
-
         if not queue:
             queue = facilities[self._facility]["guess_batch_queue"](self._raw_directory)
         if not n_processes:
@@ -413,14 +442,15 @@ class CheetahProcess:
         }
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))
-
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
+
+        # Run the process script
         output: subprocess.CompletedProcess = subprocess.run(
             f"{process_script}", cwd=output_directory, shell=True, capture_output=True
         )
         log_subprocess_run_output(output, logger)
 
-        shutil.rmtree(temp_directory)
+        # Write status and process config files
         self._write_status_file(
             output_directory / "status.txt", {"Status": "Submitted"}
         )

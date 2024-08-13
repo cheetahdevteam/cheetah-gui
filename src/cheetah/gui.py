@@ -408,6 +408,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._ui.action_refresh_table.triggered.connect(self._refresh_table)
         self._ui.action_crawler.toggled.connect(self._action_crawler_toggled)
         self._ui.action_run_files.triggered.connect(self._process_runs)
+        self._ui.action_run_preview.triggered.connect(self._process_runs_preview)
         self._ui.action_run_streaming.triggered.connect(self._process_runs_streaming)
         self._ui.action_kill_processing.triggered.connect(self._kill_processing)
         self._ui.action_remove_processing.triggered.connect(self._remove_processing)
@@ -427,6 +428,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         # Cheetah menu actions
         self._ui.menu_cheetah_process_runs.triggered.connect(self._process_runs)
+        self._ui.menu_cheetah_process_preview.triggered.connect(
+            self._process_runs_preview
+        )
         self._ui.menu_cheetah_process_streaming.triggered.connect(
             self._process_runs_streaming
         )
@@ -469,11 +473,13 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # Disable action commands until enabled
         self._action_commands: List[QtWidgets.QAction] = [
             self._ui.action_run_files,
+            self._ui.action_run_preview,
             self._ui.action_kill_processing,
             self._ui.action_remove_processing,
             self._ui.action_crawler,
             self._ui.menu_file_start_crawler,
             self._ui.menu_cheetah_process_runs,
+            self._ui.menu_cheetah_process_preview,
             self._ui.menu_cheetah_kill_processing,
             self._ui.menu_cheetah_remove_processing,
             self._ui.menu_cheetah_process_jungfrau_darks,
@@ -766,7 +772,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 index.siblingAtColumn(self._cheetah_status_column)
             ).setText("Removing")
 
-    def _process_runs(self, streaming: bool = False) -> None:
+    def _process_runs(self, streaming: bool = False, save_data: bool = True) -> None:
         # Starts a ProcessThread which submits processing of selected runs
         selected: _SelectedRows = self._get_selected_rows()
         selected_runs: List[str] = [
@@ -814,6 +820,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             )
             if reply == QtWidgets.QMessageBox.Cancel:
                 return
+
+        if not save_data:
+            processing_config["write_data_files"] = False
 
         self._process_thread: ProcessThread = ProcessThread(
             self.experiment,
@@ -870,14 +879,19 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 index_to_change.siblingAtColumn(self._cheetah_status_column),
             ).setText("Submitting")
 
+    def _process_runs_preview(self) -> None:
+        self._process_runs(save_data=False)
+
     def _process_runs_streaming(self) -> None:
         self._process_runs(streaming=True)
 
     def _process_thread_started(self) -> None:
         # Disables launching new processing jobs until the previous jobs are submitted
         self._ui.action_run_files.setEnabled(False)
+        self._ui.action_run_preview.setEnabled(False)
         self._ui.action_kill_processing.setEnabled(False)
         self._ui.menu_cheetah_process_runs.setEnabled(False)
+        self._ui.menu_cheetah_process_preview.setEnabled(False)
         self._ui.menu_cheetah_kill_processing.setEnabled(False)
         self._ui.action_run_streaming.setEnabled(False)
         self._ui.menu_cheetah_process_streaming.setEnabled(False)
@@ -885,8 +899,10 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _process_thread_finished(self) -> None:
         # Enables launching new processing jobs
         self._ui.action_run_files.setEnabled(True)
+        self._ui.action_run_preview.setEnabled(True)
         self._ui.action_kill_processing.setEnabled(True)
         self._ui.menu_cheetah_process_runs.setEnabled(True)
+        self._ui.menu_cheetah_process_preview.setEnabled(True)
         self._ui.menu_cheetah_kill_processing.setEnabled(True)
         if self.experiment._streaming_process is not None:
             self._ui.action_run_streaming.setEnabled(True)

@@ -506,6 +506,7 @@ class CheetahExperiment:
             "mask": str(self._last_mask) if self._last_mask else "",
             "indexing_config": self._last_indexing_config,
             "event_list": None,
+            "write_data_files": True,
         }
 
     def get_raw_directory(self) -> pathlib.Path:

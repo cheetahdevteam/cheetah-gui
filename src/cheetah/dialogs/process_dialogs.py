@@ -186,6 +186,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             "mask": self._mask_le.text(),
             "indexing_config": indexing_config,
             "event_list": None,
+            "write_data_files": True,
         }
         if not self._config["config_template"] or not self._config["geometry"]:
             self._button_box.buttons()[0].setEnabled(False)
