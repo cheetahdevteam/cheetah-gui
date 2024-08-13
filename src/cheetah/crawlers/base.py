@@ -3,8 +3,10 @@ Cheetah Crawler's base classes.
 
 This module contains base classes for Cheetah Crawlers.
 """
+
 import csv
 import logging
+import math
 import pathlib
 import time
 from abc import ABC, abstractmethod
@@ -20,6 +22,14 @@ except:
     from typing_extensions import Literal, TypedDict  # type: ignore
 
 logger = logging.getLogger("cheetah.crawler")
+
+
+def _round_to_sig_digits(number: float, n: int) -> float:
+    # Rounds a number to n significant digits.
+    if number != 0:
+        return round(number, n - int(math.floor(math.log10(abs(number)))) - 1)
+    else:
+        return 0.0
 
 
 class TypeProcStatusItem(TypedDict):
@@ -489,12 +499,18 @@ class Crawler(ABC):
                     hits: int = proc_status_item["hits"]
                     processed: int = proc_status_item["processed"]
                     hitrate: Union[Literal["---"], float] = (
-                        100 * hits / processed if processed > 0 else "---"
+                        _round_to_sig_digits(100 * hits / processed, 3)
+                        if processed > 0
+                        else "---"
                     )
                     indexed: int = proc_status_item["indexed"]
                     if indexed >= 0:
                         row["Nindexed"] = indexed
-                        row["Idxrate"] = 100 * indexed / hits if hits > 0 else "---"
+                        row["Idxrate"] = (
+                            _round_to_sig_digits(100 * indexed / hits, 3)
+                            if hits > 0
+                            else "---"
+                        )
                     row["Nprocessed"] = processed
                     row["Nhits"] = hits
                     row["Hitrate"] = hitrate
