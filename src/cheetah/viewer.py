@@ -3,12 +3,13 @@ Cheetah Viewer.
 
 This module contains Cheetah image viewer.
 """
+
 import logging
 import logging.config
 import pathlib
 import sys
 from random import randrange
-from typing import Any, Dict, List, TextIO, Tuple, Optional, Union
+from typing import Any, Dict, List, TextIO, Tuple, Optional, Union, Callable
 
 import click  # type: ignore
 import h5py  # type: ignore
@@ -16,6 +17,7 @@ import numpy
 import numpy.typing
 import pyqtgraph  # type: ignore
 import yaml
+import ruamel.yaml  # type: ignore
 from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
@@ -35,7 +37,11 @@ from om.lib.geometry import (
     TypeVisualizationPixelMaps,
     _compute_pix_maps,
     _read_crystfel_geometry_from_text,
+    TypeDetectorLayoutInformation,
+    _retrieve_layout_info_from_geometry,
 )
+
+from om.algorithms.crystallography import Peakfinder8PeakDetection, TypePeakList
 
 logger = logging.getLogger("cheetah_viewer")
 
@@ -52,6 +58,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         mask_filename: Optional[str] = None,
         mask_hdf5_path: str = "/data/data",
         open_tab: int = 0,
+        pt_config_path: Optional[str] = None,
     ) -> None:
         """
         Cheetah Viewer.
@@ -79,6 +86,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
             open_tab: Which tab to show when the GUI opens (0 - Show, 1 - Maskmaker).
                 Defaults to 0.
+
+            pt_config_path: The path to the OM configuration file for peakfinder
+                parameter tweaker. Defaults to None.
         """
         super(Viewer, self).__init__()
         self._ui: Any = uic.loadUi(
@@ -118,20 +128,16 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                     )
                     self._ui.show_mask_cb.setEnabled(False)
                 else:
-                    mask: NDArray[Any] = 1 - mask_file[self._mask_hdf5_path][()]
-                    mask_img: NDArray[Any] = numpy.zeros(
-                        self._visual_img_shape, dtype=mask.dtype
+                    self._mask: NDArray[Any] = self._create_mask_image(
+                        mask_file[self._mask_hdf5_path][()]
                     )
-                    self._data_visualizer.visualize_data(
-                        data=mask, array_for_visualization=mask_img
-                    )
-                    self._mask: NDArray[Any] = numpy.zeros(
-                        shape=mask_img.T.shape + (4,)
-                    )
-                    self._mask[:, :, 2] = mask_img.T
-                    self._mask[:, :, 3] = mask_img.T
+
         else:
             self._ui.show_mask_cb.setEnabled(False)
+
+        self._pt_config_path: pathlib.Path = (
+            pathlib.Path(pt_config_path) if pt_config_path else pathlib.Path.cwd()
+        )
 
         self._frame_retrieval: CheetahFrameRetrieval = frame_retrieval
         self._events: List[str] = self._frame_retrieval.get_event_list()
@@ -178,11 +184,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.auto_range_cb.setChecked(True)
         self._ui.auto_range_cb.stateChanged.connect(self._update_image)
 
-        self._level_regex: Any = QtCore.QRegExp(r"-?\d+\.?\d*([eE][+-]?\d+)?")
-        self._level_validator: Any = QtGui.QRegExpValidator()
-        self._level_validator.setRegExp(self._level_regex)
-        self._ui.min_range_le.setValidator(self._level_validator)
-        self._ui.max_range_le.setValidator(self._level_validator)
+        self._float_regex: Any = QtCore.QRegExp(r"-?\d*\.?\d*([eE][+-]?\d+)?")
+        self._float_validator: Any = QtGui.QRegExpValidator()
+        self._float_validator.setRegExp(self._float_regex)
+        self._ui.min_range_le.setValidator(self._float_validator)
+        self._ui.max_range_le.setValidator(self._float_validator)
 
         self._ui.min_range_le.editingFinished.connect(self._change_levels)
         self._ui.max_range_le.editingFinished.connect(self._change_levels)
@@ -197,6 +203,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._init_show_tab()
         self._init_maskmaker_tab()
+        self._init_tweaker_tab()
 
         self._refresh_timer: Any = QtCore.QTimer()
         self._refresh_timer.timeout.connect(self._next_pattern)
@@ -256,7 +263,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_image.setZValue(1)
         self._mask_image.setOpacity(0.5)
         self._image_view.addItem(self._mask_image)
-        self._ui.show_mask_cb.stateChanged.connect(self._update_mask_image)
+        self._ui.show_mask_cb.stateChanged.connect(
+            lambda state: self._update_mask_image()
+        )
         self._ui.show_peaks_cb.stateChanged.connect(self._update_peaks)
 
         self._ui.next_crystal_button.clicked.connect(self._next_crystal)
@@ -315,6 +324,52 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._image_widget.scene.sigMouseClicked.connect(self._mouse_clicked)
 
+    def _init_tweaker_tab(self) -> None:
+
+        # Set validators for peak finder parameters
+        self._int_regex: Any = QtCore.QRegExp(r"[0-9]*")
+        self._int_validator: Any = QtGui.QRegExpValidator()
+        self._int_validator.setRegExp(self._int_regex)
+
+        self._ui.pt_adc_thresh_le.setValidator(self._float_validator)
+        self._ui.pt_minimum_snr_le.setValidator(self._float_validator)
+        self._ui.pt_min_res_le.setValidator(self._int_validator)
+        self._ui.pt_max_res_le.setValidator(self._int_validator)
+        self._ui.pt_min_pixel_count_le.setValidator(self._int_validator)
+        self._ui.pt_max_pixel_count_le.setValidator(self._int_validator)
+        self._ui.pt_local_bg_radius_le.setValidator(self._int_validator)
+        self._ui.pt_min_peaks_le.setValidator(self._int_validator)
+
+        # Disable peak finder parameter inputs
+        self._pt_inputs: List[Any] = [
+            self._ui.pt_adc_thresh_le,
+            self._ui.pt_minimum_snr_le,
+            self._ui.pt_min_res_le,
+            self._ui.pt_max_res_le,
+            self._ui.pt_min_pixel_count_le,
+            self._ui.pt_max_pixel_count_le,
+            self._ui.pt_local_bg_radius_le,
+            self._ui.pt_min_peaks_le,
+        ]
+
+        for input_widget in self._pt_inputs:
+            input_widget.setEnabled(False)
+        self._ui.pt_load_mask_button.setEnabled(False)
+        self._ui.save_config_button.setEnabled(False)
+
+        # Connect parameter edits
+        for input_widget in self._pt_inputs:
+            input_widget.editingFinished.connect(
+                lambda w=input_widget: self._update_peakfinder_parameters(w)
+            )
+        self._ui.pt_load_mask_button.clicked.connect(self._load_mask_for_peakfinder)
+        self._ui.load_config_button.clicked.connect(self._load_peakfinder_parameters)
+        self._ui.save_config_button.clicked.connect(self._save_peakfinder_parameters)
+
+        self._peakfinder: Optional[Peakfinder8PeakDetection] = None
+        self._pt_mask: Optional[NDArray[numpy.int_]] = None
+        self._pt_num_peaks: int = 0
+
     def _load_geometry(self, geometry_lines: List[str]) -> None:
         # Loads CrystFEL goemetry using om.lib.geometry module.
         self._geometry: TypeDetector
@@ -340,12 +395,17 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_hdf5_path = self._geometry["panels"][first_panel]["mask"]
 
         pixel_maps: TypePixelMaps = _compute_pix_maps(geometry=self._geometry)
+        self._radius_pixel_map: NDArray[numpy.float_] = pixel_maps["radius"]
+        self._detector_layout_info: TypeDetectorLayoutInformation = (
+            _retrieve_layout_info_from_geometry(geometry=self._geometry)
+        )
+
         self._data_visualizer: DataVisualizer = DataVisualizer(pixel_maps=pixel_maps)
 
         self._data_shape: Tuple[int, ...] = pixel_maps["x"].shape
-        self._visual_img_shape: Tuple[
-            int, int
-        ] = self._data_visualizer.get_min_array_shape_for_visualization()
+        self._visual_img_shape: Tuple[int, int] = (
+            self._data_visualizer.get_min_array_shape_for_visualization()
+        )
         self._img_center_x: int = int(self._visual_img_shape[1] / 2)
         self._img_center_y: int = int(self._visual_img_shape[0] / 2)
 
@@ -358,6 +418,20 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._flattened_visualization_pixel_map_x = self._visualization_pixel_maps[
             "x"
         ].flatten()
+
+    def _create_mask_image(self, mask_data: NDArray[Any]) -> NDArray[Any]:
+        # Creates a mask image from the mask data.
+        mask_data = 1 - mask_data
+        mask_img: NDArray[Any] = numpy.zeros(
+            self._visual_img_shape, dtype=mask_data.dtype
+        )
+        self._data_visualizer.visualize_data(
+            data=mask_data, array_for_visualization=mask_img
+        )
+        mask: NDArray[Any] = numpy.zeros(shape=mask_img.T.shape + (4,))
+        mask[:, :, 2] = mask_img.T
+        mask[:, :, 3] = mask_img.T
+        return mask
 
     def _tab_changed(self) -> None:
         if self._current_tab == 1:
@@ -384,6 +458,25 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._circular_roi.setVisible(True)
             self._maskmaker_image.setVisible(True)
 
+        elif self._current_tab == 2:
+            # Hide reflections
+            self._refl_canvas.setVisible(False)
+
+            # Show resolution rings, peaks and input mask
+            self._resolution_rings_canvas.setVisible(True)
+            for text_item in self._resolution_rings_textitems:
+                text_item.setVisible(True)
+            self._peak_canvas.setVisible(True)
+            self._mask_image.setVisible(True)
+
+            # Hide maskmaker items
+            self._rectangular_roi.setVisible(False)
+            self._circular_roi.setVisible(False)
+            self._maskmaker_image.setVisible(False)
+
+            self._update_mask_image(self._pt_mask)
+            self._update_peaks()
+
         elif self._current_tab == 0:
             # Show resolution rings, peaks, reflections and input mask
             self._resolution_rings_canvas.setVisible(True)
@@ -397,6 +490,9 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._rectangular_roi.setVisible(False)
             self._circular_roi.setVisible(False)
             self._maskmaker_image.setVisible(False)
+
+            self._update_mask_image()
+            self._update_peaks()
 
     def _update_resolution_rings_status(self) -> None:
         new_state = self._resolution_rings_check_box.isChecked()
@@ -621,13 +717,17 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             status_message = f"{self._events[self._current_event_index]}"
         self.statusBar().showMessage(status_message)
 
-    def _update_mask_image(self) -> None:
-        if self._ui.show_mask_cb.isChecked():
-            self._mask_image.setImage(
-                self._mask, compositionMode=QtGui.QPainter.CompositionMode_SourceOver
-            )
-        else:
+    def _update_mask_image(self, mask: Optional[NDArray[Any]] = None) -> None:
+        # Updates the mask image shown by the viewer.
+        if mask is None and not self._ui.show_mask_cb.isChecked():
             self._mask_image.clear()
+            return
+
+        if mask is None:
+            mask = self._mask
+        self._mask_image.setImage(
+            mask, compositionMode=QtGui.QPainter.CompositionMode_SourceOver
+        )
 
     def _update_peaks(self) -> None:
         # Updates peaks shown by the viewer.
@@ -638,26 +738,41 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         peak_list_y_in_frame: List[float] = []
         peak_list_x_in_frame: List[float] = []
         if (
-            self._ui.show_peaks_cb.isChecked()
+            self._current_tab == 0
+            and self._ui.show_peaks_cb.isChecked()
             and "peaks" in self._current_event_data.keys()
         ):
-            peak_fs: float
-            peak_ss: float
-            for peak_fs, peak_ss in zip(
-                self._current_event_data["peaks"]["fs"],
-                self._current_event_data["peaks"]["ss"],
-            ):
-                peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
-                    1
-                ] + int(round(peak_fs))
-                y_in_frame: float = self._flattened_visualization_pixel_map_y[
-                    peak_index_in_slab
-                ]
-                x_in_frame: float = self._flattened_visualization_pixel_map_x[
-                    peak_index_in_slab
-                ]
-                peak_list_x_in_frame.append(y_in_frame)
-                peak_list_y_in_frame.append(x_in_frame)
+            peak_list = self._current_event_data["peaks"]
+        elif (
+            self._current_tab == 2
+            and self._peakfinder
+            and "data" in self._current_event_data
+        ):
+            peak_list = self._peakfinder.find_peaks(
+                data=self._current_event_data["data"]
+            )
+            self._pt_num_peaks = len(peak_list["fs"])
+            self._update_pt_info_label()
+        else:
+            peak_list = {"fs": [], "ss": []}
+
+        peak_fs: float
+        peak_ss: float
+        for peak_fs, peak_ss in zip(
+            peak_list["fs"],
+            peak_list["ss"],
+        ):
+            peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[1] + int(
+                round(peak_fs)
+            )
+            y_in_frame: float = self._flattened_visualization_pixel_map_y[
+                peak_index_in_slab
+            ]
+            x_in_frame: float = self._flattened_visualization_pixel_map_x[
+                peak_index_in_slab
+            ]
+            peak_list_x_in_frame.append(y_in_frame)
+            peak_list_y_in_frame.append(x_in_frame)
         self._peak_canvas.setData(
             x=peak_list_y_in_frame,
             y=peak_list_x_in_frame,
@@ -910,12 +1025,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             max_fs: int = panel["orig_max_fs"]
             min_ss: int = panel["orig_min_ss"]
             max_ss: int = panel["orig_max_ss"]
-            self._maskmaker_mask[
-                min_ss : max_ss + 1, min_fs : max_fs + 1
-            ] = binary_dilation(
-                self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
-            ).astype(
-                self._maskmaker_mask.dtype
+            self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1] = (
+                binary_dilation(
+                    self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
+                ).astype(self._maskmaker_mask.dtype)
             )
         self._update_maskmaker_image()
 
@@ -925,12 +1038,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             max_fs: int = panel["orig_max_fs"]
             min_ss: int = panel["orig_min_ss"]
             max_ss: int = panel["orig_max_ss"]
-            self._maskmaker_mask[
-                min_ss : max_ss + 1, min_fs : max_fs + 1
-            ] = binary_erosion(
-                self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
-            ).astype(
-                self._maskmaker_mask.dtype
+            self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1] = (
+                binary_erosion(
+                    self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
+                ).astype(self._maskmaker_mask.dtype)
             )
         self._update_maskmaker_image()
 
@@ -1026,6 +1137,151 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             logger.info(f"Saving new mask to {filename}.")
             with h5py.File(filename, "w") as fh:
                 fh.create_dataset("/data/data", data=(1 - self._maskmaker_mask))
+
+    def _load_peakfinder_parameters(self) -> None:
+        filename: str = QtWidgets.QFileDialog().getOpenFileName(
+            self,
+            "Select OM configuration file",
+            str(self._pt_config_path),
+            filter="*.yaml",
+        )[0]
+        if not filename:
+            return
+
+        logger.info(f"Loading peakfinder parameters from {filename}")
+        self._pt_config_path = pathlib.Path(filename)
+
+        self._yaml: ruamel.yaml.YAML = ruamel.yaml.YAML(typ="jinja2")
+        self._yaml.indent(mapping=2, sequence=1, offset=2)
+        self._yaml.preserve_quotes = True
+        with open(filename, "r") as fh:
+            self._pt_config: Dict[str, Any] = self._yaml.load(fh)
+
+        pf8_config: Dict[str, Any] = self._pt_config[
+            "peakfinder8_peak_detection"
+        ].copy()
+        pf8_config["min_num_peaks_for_hit"] = self._pt_config["crystallography"][
+            "min_num_peaks_for_hit"
+        ]
+        self._fill_peakfinder_parameters(pf8_config)
+        if not pathlib.Path(pf8_config["bad_pixel_map_filename"]).is_file():
+            if self._ui.show_mask_cb.isEnabled():
+                pf8_config["bad_pixel_map_filename"] = self._mask_filename
+                pf8_config["bad_pixel_map_hdf5_path"] = self._mask_hdf5_path
+                self._pt_mask = self._mask
+            else:
+                pf8_config["bad_pixel_map_filename"] = None
+
+        for input_widget in self._pt_inputs:
+            input_widget.setEnabled(True)
+        self._ui.pt_load_mask_button.setEnabled(True)
+        self._ui.save_config_button.setEnabled(True)
+
+        self._peakfinder = Peakfinder8PeakDetection(
+            radius_pixel_map=self._radius_pixel_map,
+            layout_info=self._detector_layout_info,
+            crystallography_parameters=pf8_config,
+        )
+        self._update_mask_image(self._pt_mask)
+        self._update_peaks()
+
+    def _save_peakfinder_parameters(self) -> None:
+        pf8_config: Dict[str, Any] = self._pt_config["peakfinder8_peak_detection"]
+        pf8_config["adc_threshold"] = float(self._ui.pt_adc_thresh_le.text())
+        pf8_config["minimum_snr"] = float(self._ui.pt_minimum_snr_le.text())
+        pf8_config["min_res"] = int(self._ui.pt_min_res_le.text())
+        pf8_config["max_res"] = int(self._ui.pt_max_res_le.text())
+        pf8_config["min_pixel_count"] = int(self._ui.pt_min_pixel_count_le.text())
+        pf8_config["max_pixel_count"] = int(self._ui.pt_max_pixel_count_le.text())
+        pf8_config["local_bg_radius"] = int(self._ui.pt_local_bg_radius_le.text())
+        self._pt_config["crystallography"]["min_num_peaks_for_hit"] = int(
+            self._ui.pt_min_peaks_le.text()
+        )
+        new_config_path: pathlib.Path = self._pt_config_path.parent / (
+            self._pt_config_path.stem + "-new.yaml"
+        )
+        filename: str = QtWidgets.QFileDialog().getSaveFileName(
+            self, "Save new config file", str(new_config_path), filter="*.yaml"
+        )[0]
+        if not filename:
+            return
+
+        reply: Any = QtWidgets.QMessageBox.information(
+            self,
+            "Warning",
+            "Bad pixel map will not be saved in the new configuration file.",
+            QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel,
+        )
+        if reply == QtWidgets.QMessageBox.Cancel:
+            return
+
+        logger.info(f"Saving new peakfinder parameters to {filename}")
+        fh: TextIO
+        with open(filename, "w") as fh:
+            self._yaml.dump(self._pt_config, fh)
+            self._pt_config_path = pathlib.Path(filename)
+
+    def _load_mask_for_peakfinder(self) -> None:
+        if self._mask_filename and pathlib.Path(self._mask_filename).is_file():
+            path: pathlib.Path = pathlib.Path(self._mask_filename)
+        else:
+            path = pathlib.Path.cwd()
+        filename: str = QtWidgets.QFileDialog().getOpenFileName(
+            self, "Select mask file", str(path), filter="*.h5"
+        )[0]
+        if filename:
+            hdf5_path: str = QtWidgets.QInputDialog.getText(
+                self,
+                "Mask HDF5 path",
+                "Enter the path to the mask dataset in the file:",
+                text="/data/data",
+            )[0]
+            if not hdf5_path:
+                return
+        else:
+            return
+
+        mask_file: Any
+        with h5py.File(filename, "r") as mask_file:
+            if hdf5_path not in mask_file:
+                logger.error(f"Dataset {hdf5_path} not found in {filename}.")
+                return
+            self._pt_mask = self._create_mask_image(mask_file[hdf5_path][()])
+        self._update_mask_image(self._pt_mask)
+
+    def _update_peakfinder_parameters(self, input_widget: Any) -> None:
+        if input_widget.text() == "":
+            input_widget.setText("0")
+
+        if input_widget.objectName() == "pt_min_peaks_le":
+            self._update_pt_info_label()
+            return
+
+        pf_arg: str = input_widget.objectName()[3:-3]
+        func: Callable[..., Any] = getattr(self._peakfinder, "set_" + pf_arg)
+        if pf_arg in ("adc_thresh", "minimum_snr"):
+            func(**{pf_arg: float(input_widget.text())})
+        else:
+            func(**{pf_arg: int(input_widget.text())})
+        self._update_peaks()
+
+    def _update_pt_info_label(self) -> None:
+        self._ui.pt_info_label.setText(f"Found {self._pt_num_peaks} peaks.")
+        min_peaks: int = int(self._ui.pt_min_peaks_le.text())
+        if self._pt_num_peaks >= min_peaks:
+            self._ui.pt_info_label.setStyleSheet("color: green")
+        else:
+            self._ui.pt_info_label.setStyleSheet("color: red")
+
+    def _fill_peakfinder_parameters(self, parameters: Dict[str, Any]) -> None:
+        self._ui.pt_adc_thresh_le.setText(str(parameters["adc_threshold"]))
+        self._ui.pt_minimum_snr_le.setText(str(parameters["minimum_snr"]))
+        self._ui.pt_min_res_le.setText(str(parameters["min_res"]))
+        self._ui.pt_max_res_le.setText(str(parameters["max_res"]))
+        self._ui.pt_min_pixel_count_le.setText(str(parameters["min_pixel_count"]))
+        self._ui.pt_max_pixel_count_le.setText(str(parameters["max_pixel_count"]))
+        self._ui.pt_local_bg_radius_le.setText(str(parameters["local_bg_radius"]))
+        self._ui.pt_min_peaks_le.setText(str(parameters["min_num_peaks_for_hit"]))
 
 
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
@@ -1241,6 +1497,7 @@ def main(
         )
         sys.exit(1)
 
+    pt_config_path: Optional[str] = None
     if input_type == "om":
         logger.info("Activating frame retrieval from OM data retrieval layer.")
         if not pathlib.Path(om_config).is_file():
@@ -1249,6 +1506,8 @@ def main(
                 f"does not exist."
             )
             sys.exit(1)
+        pt_config_path = om_config
+
         input_file: str = input_files[0]
         parameters: Dict[str, Any] = {
             "om_sources": {input_file: om_source},
@@ -1289,6 +1548,9 @@ def main(
                     f"Skipping input source {dir}: {process_config} file not found."
                 )
                 continue
+
+            if pt_config_path is None:
+                pt_config_path = config["Processing config"]["config_template"]
 
             hits_file: pathlib.Path = dir / "hits.lst"
             peaks_file: pathlib.Path = dir / "peaks.txt"
@@ -1371,7 +1633,14 @@ def main(
         return
 
     app: Any = QtWidgets.QApplication(sys.argv)
-    _ = Viewer(frame_retrieval, geometry_lines, mask_filename, hdf5_mask_path, open_tab)
+    _ = Viewer(
+        frame_retrieval,
+        geometry_lines,
+        mask_filename,
+        hdf5_mask_path,
+        open_tab,
+        pt_config_path,
+    )
     sys.exit(app.exec_())
 
 
