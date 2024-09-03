@@ -41,7 +41,7 @@ from om.lib.geometry import (
     _retrieve_layout_info_from_geometry,
 )
 
-from om.algorithms.crystallography import Peakfinder8PeakDetection, TypePeakList
+from om.algorithms.crystallography import Peakfinder8PeakDetection
 
 logger = logging.getLogger("cheetah_viewer")
 
@@ -59,6 +59,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         mask_hdf5_path: str = "/data/data",
         open_tab: int = 0,
         pt_config_path: Optional[str] = None,
+        geometry_path: Optional[str] = None,
     ) -> None:
         """
         Cheetah Viewer.
@@ -88,7 +89,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 Defaults to 0.
 
             pt_config_path: The path to the OM configuration file for peakfinder
-                parameter tweaker. Defaults to None.
+                parameter tweaker. Defaults to None. Used only as a default path for
+                the file dialog. If not provided, the current working directory is used.
+
+            geometry_path: The path to the CrystFEL geometry file. Defaults to None.
+                Used only as a default path for the file dialog. If not provided, the
+                current working directory is used.
         """
         super(Viewer, self).__init__()
         self._ui: Any = uic.loadUi(
@@ -138,6 +144,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._pt_config_path: pathlib.Path = (
             pathlib.Path(pt_config_path) if pt_config_path else pathlib.Path.cwd()
         )
+        self._geometry_path: pathlib.Path = (
+            pathlib.Path(geometry_path) if geometry_path else pathlib.Path.cwd()
+        )
+        self._geometry_lines: List[str] = geometry_lines
 
         self._frame_retrieval: CheetahFrameRetrieval = frame_retrieval
         self._events: List[str] = self._frame_retrieval.get_event_list()
@@ -204,6 +214,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._init_show_tab()
         self._init_maskmaker_tab()
         self._init_tweaker_tab()
+        self._init_geometry_tab()
 
         self._refresh_timer: Any = QtCore.QTimer()
         self._refresh_timer.timeout.connect(self._next_pattern)
@@ -221,14 +232,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._refl_canvas: Any = pyqtgraph.ScatterPlotItem()
         self._image_view.addItem(self._refl_canvas)
 
-        self._resolution_rings_in_a: List[float] = [
-            10.0,
-            6.0,
-            4.0,
-            3.0,
-            2.0,
-            1.5,
-        ]
+        self._resolution_rings_in_a: List[float] = [10.0, 6.0, 4.0, 3.0, 2.0, 1.5]
         self._resolution_rings_textitems: List[Any] = [
             pyqtgraph.TextItem(
                 text="{0}A".format(x), anchor=(0.5, 0.8), color=(0, 255, 0)
@@ -370,6 +374,31 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._pt_mask: Optional[NDArray[numpy.int_]] = None
         self._pt_num_peaks: int = 0
 
+    def _init_geometry_tab(self) -> None:
+        # Initialize UI elements in the Geometry tab
+        self._geometry_rois: List[Any] = []
+        self._geometry_roi_radii: List[float] = [300.0, 100.0, 50.0]
+        i: int
+        for i in range(len(self._geometry_roi_radii)):
+            radius: float = self._geometry_roi_radii[i]
+            roi: Any = pyqtgraph.CircleROI(
+                [self._img_center_x - radius, self._img_center_y - radius],
+                [2 * radius, 2 * radius],
+                pen=(4, 9),
+                movable=True if i == 0 else False,
+            )
+            self._image_view.addItem(roi)
+            self._geometry_rois.append(roi)
+
+        self._geometry_rois[0].sigRegionChanged.connect(self._move_geometry_rois)
+        for i in range(1, len(self._geometry_rois)):
+            self._geometry_rois[i].sigRegionChangeFinished.connect(
+                self._update_geometry_labels
+            )
+
+        self._geometry_shift: Tuple[float, float] = (0.0, 0.0)
+        self._ui.save_geometry_button.clicked.connect(self._save_geometry)
+
     def _load_geometry(self, geometry_lines: List[str]) -> None:
         # Loads CrystFEL goemetry using om.lib.geometry module.
         self._geometry: TypeDetector
@@ -453,6 +482,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._refl_canvas.setVisible(False)
             self._mask_image.setVisible(False)
 
+            # Hide geometry ROIs
+            for roi in self._geometry_rois:
+                roi.setVisible(False)
+
             # Show maskmaker mask and ROIs
             self._rectangular_roi.setVisible(True)
             self._circular_roi.setVisible(True)
@@ -474,8 +507,24 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._circular_roi.setVisible(False)
             self._maskmaker_image.setVisible(False)
 
+            # Hide geometry ROIs
+            for roi in self._geometry_rois:
+                roi.setVisible(False)
+
             self._update_mask_image(self._pt_mask)
             self._update_peaks()
+
+        elif self._current_tab == 3:
+            # Show geometry ROIs
+            for roi in self._geometry_rois:
+                roi.setVisible(True)
+
+            # Hide maskmaker items
+            self._rectangular_roi.setVisible(False)
+            self._circular_roi.setVisible(False)
+            self._maskmaker_image.setVisible(False)
+
+            self._update_geometry_labels()
 
         elif self._current_tab == 0:
             # Show resolution rings, peaks, reflections and input mask
@@ -490,6 +539,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             self._rectangular_roi.setVisible(False)
             self._circular_roi.setVisible(False)
             self._maskmaker_image.setVisible(False)
+
+            # Hide geometry ROIs
+            for roi in self._geometry_rois:
+                roi.setVisible(False)
 
             self._update_mask_image()
             self._update_peaks()
@@ -1283,6 +1336,73 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.pt_local_bg_radius_le.setText(str(parameters["local_bg_radius"]))
         self._ui.pt_min_peaks_le.setText(str(parameters["min_num_peaks_for_hit"]))
 
+    def _move_geometry_rois(self, moved_roi: Any, dx: float = 0, dy: float = 0) -> None:
+        if self._current_tab != 3:
+            return
+        if moved_roi is not None:
+            c: Any = moved_roi.parentBounds().center()
+        else:
+            c = self._geometry_rois[0].parentBounds().center() - QtCore.QPointF(dx, dy)
+        for roi in self._geometry_rois:
+            if roi is not moved_roi:
+                roi.setPos(c - roi.size() / 2)
+        self._update_geometry_labels()
+
+    def _update_geometry_labels(self) -> None:
+        self._geometry_roi_radii = [roi.size()[0] / 2 for roi in self._geometry_rois]
+        center: Any = self._geometry_rois[0].parentBounds().center()
+        self._geometry_shift = (
+            self._img_center_x - center.x(),
+            self._img_center_y - center.y(),
+        )
+
+        self._ui.ds_rings_label.setText(
+            "Rings: "
+            + " ".join((f"{r:.1f}" for r in sorted(self._geometry_roi_radii)))
+            + " pixels"
+        )
+        self._ui.ds_shift_label.setText(
+            "Detector shift: "
+            + f"{self._geometry_shift[0]:.2f} {self._geometry_shift[1]:.2f} pixels"
+        )
+
+    def _save_geometry(self) -> None:
+        new_geometry_lines: List[str] = []
+        for line in self._geometry_lines:
+            if not line.startswith(";"):
+                try:
+                    key, value = (item.strip() for item in line.split("="))
+                except ValueError:
+                    continue
+                if key.split("/")[-1] == "corner_x":
+                    corner_x: float = float(value) + self._geometry_shift[0]
+                    line = f"{key} = {corner_x}\n"
+                elif key.split("/")[-1] == "corner_y":
+                    corner_y: float = float(value) + self._geometry_shift[1]
+                    line = f"{key} = {corner_y}\n"
+            new_geometry_lines.append(line)
+
+        filename: str = QtWidgets.QFileDialog().getSaveFileName(
+            self, "Save new geometry file", str(self._geometry_path), filter="*.geom"
+        )[0]
+        if not filename:
+            return
+        with open(filename, "w") as fh:
+            fh.writelines(new_geometry_lines)
+
+    def keyPressEvent(self, event: Any) -> None:
+        if self._current_tab != 3:
+            return
+
+        if event.key() == QtCore.Qt.Key_Up:
+            self._move_geometry_rois(None, dy=-1)
+        elif event.key() == QtCore.Qt.Key_Down:
+            self._move_geometry_rois(None, dy=1)
+        elif event.key() == QtCore.Qt.Key_Left:
+            self._move_geometry_rois(None, dx=1)
+        elif event.key() == QtCore.Qt.Key_Right:
+            self._move_geometry_rois(None, dx=-1)
+
 
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     # This function is used internally to get parameters for hdf5 data retrieval from
@@ -1498,6 +1618,7 @@ def main(
         sys.exit(1)
 
     pt_config_path: Optional[str] = None
+    geometry_path: Optional[str] = None
     if input_type == "om":
         logger.info("Activating frame retrieval from OM data retrieval layer.")
         if not pathlib.Path(om_config).is_file():
@@ -1507,6 +1628,7 @@ def main(
             )
             sys.exit(1)
         pt_config_path = om_config
+        geometry_path = geometry_filename
 
         input_file: str = input_files[0]
         parameters: Dict[str, Any] = {
@@ -1549,8 +1671,8 @@ def main(
                 )
                 continue
 
-            if pt_config_path is None:
-                pt_config_path = config["Processing config"]["config_template"]
+            pt_config_path = config["Processing config"]["config_template"]
+            geometry_path = config["Processing config"]["geometry"]
 
             hits_file: pathlib.Path = dir / "hits.lst"
             peaks_file: pathlib.Path = dir / "peaks.txt"
@@ -1617,6 +1739,7 @@ def main(
             parameters["hdf5_peaks_path"] = hdf5_peaks_path
 
         frame_retrieval = H5FilesRetrieval(input_files, parameters)
+        geometry_path = geometry_filename
 
     if geometry_filename:
         fh: TextIO
@@ -1640,6 +1763,7 @@ def main(
         hdf5_mask_path,
         open_tab,
         pt_config_path,
+        geometry_path,
     )
     sys.exit(app.exec_())
 
