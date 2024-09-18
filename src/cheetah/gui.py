@@ -600,7 +600,8 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     ) -> Dict[str, pathlib.Path]:
         # Get hit list files for selected runs
         hit_files: Dict[str, pathlib.Path] = {}
-        for run_id, proc_dir in zip(selected.runs, selected.proc_dirs):
+        for table_id, proc_dir in zip(selected.runs, selected.proc_dirs):
+            run_id: str = self.experiment.crawler_table_id_to_raw_id(table_id)
             if proc_dir in ("---", ""):
                 continue
             if run_id in hit_files:
