@@ -1,7 +1,7 @@
 om:
   parallelization_layer: MpiParallelization
   data_retrieval_layer: MfxLclsRayonixDataRetrieval
-  processing_layer: CheetahProcessing
+  processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
   calibration: true
@@ -46,6 +46,8 @@ crystallography:
   running_average_window_size: 200
   geometry_is_optimized: true
   speed_report_interval: 100
+  responding_url: "ipc://{{output_dir}}/ipc-socket"
+  external_data_request_list_size: 36
 
 peakfinder8_peak_detection:
   max_num_peaks: 2048
