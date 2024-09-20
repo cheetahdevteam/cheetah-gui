@@ -1299,8 +1299,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             if hdf5_path not in mask_file:
                 logger.error(f"Dataset {hdf5_path} not found in {filename}.")
                 return
-            self._pt_mask = self._create_mask_image(mask_file[hdf5_path][()])
+            mask: NDArray[numpy.int_] = mask_file[hdf5_path][()]
+            self._pt_mask = self._create_mask_image(mask)
         self._update_mask_image(self._pt_mask)
+        self._peakfinder.set_bad_pixel_map(mask)
+        self._update_peaks()
 
     def _update_peakfinder_parameters(self, input_widget: Any) -> None:
         if input_widget.text() == "":
