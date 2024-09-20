@@ -736,9 +736,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self.experiment.kill_processing_jobs(selected_proc_dirs)
         for index in selected_indices:
-            self._data_model.itemFromIndex(
-                index.siblingAtColumn(self._cheetah_status_column)
-            ).setText("Cancelling")
+            try:
+                self._data_model.itemFromIndex(
+                    index.siblingAtColumn(self._cheetah_status_column)
+                ).setText("Cancelling")
+            except AttributeError:
+                pass
 
     def _remove_processing(self) -> None:
         # Ask if the user is sure they want to remove the processing results. If yes -
@@ -769,9 +772,12 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
 
         self.experiment.remove_processing_results(selected_proc_dirs)
         for index in selected_indices:
-            self._data_model.itemFromIndex(
-                index.siblingAtColumn(self._cheetah_status_column)
-            ).setText("Removing")
+            try:
+                self._data_model.itemFromIndex(
+                    index.siblingAtColumn(self._cheetah_status_column)
+                ).setText("Removing")
+            except AttributeError:
+                pass
 
     def _process_runs(self, streaming: bool = False, save_data: bool = True) -> None:
         # Starts a ProcessThread which submits processing of selected runs
