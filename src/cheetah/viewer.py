@@ -1372,14 +1372,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             if not line.startswith(";"):
                 try:
                     key, value = (item.strip() for item in line.split("="))
+                    if key.split("/")[-1] == "corner_x":
+                        corner_x: float = float(value) + self._geometry_shift[0]
+                        line = f"{key} = {corner_x}\n"
+                    elif key.split("/")[-1] == "corner_y":
+                        corner_y: float = float(value) + self._geometry_shift[1]
+                        line = f"{key} = {corner_y}\n"
                 except ValueError:
-                    continue
-                if key.split("/")[-1] == "corner_x":
-                    corner_x: float = float(value) + self._geometry_shift[0]
-                    line = f"{key} = {corner_x}\n"
-                elif key.split("/")[-1] == "corner_y":
-                    corner_y: float = float(value) + self._geometry_shift[1]
-                    line = f"{key} = {corner_y}\n"
+                    pass
             new_geometry_lines.append(line)
 
         filename: str = QtWidgets.QFileDialog().getSaveFileName(
