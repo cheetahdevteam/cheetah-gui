@@ -269,6 +269,8 @@ class Crawler(ABC):
             if status_file.is_file():
                 with open(status_file, "r") as fh:
                     status: Dict[str, Any] = yaml.safe_load(fh.read())
+                if status is None:
+                    continue
                 if "Update time" in status.keys():
                     update_time: float = datetime.strptime(
                         status["Update time"], "%a %b %d %H:%M:%S %Y"
