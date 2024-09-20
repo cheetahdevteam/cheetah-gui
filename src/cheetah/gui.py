@@ -152,7 +152,7 @@ class CrawlerGui(QtWidgets.QMainWindow):  # type: ignore
         self._raw_scan_enable_button.setEnabled(True)
         self._proc_scan_enable_button.setEnabled(True)
         self._status_label.setText("Ready")
-        self._refresh_timer.start(60000)
+        self._refresh_timer.start(20000)
         self.scan_finished.emit()
 
     def closeEvent(self, event: Any) -> None:
