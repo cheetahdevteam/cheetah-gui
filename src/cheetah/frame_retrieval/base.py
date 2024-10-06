@@ -1,18 +1,16 @@
 """
 Frame retrieval base classes.
 """
-import numpy.typing
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Dict, List
 
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
+import numpy.typing
 
 
-class TypePeakList(TypedDict):
+@dataclass
+class PeakList:
     """
     A typed dictionary which stores information about positions of detected peaks in a
     detector data frame.
@@ -33,7 +31,8 @@ class TypePeakList(TypedDict):
     ss: List[float]
 
 
-class TypeEventData(TypedDict, total=False):
+@dataclass
+class EventData:
     """
     A typed dictionary which stores data from a single event.
 
@@ -58,10 +57,10 @@ class TypeEventData(TypedDict, total=False):
 
     data: numpy.typing.NDArray[Any]
     source: str
-    peaks: TypePeakList
+    peaks: PeakList
     photon_energy: float
     clen: float
-    crystals: List[TypePeakList]
+    crystals: List[PeakList]
 
 
 class CheetahFrameRetrieval(ABC):
@@ -103,7 +102,7 @@ class CheetahFrameRetrieval(ABC):
         pass
 
     @abstractmethod
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 

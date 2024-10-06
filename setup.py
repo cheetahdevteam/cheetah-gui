@@ -8,7 +8,6 @@ setup.py file for Cheetah GUI.
 
 from setuptools import find_packages, setup
 
-
 version_fh = open("src/cheetah/__init__.py", "r")
 version = version_fh.readlines()[-1].split("=")[1].strip().split('"')[1]
 version_fh.close()

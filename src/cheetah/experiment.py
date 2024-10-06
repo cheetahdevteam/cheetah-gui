@@ -1,7 +1,7 @@
 """
 Cheetah Experiment.
 
-This module contains classes and functions that provide information related to a 
+This module contains classes and functions that provide information related to a
 particular experiment and control its data processing.
 """
 
@@ -9,24 +9,21 @@ import logging
 import pathlib
 import shutil
 import stat
-from typing import Any, Dict, List, TextIO, cast, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, TextIO, cast
 
 import yaml
 
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
-
-from cheetah.crawlers import TypeDetectorInfo, facilities
+from cheetah.crawlers import DetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
-from cheetah.process import CheetahProcess, TypeProcessingConfig, TypeIndexingConfig
+from cheetah.process import CheetahProcess, IndexingConfig, TypeProcessingConfig
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
 
 logger = logging.getLogger(__name__)
 
 
-class TypeExperimentConfig(TypedDict):
+@dataclass
+class ExperimentConfig:
     """
     A dictionary storing all information required to set up new Cheetah experiment.
 
@@ -66,7 +63,7 @@ class CheetahExperiment:
     def __init__(
         self,
         path: pathlib.Path,
-        new_experiment_config: Optional[TypeExperimentConfig] = None,
+        new_experiment_config: Optional[ExperimentConfig] = None,
         gui: bool = True,
     ) -> None:
         """
@@ -246,15 +243,13 @@ class CheetahExperiment:
             self._last_mask = None
         self._last_tag: str = crawler_config["cheetah_tag"]
         if "indexing_config" in crawler_config:
-            self._last_indexing_config: Optional[TypeIndexingConfig] = crawler_config[
+            self._last_indexing_config: Optional[IndexingConfig] = crawler_config[
                 "indexing_config"
             ]
         else:
             self._last_indexing_config = None
 
-    def _setup_new_experiment(
-        self, new_experiment_config: TypeExperimentConfig
-    ) -> None:
+    def _setup_new_experiment(self, new_experiment_config: ExperimentConfig) -> None:
         # Sets up new experiment. Creates new Cheetah directory structure, writes
         # cheetah/gui/crawler.config file and copies required resources to
         # cheetah/calib and cheetah/process.
@@ -289,7 +284,7 @@ class CheetahExperiment:
 
         self._process_script = pathlib.Path("cheetah_process.py")
 
-        resources: TypeDetectorInfo = facilities[new_experiment_config["facility"]][
+        resources: DetectorInfo = facilities[new_experiment_config["facility"]][
             "instruments"
         ][new_experiment_config["instrument"]]["detectors"][
             new_experiment_config["detector"]

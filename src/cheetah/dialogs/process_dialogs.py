@@ -1,19 +1,19 @@
 """
 Process dialogs.
 
-This modules contains dialogs which allow setting up processing configuration 
+This modules contains dialogs which allow setting up processing configuration
 parameters and launching data processing.
 """
 
 import logging
 import pathlib
-import ruamel.yaml
+from typing import Any, Dict, Optional, TextIO, Union
 
-from PyQt5 import QtWidgets, QtCore, QtGui  # type: ignore
-from typing import Any, Optional, Dict, TextIO, Union
+import ruamel.yaml
+from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
 
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
-from cheetah.process import TypeProcessingConfig, TypeIndexingConfig
+from cheetah.process import IndexingConfig, TypeProcessingConfig
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -172,7 +172,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
     def _check_config(self) -> None:
         # Checks that all required fields are filled, if not disables "OK" button.
         if self._streaming:
-            indexing_config: Optional[TypeIndexingConfig] = {
+            indexing_config: Optional[IndexingConfig] = {
                 "cell_file": self._cell_file_le.text(),
                 "indexing": self._indexing_le.text().replace(" ", ""),
                 "extra_args": self._extra_args_le.text(),

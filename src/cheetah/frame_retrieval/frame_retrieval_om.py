@@ -1,31 +1,72 @@
 """
 Frame retrieval from OM data retrieval.
 """
-import logging
 
-from typing import Any, Dict, List, TextIO, cast
+import logging
+from typing import Any, Dict, List, TextIO
 
 try:
-    from typing import TypedDict
+    from typing import Self
 except:
-    from typing_extensions import TypedDict
+    from typing_extensions import Self
+
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from om.algorithms.crystallography import PeakList as OmPeakList
+from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
+from om.lib.crystallography import CrystallographyPeakFinding
+from om.lib.exceptions import OmConfigurationFileSyntaxError
+from om.lib.files import load_configuration_parameters
+from om.lib.geometry import GeometryInformation
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
-    TypeEventData,
-    TypePeakList,
+    EventData,
+    PeakList,
 )
-
-from om.algorithms.crystallography import TypePeakList as OmTypePeakList
-from om.data_retrieval_layer import OmEventDataRetrieval
-from om.lib.crystallography import CrystallographyPeakFinding
-from om.lib.geometry import GeometryInformation
-from om.lib.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class _TypeOmEvent(TypedDict):
+class _CrytallograhyParametersBinning(BaseModel):
+    binning: bool
+
+
+class _BinningParaemters(BaseModel):
+    bin_size: int = Field(default=None)
+
+
+class _MonitorParametersBinning(BaseModel):
+    cystallography: _CrytallograhyParametersBinning
+    binning: _BinningParaemters
+
+    @model_validator(mode="after")
+    def check_bin_size(self) -> Self:
+        if self.crystallography.binning:
+            if self.binning.bin_size is None:
+                raise ValueError(
+                    "When the value of the cyrstallography/binning entry in OM's "
+                    "configuration parameters is true, the bin_size must be provided "
+                    "via the binning/bin_size entry"
+                )
+        else:
+            self.binning.bin_size = 1
+        return self
+
+
+class _CrystallograhyParametersGeometry(BaseModel):
+    geometry_file: str
+
+
+class _MonitorParametersGeometry(BaseModel):
+    crystallography: _CrystallograhyParametersGeometry
+
+
+@dataclass
+class _TypeOmEvent:
     # A dictionary used internally to store information about a single data event which
     # can be retrieved using OM frame retrieval.
 
@@ -79,19 +120,20 @@ class OmRetrieval(CheetahFrameRetrieval):
         """
         self._om_retrievals: Dict[str, OmEventDataRetrieval] = {}
         self._events: List[_TypeOmEvent] = []
-        self._peak_lists: Dict[str, Dict[str, TypePeakList]] = {}
+        self._peak_lists: Dict[str, Dict[str, PeakList]] = {}
         self._peakfinders: Dict[str, CrystallographyPeakFinding] = {}
+
         filename: str
         for filename in sources:
             fh: TextIO
-            if filename not in parameters["om_sources"].keys():
+            if filename not in parameters["om_sources"]:
                 logger.warning(
                     f"OM source string for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
                 )
                 continue
 
-            if filename not in parameters["om_configs"].keys():
+            if filename not in parameters["om_configs"]:
                 logger.warning(
                     f"OM config file for event list file {filename} is not"
                     f"provided. Events from this file won't be retrieved."
@@ -99,18 +141,19 @@ class OmRetrieval(CheetahFrameRetrieval):
                 continue
 
             with open(filename, "r") as fh:
-                line: str
                 event_ids: List[str] = [line.strip() for line in fh]
                 if len(event_ids) > 0:
                     try:
-                        monitor_params: MonitorParameters = MonitorParameters(
-                            config=parameters["om_configs"][filename]
+                        monitor_parameters: Dict[str, Dict[str, Any]] = (
+                            load_configuration_parameters(
+                                config=Path(parameters["om_configs"][filename])
+                            )
                         )
                         self._om_retrievals[filename] = OmEventDataRetrieval(
                             source=parameters["om_sources"][filename],
-                            monitor_parameters=monitor_params,
+                            parameters=monitor_parameters,
                         )
-                    except Exception as e:
+                    except Exception:
                         logger.exception(
                             f"Couldn't initialize OM frame retrieval from "
                             f"{parameters['om_sources'][filename]} source using "
@@ -121,38 +164,43 @@ class OmRetrieval(CheetahFrameRetrieval):
                         [{"filename": filename, "event_id": eid} for eid in event_ids]
                     )
                     if (
-                        "peak_lists" in parameters.keys()
-                        and filename in parameters["peak_lists"].keys()
+                        "peak_lists" in parameters
+                        and "filename" in parameters["peak_lists"]
                     ):
-                        if monitor_params.get_parameter(
-                            group="crystallography",
-                            parameter="binning",
-                            parameter_type=bool,
-                        ):
-                            bin_size: int = monitor_params.get_parameter(
-                                group="binning",
-                                parameter="bin_size",
-                                parameter_type=int,
-                                required=True,
-                            )
-                        else:
-                            bin_size = 1
-                        self._peak_lists[filename] = self._load_peaks_from_file(
-                            parameters["peak_lists"][filename], bin_size
-                        )
-                    else:
-                        geometry_information: GeometryInformation = (
-                            GeometryInformation.from_file(
-                                geometry_filename=monitor_params.get_parameter(
-                                    group="crystallography",
-                                    parameter="geometry_file",
-                                    parameter_type=str,
-                                    required=True,
+                        try:
+                            binning_parameters: _MonitorParametersBinning = (
+                                _MonitorParametersBinning.model_validate(
+                                    monitor_parameters
                                 )
                             )
+                        except ValidationError as exception:
+                            raise OmConfigurationFileSyntaxError(
+                                "Error parsing OM's Configuration parameters: "
+                                f"{exception}"
+                            )
+
+                        self._peak_lists[filename] = self._load_peaks_from_file(
+                            parameters["peak_lists"][filename],
+                            binning_parameters.binning.bin_size,
+                        )
+                    else:
+                        try:
+                            geometry_parameters: _MonitorParametersGeometry = (
+                                _MonitorParametersGeometry.model_validate(
+                                    monitor_parameters
+                                )
+                            )
+                        except ValidationError as exception:
+                            raise OmConfigurationFileSyntaxError(
+                                "Error parsing OM's Configuration parameters: "
+                                f"{exception}"
+                            )
+
+                        geometry_information: GeometryInformation = GeometryInformation.from_file(
+                            geometry_filename=geometry_parameters.crystallography.geometry_file
                         )
                         self._peakfinders[filename] = CrystallographyPeakFinding(
-                            monitor_parameters=monitor_params,
+                            parameters=monitor_parameters,
                             geometry_information=geometry_information,
                         )
 
@@ -160,11 +208,11 @@ class OmRetrieval(CheetahFrameRetrieval):
 
     def _load_peaks_from_file(
         self, filename: str, bin_size: int = 1
-    ) -> Dict[str, TypePeakList]:
+    ) -> Dict[str, PeakList]:
         # Loads peaks from the peak list file written by Cheetah processing.
         # If binning was used (bin_size > 1) transforms peak positions to match the
         # original image size.
-        peaks: Dict[str, TypePeakList] = {}
+        peaks: Dict[str, PeakList] = {}
         previous_id: str = ""
         fh: TextIO
         with open(filename) as fh:
@@ -181,7 +229,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                             "ss": [],
                         }
                         previous_id = event_id
-                    except Exception as e:
+                    except Exception:
                         # TODO: figure out why it breaks here at random times
                         continue
                 peaks[event_id]["fs"].append(
@@ -206,10 +254,9 @@ class OmRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
-        event: _TypeOmEvent
         return [event["event_id"] for event in self._events]
 
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 
@@ -231,7 +278,7 @@ class OmRetrieval(CheetahFrameRetrieval):
             A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: TypeEventData = {}
+        event_data: EventData = {}
         filename: str = self._events[event_index]["filename"]
         event_id: str = self._events[event_index]["event_id"]
 
@@ -246,13 +293,13 @@ class OmRetrieval(CheetahFrameRetrieval):
         if filename in self._peak_lists.keys():
             event_data["peaks"] = self._peak_lists[filename][event_id]
         elif filename in self._peakfinders.keys():
-            peak_list: OmTypePeakList = self._peakfinders[filename].find_peaks(
+            peak_list: OmPeakList = self._peakfinders[filename].find_peaks(
                 detector_data=event_data["data"]
             )
             event_data["peaks"] = {
-                "num_peaks": peak_list["num_peaks"],
-                "fs": peak_list["fs"],
-                "ss": peak_list["ss"],
+                "num_peaks": peak_list.num_peaks,
+                "fs": peak_list.fs,
+                "ss": peak_list.ss,
             }
 
         return event_data

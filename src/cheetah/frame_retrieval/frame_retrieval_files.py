@@ -1,22 +1,20 @@
 """
 Frame retrieval from files.
 """
-import logging
-import h5py  # type: ignore
 
+import logging
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
+import h5py  # type: ignore
 
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class _TypeH5Event(TypedDict):
+@dataclass
+class _TypeH5Event:
     # A dictionary used internally to store information about a single data event in an
     # HDF5 file. For multi-event files index is the index of the event in the dataset,
     # for single-event files index is -1.
@@ -101,7 +99,6 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
                 self._events.append({"filename": filename, "index": -1})
                 fh.close()
             else:
-                i: int
                 self._events.extend(
                     [{"filename": filename, "index": i} for i in range(data.shape[0])]
                 )
@@ -130,10 +127,9 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
-        event: _TypeH5Event
         return [f"{event['filename']} // {event['index']}" for event in self._events]
 
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 
@@ -163,7 +159,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
             A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: TypeEventData = {}
+        event_data: EventData = {}
         filename: str = self._events[event_index]["filename"]
         index: int = self._events[event_index]["index"]
 

@@ -9,39 +9,38 @@ import logging.config
 import pathlib
 import sys
 from random import randrange
-from typing import Any, Dict, List, TextIO, Tuple, Optional, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, TextIO, Tuple, Union
 
 import click  # type: ignore
 import h5py  # type: ignore
 import numpy
 import numpy.typing
 import pyqtgraph  # type: ignore
-import yaml
 import ruamel.yaml  # type: ignore
-from cheetah import __file__ as cheetah_src_path
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
-from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
-from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
-from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
-from cheetah.utils.logging import logging_config
+import yaml
 from numpy.typing import NDArray
+from om.algorithms.crystallography import Peakfinder8PeakDetection
+from om.lib.geometry import (
+    Beam,
+    DataVisualizer,
+    Detector,
+    DetectorLayoutInformation,
+    PixelMaps,
+    VisualizationPixelMaps,
+    _compute_pix_maps,
+    _read_crystfel_geometry_from_text,
+    _retrieve_layout_info_from_geometry,
+)
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
 from scipy import constants  # type: ignore
 from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
 
-from om.lib.geometry import (
-    DataVisualizer,
-    TypeBeam,
-    TypeDetector,
-    TypePixelMaps,
-    TypeVisualizationPixelMaps,
-    _compute_pix_maps,
-    _read_crystfel_geometry_from_text,
-    TypeDetectorLayoutInformation,
-    _retrieve_layout_info_from_geometry,
-)
-
-from om.algorithms.crystallography import Peakfinder8PeakDetection
+from cheetah import __file__ as cheetah_src_path
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData
+from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
+from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
+from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
+from cheetah.utils.logging import logging_config
 
 logger = logging.getLogger("cheetah_viewer")
 
@@ -100,7 +99,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui: Any = uic.loadUi(
             (pathlib.Path(cheetah_src_path) / "../ui_src/viewer.ui").resolve(), self
         )
-        self.setWindowTitle(f"Cheetah Viewer")
+        self.setWindowTitle("Cheetah Viewer")
         self.setWindowIcon(
             QtGui.QIcon(
                 str((pathlib.Path(cheetah_src_path) / "../ui_src/icon.svg").resolve())
@@ -329,7 +328,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._image_widget.scene.sigMouseClicked.connect(self._mouse_clicked)
 
     def _init_tweaker_tab(self) -> None:
-
         # Set validators for peak finder parameters
         self._int_regex: Any = QtCore.QRegExp(r"[0-9]*")
         self._int_validator: Any = QtGui.QRegExpValidator()
@@ -401,52 +399,52 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _load_geometry(self, geometry_lines: List[str]) -> None:
         # Loads CrystFEL goemetry using om.lib.geometry module.
-        self._geometry: TypeDetector
-        beam: TypeBeam
+        self._geometry: Detector
+        beam: Beam
         self._geometry, beam, _ = _read_crystfel_geometry_from_text(
             text_lines=geometry_lines
         )
-        first_panel: str = list(self._geometry["panels"].keys())[0]
+        first_panel: str = list(self._geometry.panels.keys())[0]
 
         # Pixel size (in 1/m)
-        self._pixel_size: float = self._geometry["panels"][first_panel]["res"]
+        self._pixel_size: float = self._geometry.panels[first_panel].res
         # Detector distance
-        self._clen_from: str = self._geometry["panels"][first_panel]["clen_from"]
+        self._clen_from: str = self._geometry.panels[first_panel].clen_from
         if self._clen_from == "":
-            self._clen: float = self._geometry["panels"][first_panel]["clen"]
-        self._coffset: float = self._geometry["panels"][first_panel]["coffset"]
+            self._clen: float = self._geometry.panels[first_panel].clen
+        self._coffset: float = self._geometry.panels[first_panel].coffset
         # Photon energy
-        self._photon_energy_from: str = beam["photon_energy_from"]
+        self._photon_energy_from: str = beam.photon_energy_from
         if self._photon_energy_from == "":
-            self._photon_energy: float = beam["photon_energy"]
+            self._photon_energy: float = beam.photon_energy
         # Mask file
-        self._mask_filename = self._geometry["panels"][first_panel]["mask_file"]
-        self._mask_hdf5_path = self._geometry["panels"][first_panel]["mask"]
+        self._mask_filename = self._geometry.panels[first_panel].mask_file
+        self._mask_hdf5_path = self._geometry.panels[first_panel].mask
 
-        pixel_maps: TypePixelMaps = _compute_pix_maps(geometry=self._geometry)
-        self._radius_pixel_map: NDArray[numpy.float_] = pixel_maps["radius"]
-        self._detector_layout_info: TypeDetectorLayoutInformation = (
+        pixel_maps: PixelMaps = _compute_pix_maps(geometry=self._geometry)
+        self._radius_pixel_map: NDArray[numpy.float_] = pixel_maps.radius
+        self._detector_layout_info: DetectorLayoutInformation = (
             _retrieve_layout_info_from_geometry(geometry=self._geometry)
         )
 
         self._data_visualizer: DataVisualizer = DataVisualizer(pixel_maps=pixel_maps)
 
-        self._data_shape: Tuple[int, ...] = pixel_maps["x"].shape
+        self._data_shape: Tuple[int, ...] = pixel_maps.x.shape
         self._visual_img_shape: Tuple[int, int] = (
             self._data_visualizer.get_min_array_shape_for_visualization()
         )
         self._img_center_x: int = int(self._visual_img_shape[1] / 2)
         self._img_center_y: int = int(self._visual_img_shape[0] / 2)
 
-        self._visualization_pixel_maps: TypeVisualizationPixelMaps = (
+        self._visualization_pixel_maps: VisualizationPixelMaps = (
             self._data_visualizer.get_visualization_pixel_maps()
         )
-        self._flattened_visualization_pixel_map_y = self._visualization_pixel_maps[
-            "y"
-        ].flatten()
-        self._flattened_visualization_pixel_map_x = self._visualization_pixel_maps[
-            "x"
-        ].flatten()
+        self._flattened_visualization_pixel_map_y = (
+            self._visualization_pixel_maps.y.flatten()
+        )
+        self._flattened_visualization_pixel_map_x = (
+            self._visualization_pixel_maps.x.flatten()
+        )
 
     def _create_mask_image(self, mask_data: NDArray[Any]) -> NDArray[Any]:
         # Creates a mask image from the mask data.
@@ -568,14 +566,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         items: List[str] = str(self._resolution_rings_lineedit.text()).split(",")
         if items:
-            item: str
             self._resolution_rings_in_a = [
                 float(item) for item in items if item != "" and float(item) != 0.0
             ]
         else:
             self._resolution_rings_in_a = []
 
-        x: float
         self._resolution_rings_textitems = [
             pyqtgraph.TextItem(
                 text="{0}A".format(x), anchor=(0.5, 0.8), color=(0, 255, 0)
@@ -678,7 +674,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.intensity_label.setText(f"Intensity = {value:.4g}")
 
     def _retrieve_current_data(self) -> None:
-        self._current_event_data: TypeEventData = self._frame_retrieval.get_data(
+        self._current_event_data: EventData = self._frame_retrieval.get_data(
             self._current_event_index
         )
 
@@ -1410,8 +1406,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
     # This function is used internally to get parameters for hdf5 data retrieval from
     # the geometry file.
-    geometry: TypeDetector
-    beam: TypeBeam
+    geometry: Detector
+    beam: Beam
     fh: TextIO
     with open(geometry_filename, "r") as fh:
         geometry, beam, __ = _read_crystfel_geometry_from_text(

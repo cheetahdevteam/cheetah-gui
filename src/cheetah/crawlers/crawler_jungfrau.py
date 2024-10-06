@@ -3,14 +3,16 @@ Jungfrau 1M Files Crawler.
 
 This module contains Cheetah Crawler for Jungfray 1M files.
 """
-import h5py  # type: ignore
+
 import pathlib
 import re
 import time
-
 from datetime import datetime
-from cheetah.crawlers.base import Crawler, TypeRawStatusItem
-from typing import List, Set, Any
+from typing import Any, List, Set
+
+import h5py  # type: ignore
+
+from cheetah.crawlers.base import Crawler, RawStatusItem
 
 
 class Jungfrau1MCrawler(Crawler):
@@ -39,7 +41,7 @@ class Jungfrau1MCrawler(Crawler):
 
         return timestamp
 
-    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
+    def _scan_raw_directory(self) -> List[RawStatusItem]:
         # This function scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all
@@ -50,7 +52,7 @@ class Jungfrau1MCrawler(Crawler):
         # the status to 'In progress'.
 
         run_id_pattern: re.Pattern[str] = re.compile(r"(.+)_master_\d+\.h5")
-        raw_status: List[TypeRawStatusItem] = []
+        raw_status: List[RawStatusItem] = []
         run_ids: Set[str] = set()
         filename: pathlib.Path
         current_time: float = time.time()

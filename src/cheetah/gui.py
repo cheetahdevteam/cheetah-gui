@@ -9,6 +9,7 @@ import os
 import pathlib
 import sys
 from operator import itemgetter
+from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
 
 import click  # type: ignore
@@ -23,16 +24,31 @@ except:
 import logging
 import logging.config
 
-from om.lib.parameters import MonitorParameters
+from om.lib.exceptions import OmConfigurationFileSyntaxError
+from om.lib.files import load_configuration_parameters
+from pydantic import BaseModel, Field, ValidationError
 
 from cheetah import __file__ as cheetah_src_path
-from cheetah.crawlers.base import Crawler, TypeTableRow
+from cheetah.crawlers.base import Crawler, TableRow
 from cheetah.dialogs import process_dialogs, setup_dialogs
-from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
+from cheetah.experiment import CheetahExperiment, ExperimentConfig
 from cheetah.process import TypeProcessingConfig
 from cheetah.utils.logging import LoggingPopen, QtHandler, logging_config
 
 logger: logging.Logger = logging.getLogger("cheetah")
+
+
+class _CrystallographyParameters(BaseModel):
+    geometry_file: str
+
+
+class _Peakfinder8Parameters(BaseModel):
+    bad_pixel_map_filename: Optional[str] = Field(default=None)
+
+
+class _MonitorParameters(BaseModel):
+    crystallography: _CrystallographyParameters
+    peakfinder8_peak_detection: _Peakfinder8Parameters
 
 
 class _CrawlerRefresher(QtCore.QObject):  # type: ignore
@@ -291,7 +307,6 @@ class _TreeItemDelegate(QtWidgets.QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         if index.parent() == QtCore.QModelIndex() or index.column() > 1:
-            row = index.row()
             column = index.column()
             if column in self._columns_to_paint:
                 value = index.model().data(index)
@@ -360,7 +375,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
 
         # Set up table
-        self._table_column_names: List[str] = list(TypeTableRow.__annotations__.keys())
+        self._table_column_names: List[str] = list(TableRow.__annotations__.keys())
         self._proc_dir_column: int = self._table_column_names.index("H5Directory")
         self._cheetah_status_column: int = self._table_column_names.index("Cheetah")
         self._dataset_tag_column: int = self._table_column_names.index("Dataset")
@@ -1008,7 +1023,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if scroll_index is not None:
             self._tree.scrollTo(scroll_index, self._tree.PositionAtTop)
 
-        logger.info(f"Table refreshed.")
+        logger.info("Table refreshed.")
         self._refresh_timer.start(60000)
 
     def _select_experiment(self) -> None:
@@ -1043,7 +1058,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if dialog.exec() == 0:
             self._select_experiment()
         else:
-            new_experiment_config: TypeExperimentConfig = dialog.get_config()
+            new_experiment_config: ExperimentConfig = dialog.get_config()
             self.experiment = CheetahExperiment(
                 path, new_experiment_config=new_experiment_config
             )
@@ -1113,20 +1128,23 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         # file in the proc directory.
         om_config_file: pathlib.Path = pathlib.Path(proc_dir) / "monitor.yaml"
         if om_config_file.exists():
-            monitor_params: MonitorParameters = MonitorParameters(
-                config=str(om_config_file)
+            monitor_parameters: Dict[str, Any] = load_configuration_parameters(
+                config=Path(om_config_file)
             )
-            geometry: str = monitor_params.get_parameter(
-                group="crystallography",
-                parameter="geometry_file",
-                parameter_type=str,
-                required=True,
-            )
-            mask: Optional[str] = monitor_params.get_parameter(
-                group="peakfinder8_peak_detection",
-                parameter="bad_pixel_map_filename",
-                parameter_type=str,
-                required=False,
+
+            try:
+                parameters: _MonitorParameters = _MonitorParameters.model_validate(
+                    monitor_parameters
+                )
+            except ValidationError as exception:
+                raise OmConfigurationFileSyntaxError(
+                    "Error parsing parameters for the Peakfinder8PeakDetection algorithm: "
+                    f"{exception}"
+                )
+
+            geometry: str = parameters.crystallography.geometry_file
+            mask: Optional[str] = (
+                parameters.peakfinder8_peak_detection.bad_pixel_map_filename
             )
         else:
             geometry = self.experiment.get_last_processing_config()["geometry"]
@@ -1170,7 +1188,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             for file in dir.glob("*.stream"):
                 stream_files.append(str(file))
         if len(stream_files) == 0:
-            logger.info(f"There's no stream files in the selected directories yet.")
+            logger.info("There's no stream files in the selected directories yet.")
             return
         input_str: str = " ".join(stream_files)
         viewer_command: str = f"cheetah_viewer.py -i stream {input_str}"
@@ -1315,7 +1333,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             for file in dir.glob("*.stream"):
                 stream_files.append(str(file))
         if len(stream_files) == 0:
-            logger.info(f"There's no stream files in the selected directories yet.")
+            logger.info("There's no stream files in the selected directories yet.")
             return
         command: str = f"cell_explorer {stream_files[0]} 2>&1"
         logger.info(f"Running command: {command}")

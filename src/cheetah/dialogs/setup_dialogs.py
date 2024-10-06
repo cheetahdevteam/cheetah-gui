@@ -7,14 +7,14 @@ Cheetah experiments.
 
 import os
 import pathlib
+from typing import Any, Callable, List, Optional, TextIO
 
 from PyQt5 import QtWidgets  # type: ignore
-from typing import Any, List, TextIO, Callable, Optional
 
-from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
-from cheetah.crawlers import facilities
 from cheetah import __file__ as cheetah_src_path
-from cheetah.experiment import TypeExperimentConfig
+from cheetah.crawlers import facilities
+from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
+from cheetah.experiment import ExperimentConfig
 
 
 class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
@@ -232,9 +232,9 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         cheetah_resources_layout: Any = QtWidgets.QHBoxLayout()
         cheetah_resources_layout.addWidget(self._cheetah_resources_le)
         cheetah_resources_layout.addWidget(self._cheetah_resources_button)
-        cheetah_resources_directory: Optional[
-            pathlib.Path
-        ] = self._guess_cheetah_resources_directory()
+        cheetah_resources_directory: Optional[pathlib.Path] = (
+            self._guess_cheetah_resources_directory()
+        )
         if cheetah_resources_directory:
             self._cheetah_resources_le.setText(str(cheetah_resources_directory))
             self._cheetah_resources_button.setEnabled(False)
@@ -265,7 +265,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
 
     def _check_config(self) -> None:
         # Checks that all fields in the form are filled. If not disaples "OK" button.
-        self._config: TypeExperimentConfig = {
+        self._config: ExperimentConfig = {
             "facility": self._facility_cb.currentText(),
             "instrument": self._instrument_cb.currentText(),
             "detector": self._detector_cb.currentText(),
@@ -296,9 +296,9 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
                     self._instrument_cb.setCurrentIndex(index)
         else:
             self._instrument_cb.setEnabled(False)
-        possible_raw_directory: Optional[
-            pathlib.Path
-        ] = self._guess_raw_data_directory()
+        possible_raw_directory: Optional[pathlib.Path] = (
+            self._guess_raw_data_directory()
+        )
         if possible_raw_directory is not None and possible_raw_directory.is_dir():
             self._raw_directory_le.setText(str(possible_raw_directory))
 
@@ -395,7 +395,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             self._cheetah_resources_le.setText(path)
         self._check_config()
 
-    def get_config(self) -> TypeExperimentConfig:
+    def get_config(self) -> ExperimentConfig:
         """
         Get new experiment config.
 

@@ -3,12 +3,13 @@ P09 Petra III Crawler.
 
 This module contains Cheetah Crawler for P09 beamline at PETRA III.
 """
+
 import pathlib
 import subprocess
 import time
-
-from cheetah.crawlers.base import Crawler, TypeRawStatusItem
 from typing import List
+
+from cheetah.crawlers.base import Crawler, RawStatusItem
 
 
 class P09LambdaCrawler(Crawler):
@@ -16,7 +17,7 @@ class P09LambdaCrawler(Crawler):
     Cheetah Crawler for Lambda 1,5M detector at P09 beamline at PETRA III.
     """
 
-    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
+    def _scan_raw_directory(self) -> List[RawStatusItem]:
         # This function scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all sub-directories which contain *_m01*.nxs files in
@@ -25,7 +26,7 @@ class P09LambdaCrawler(Crawler):
         # it sets the status of the raw data to 'Ready'. Otherwise, it sets the status
         # to 'In progress'.
 
-        raw_status: List[TypeRawStatusItem] = []
+        raw_status: List[RawStatusItem] = []
         child_directory: pathlib.Path
         for child_directory in self._raw_directory.glob("**/"):
             # Check if there're *_m01*.nxs files in the child directory
@@ -97,7 +98,7 @@ class P09PilatusCrawler(Crawler):
     Cheetah Crawler for Pilatus detector at P09 beamline at PETRA III.
     """
 
-    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
+    def _scan_raw_directory(self) -> List[RawStatusItem]:
         # This function scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all sub-directories which contain .cbf files in the
@@ -106,7 +107,7 @@ class P09PilatusCrawler(Crawler):
         # the status of the raw data to 'Ready'. Otherwise, it sets the status to
         # 'In progress'.
 
-        raw_status: List[TypeRawStatusItem] = []
+        raw_status: List[RawStatusItem] = []
         child_directory: pathlib.Path
         for child_directory in self._raw_directory.glob("**/"):
             # Check if there're mccd files in the child directory
