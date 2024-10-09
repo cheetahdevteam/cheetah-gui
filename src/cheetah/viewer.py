@@ -1007,6 +1007,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_original_pixels(numpy.where(rsquared_map <= radius**2))
 
     def _mask_outside_histogram(self) -> None:
+        if self._current_event_data.data is None:
+            return
         self._mask_original_pixels(
             numpy.where(
                 (self._current_event_data.data < self._levels_range[0])
@@ -1029,7 +1031,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _mask_original_pixels(
         self,
-        pixels: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]],
+        pixels: Tuple[NDArray[numpy.int_], ...],
         mode: Optional[str] = None,
     ) -> None:
         if mode is None:
@@ -1044,10 +1046,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _mask_visual_pixels(
         self,
-        pixels: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]],
+        pixels: Tuple[NDArray[numpy.int_], ...],
         mode: Optional[str] = None,
     ) -> None:
-        where_in_image: Tuple[NDArray[numpy.int_], NDArray[numpy.int_]] = numpy.where(
+        where_in_image: Tuple[NDArray[numpy.int_], ...] = numpy.where(
             (pixels[0] >= 0)
             & (pixels[1] >= 0)
             & (pixels[0] < self._visual_img_shape[0])

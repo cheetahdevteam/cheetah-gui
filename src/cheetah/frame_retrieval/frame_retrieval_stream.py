@@ -347,7 +347,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 with h5py.File(chunk_data.image_filename) as h5_file:
                     event_data.data = h5_file[self._hdf5_data_path][chunk_data.event]
                 event_data.source = f"{chunk_data.image_filename} // {chunk_data.event}"
-            except:
+            except (IOError, OSError, KeyError):
                 logger.exception(
                     f"Couldn't extract image data from {chunk_data.image_filename},"
                     f" event //{chunk_data.event}"
