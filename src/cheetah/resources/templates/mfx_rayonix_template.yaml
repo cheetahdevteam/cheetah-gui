@@ -4,9 +4,11 @@ om:
   processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
-  calibration: true
-  psana_detector_name: Rayonix
-  psana_detector_distance_epics_name: detector_z
+  detector_data:
+    calibration: true
+    psana_name: Rayonix
+  detector_distance:
+    psana_name: detector_z
   psana_calibration_directory: /reg/d/psdm/mfx/mfxlx5520/calib
   psana_evr_source_name: evr0
   active_optical_laser_evr_code: 205

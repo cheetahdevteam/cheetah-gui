@@ -4,9 +4,12 @@ om:
   processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
-  calibration: false
-  fallback_detector_distance_in_mm: 200
-  fallback_beam_energy_in_eV: 20000
+  detector_data:
+    calibration: false
+  detector_distance:
+    value: 200
+  beam_energy:
+    value: 20000
   required_data:
     - "detector_data"
     - "beam_energy"
