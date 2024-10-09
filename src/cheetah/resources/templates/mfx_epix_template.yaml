@@ -4,11 +4,12 @@ om:
   processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
-  calibration: true
-  psana_detector_name: epix10k2M
-  psana_detector_distance_epics_name: MFX:DET:MMS:04.RBV
+  detector_data:
+    calibration: true
+    psana_name: epix10k2M
+  detector_distance:
+    psana_name: MFX:DET:MMS:04.RBV
   psana_calibration_directory: {{psana_calib_dir}}
-  event_rejection_threshold: null
   required_data:
     - "detector_data"
     - "beam_energy"
