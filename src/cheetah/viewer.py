@@ -33,7 +33,7 @@ from om.lib.geometry import (
 )
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
 from scipy import constants  # type: ignore
-from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
+from scipy.ndimage import binary_dilation, binary_erosion  # type: ignore
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
