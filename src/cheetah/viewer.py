@@ -36,7 +36,7 @@ from scipy import constants  # type: ignore
 from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
 
 from cheetah import __file__ as cheetah_src_path
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
 from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
@@ -591,11 +591,17 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         try:
             if self._clen_from:
-                detector_distance: float = self._current_event_data["clen"] * 1e3
+                if self._current_event_data.clen is not None:
+                    detector_distance: float = self._current_event_data.clen * 1e3
+                else:
+                    raise ValueError
             else:
                 detector_distance = self._clen * 1e3
             if self._photon_energy_from:
-                photon_energy: float = self._current_event_data["photon_energy"]
+                if self._current_event_data.photon_energy is not None:
+                    photon_energy: float = self._current_event_data.photon_energy
+                else:
+                    raise ValueError
             else:
                 photon_energy = self._photon_energy
             lambda_: float = constants.h * constants.c / (photon_energy * constants.e)
@@ -611,7 +617,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                     for resolution in self._resolution_rings_in_a
                 ]
             )
-        except (TypeError, KeyError):
+        except (TypeError, KeyError, ValueError):
             logger.warning(
                 "Beam energy or detector distance information is not available. "
                 "Resolution rings cannot be drawn."
@@ -725,8 +731,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.play_button.setEnabled(True)
 
     def _update_image(self) -> None:
-        if "data" in self._current_event_data:
-            data: NDArray[Any] = self._current_event_data["data"]
+        if self._current_event_data.data is not None:
+            data: NDArray[Any] = self._current_event_data.data
         else:
             data = self._empty_frame
 
@@ -757,10 +763,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._update_image()
         self._update_peaks()
         self._update_reflections()
-        if "source" in self._current_event_data:
+        if self._current_event_data.source is not None:
             status_message: str = (
                 f"{self._events[self._current_event_index]}: "
-                f"{self._current_event_data['source']}"
+                f"{self._current_event_data.source}"
             )
         else:
             status_message = f"{self._events[self._current_event_index]}"
@@ -780,7 +786,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_peaks(self) -> None:
         # Updates peaks shown by the viewer.
-        if "peaks" not in self._current_event_data.keys():
+        if self._current_event_data.peaks is not None:
             self._ui.show_peaks_cb.setEnabled(False)
         else:
             self._ui.show_peaks_cb.setEnabled(True)
@@ -789,27 +795,25 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if (
             self._current_tab == 0
             and self._ui.show_peaks_cb.isChecked()
-            and "peaks" in self._current_event_data.keys()
+            and self._current_event_data.peaks is not None
         ):
-            peak_list = self._current_event_data["peaks"]
+            peak_list = self._current_event_data.peaks
         elif (
             self._current_tab == 2
             and self._peakfinder
-            and "data" in self._current_event_data
+            and self._current_event_data.data is not None
         ):
-            peak_list = self._peakfinder.find_peaks(
-                data=self._current_event_data["data"]
-            )
-            self._pt_num_peaks = len(peak_list["fs"])
+            peak_list = self._peakfinder.find_peaks(data=self._current_event_data.data)
+            self._pt_num_peaks = len(peak_list.fs)
             self._update_pt_info_label()
         else:
-            peak_list = {"fs": [], "ss": []}
+            peak_list = PeakList(num_peaks=0, fs=[], ss=[])
 
         peak_fs: float
         peak_ss: float
         for peak_fs, peak_ss in zip(
-            peak_list["fs"],
-            peak_list["ss"],
+            peak_list.fs,
+            peak_list.ss,
         ):
             peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[1] + int(
                 round(peak_fs)
@@ -844,14 +848,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         # Updates reflections peaks shown by the viewer.
         self._ui.next_crystal_button.setEnabled(False)
         self._ui.previous_crystal_button.setEnabled(False)
-        if "crystals" not in self._current_event_data.keys():
+        if self._current_event_data.crystals is None:
             self._ui.show_crystals_widget.hide()
             return
         else:
             self._ui.show_crystals_widget.show()
 
         self._refl_canvas.clear()
-        n_crystals: int = len(self._current_event_data["crystals"])
+        n_crystals: int = len(self._current_event_data.crystals)
         if n_crystals == 0:
             return
 
@@ -877,8 +881,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             peak_fs: float
             peak_ss: float
             for peak_fs, peak_ss in zip(
-                self._current_event_data["crystals"][index]["fs"],
-                self._current_event_data["crystals"][index]["ss"],
+                self._current_event_data.crystals[index].fs,
+                self._current_event_data.crystals[index].ss,
             ):
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
@@ -902,7 +906,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 [
                     pen,
                 ]
-                * self._current_event_data["crystals"][index]["num_peaks"]
+                * self._current_event_data.crystals[index].num_peaks
             )
         self._refl_canvas.setData(
             x=peak_list_y_in_frame,
@@ -982,10 +986,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         size: Tuple[float, float] = self._rectangular_roi.size()
         self._mask_original_pixels(
             numpy.where(
-                (self._visualization_pixel_maps["x"] >= corner[0] - 0.5)
-                & (self._visualization_pixel_maps["x"] <= corner[0] + size[0] - 0.5)
-                & (self._visualization_pixel_maps["y"] >= corner[1] - 0.5)
-                & (self._visualization_pixel_maps["y"] <= corner[1] + size[1] - 0.5)
+                (self._visualization_pixel_maps.x >= corner[0] - 0.5)
+                & (self._visualization_pixel_maps.x <= corner[0] + size[0] - 0.5)
+                & (self._visualization_pixel_maps.y >= corner[1] - 0.5)
+                & (self._visualization_pixel_maps.y <= corner[1] + size[1] - 0.5)
             )
         )
 
@@ -998,25 +1002,25 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             corner[1] + radius - 0.5,
         )
         rsquared_map: NDArray[numpy.float_] = (
-            self._visualization_pixel_maps["x"] - center[0]
-        ) ** 2 + (self._visualization_pixel_maps["y"] - center[1]) ** 2
+            self._visualization_pixel_maps.x - center[0]
+        ) ** 2 + (self._visualization_pixel_maps.y - center[1]) ** 2
         self._mask_original_pixels(numpy.where(rsquared_map <= radius**2))
 
     def _mask_outside_histogram(self) -> None:
         self._mask_original_pixels(
             numpy.where(
-                (self._current_event_data["data"] < self._levels_range[0])
-                | (self._current_event_data["data"] > self._levels_range[1])
+                (self._current_event_data.data < self._levels_range[0])
+                | (self._current_event_data.data > self._levels_range[1])
             )
         )
 
     def _mask_panel_edges(self) -> None:
         mask: NDArray[numpy.int_] = numpy.zeros(self._data_shape, dtype=numpy.int8)
-        for panel in self._geometry["panels"].values():
-            min_fs: int = panel["orig_min_fs"]
-            max_fs: int = panel["orig_max_fs"]
-            min_ss: int = panel["orig_min_ss"]
-            max_ss: int = panel["orig_max_ss"]
+        for panel in self._geometry.panels.values():
+            min_fs: int = panel.orig_min_fs
+            max_fs: int = panel.orig_max_fs
+            min_ss: int = panel.orig_min_ss
+            max_ss: int = panel.orig_max_ss
             mask[min_ss, min_fs : max_fs + 1] = 1
             mask[max_ss, min_fs : max_fs + 1] = 1
             mask[min_ss : max_ss + 1, min_fs] = 1
@@ -1069,11 +1073,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         )
 
     def _dilate_mask(self) -> None:
-        for panel in self._geometry["panels"].values():
-            min_fs: int = panel["orig_min_fs"]
-            max_fs: int = panel["orig_max_fs"]
-            min_ss: int = panel["orig_min_ss"]
-            max_ss: int = panel["orig_max_ss"]
+        for panel in self._geometry.panels.values():
+            min_fs: int = panel.orig_min_fs
+            max_fs: int = panel.orig_max_fs
+            min_ss: int = panel.orig_min_ss
+            max_ss: int = panel.orig_max_ss
             self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1] = (
                 binary_dilation(
                     self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
@@ -1082,11 +1086,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._update_maskmaker_image()
 
     def _erode_mask(self) -> None:
-        for panel in self._geometry["panels"].values():
-            min_fs: int = panel["orig_min_fs"]
-            max_fs: int = panel["orig_max_fs"]
-            min_ss: int = panel["orig_min_ss"]
-            max_ss: int = panel["orig_max_ss"]
+        for panel in self._geometry.panels.values():
+            min_fs: int = panel.orig_min_fs
+            max_fs: int = panel.orig_max_fs
+            min_ss: int = panel.orig_min_ss
+            max_ss: int = panel.orig_max_ss
             self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1] = (
                 binary_erosion(
                     self._maskmaker_mask[min_ss : max_ss + 1, min_fs : max_fs + 1]
@@ -1229,7 +1233,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._peakfinder = Peakfinder8PeakDetection(
             radius_pixel_map=self._radius_pixel_map,
             layout_info=self._detector_layout_info,
-            crystallography_parameters=pf8_config,
+            parameters=pf8_config,
         )
         self._update_mask_image(self._pt_mask)
         self._update_peaks()
@@ -1298,7 +1302,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             mask: NDArray[numpy.int_] = mask_file[hdf5_path][()]
             self._pt_mask = self._create_mask_image(mask)
         self._update_mask_image(self._pt_mask)
-        self._peakfinder.set_bad_pixel_map(mask)
+        if self._peakfinder is not None:
+            self._peakfinder.set_bad_pixel_map(mask)
         self._update_peaks()
 
     def _update_peakfinder_parameters(self, input_widget: Any) -> None:
@@ -1413,11 +1418,11 @@ def _get_hdf5_retrieval_parameters(geometry_filename: str) -> Dict[str, Any]:
         geometry, beam, __ = _read_crystfel_geometry_from_text(
             text_lines=fh.readlines()
         )
-    first_panel: str = list(geometry["panels"].keys())[0]
+    first_panel: str = list(geometry.panels.keys())[0]
     return {
-        "hdf5_data_path": geometry["panels"][first_panel]["data"],
-        "clen_path": geometry["panels"][first_panel]["clen_from"],
-        "photon_energy_path": beam["photon_energy_from"],
+        "hdf5_data_path": geometry.panels[first_panel].data,
+        "clen_path": geometry.panels[first_panel].clen_from,
+        "photon_energy_path": beam.photon_energy_from,
     }
 
 

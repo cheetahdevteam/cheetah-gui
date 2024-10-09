@@ -34,7 +34,7 @@ class LclsCrawler(Crawler):
 
         raw_status: List[RawStatusItem] = []
         for run_id in sorted(status):
-            raw_status.append({"run_id": run_id, "status": status[run_id]})
+            raw_status.append(RawStatusItem(run_id=run_id, status=status[run_id]))
         return raw_status
 
     def raw_id_to_table_id(self, raw_id: str) -> str:

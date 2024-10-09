@@ -13,7 +13,7 @@ import ruamel.yaml
 from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
 
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
-from cheetah.process import IndexingConfig, TypeProcessingConfig
+from cheetah.process import IndexingConfig, ProcessingConfig
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
 
     def __init__(
         self,
-        last_config: TypeProcessingConfig,
+        last_config: ProcessingConfig,
         streaming: bool = False,
         process_hits_option: bool = False,
         parent: Any = None,
@@ -59,7 +59,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             form_layout.addRow("Process hits only: ", self._process_hits_cb)
 
         self._template_le: Any = QtWidgets.QLineEdit()
-        self._template_le.setText(last_config["config_template"])
+        self._template_le.setText(last_config.config_template)
         self._template_le.textChanged.connect(self._check_config)
         self._template_button: Any = QtWidgets.QPushButton("Browse")
         self._template_button.clicked.connect(self._select_config_template)
@@ -75,11 +75,11 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         form_layout.addRow("", self._edit_pf_parameters_button)
 
         self._tag_le: Any = QtWidgets.QLineEdit()
-        self._tag_le.setText(last_config["tag"])
+        self._tag_le.setText(last_config.tag)
         form_layout.addRow("Dataset name: ", self._tag_le)
 
         self._geometry_le: Any = QtWidgets.QLineEdit()
-        self._geometry_le.setText(last_config["geometry"])
+        self._geometry_le.setText(last_config.geometry)
         self._geometry_le.textChanged.connect(self._check_config)
         self._geometry_button: Any = QtWidgets.QPushButton("Browse")
         self._geometry_button.clicked.connect(self._select_geometry_file)
@@ -89,7 +89,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         form_layout.addRow("Geometry file*: ", geometry_layout)
 
         self._mask_le: Any = QtWidgets.QLineEdit()
-        self._mask_le.setText(last_config["mask"])
+        self._mask_le.setText(last_config.mask)
         self._mask_button: Any = QtWidgets.QPushButton("Browse")
         self._mask_button.clicked.connect(self._select_mask_file)
         mask_layout: Any = QtWidgets.QHBoxLayout()
@@ -111,12 +111,10 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
             form_layout.addRow("Unit cell file: ", cell_file_layout)
             form_layout.addRow("Indexing methods (--indexing=): ", self._indexing_le)
             form_layout.addRow("Extra indexamajig arguments: ", self._extra_args_le)
-            if last_config["indexing_config"]:
-                self._cell_file_le.setText(last_config["indexing_config"]["cell_file"])
-                self._indexing_le.setText(last_config["indexing_config"]["indexing"])
-                self._extra_args_le.setText(
-                    last_config["indexing_config"]["extra_args"]
-                )
+            if last_config.indexing_config:
+                self._cell_file_le.setText(last_config.indexing_config.cell_file)
+                self._indexing_le.setText(last_config.indexing_config.indexing)
+                self._extra_args_le.setText(last_config.indexing_config.extra_args)
 
         self._button_box: Any = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Cancel | QtWidgets.QDialogButtonBox.Ok
@@ -136,27 +134,27 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
         # specified files exist, exits with signal 1. Otherwise shows path not found
         # message.
         self._check_config()
-        template_file: pathlib.Path = pathlib.Path(self._config["config_template"])
+        template_file: pathlib.Path = pathlib.Path(self._config.config_template)
         if not template_file.is_file():
             PathDoesNotExistDialog(
                 template_file.parent, template_file.name, self
             ).exec()
             return
-        geometry_file: pathlib.Path = pathlib.Path(self._config["geometry"])
+        geometry_file: pathlib.Path = pathlib.Path(self._config.geometry)
         if not geometry_file.is_file():
             PathDoesNotExistDialog(
                 geometry_file.parent, geometry_file.name, self
             ).exec()
             return
-        if self._config["mask"]:
-            mask_file: pathlib.Path = pathlib.Path(self._config["mask"])
+        if self._config.mask:
+            mask_file: pathlib.Path = pathlib.Path(self._config.mask)
             if not mask_file.is_file():
                 PathDoesNotExistDialog(mask_file.parent, mask_file.name, self).exec()
                 return
-        if self._streaming and self._config["indexing_config"]:
-            if self._config["indexing_config"]["cell_file"]:
+        if self._streaming and self._config.indexing_config:
+            if self._config.indexing_config.cell_file:
                 cell_file: pathlib.Path = pathlib.Path(
-                    self._config["indexing_config"]["cell_file"]
+                    self._config.indexing_config.cell_file
                 )
                 if not cell_file.is_file():
                     PathDoesNotExistDialog(
@@ -172,23 +170,23 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
     def _check_config(self) -> None:
         # Checks that all required fields are filled, if not disables "OK" button.
         if self._streaming:
-            indexing_config: Optional[IndexingConfig] = {
-                "cell_file": self._cell_file_le.text(),
-                "indexing": self._indexing_le.text().replace(" ", ""),
-                "extra_args": self._extra_args_le.text(),
-            }
+            indexing_config: Optional[IndexingConfig] = IndexingConfig(
+                cell_file=self._cell_file_le.text(),
+                indexing=self._indexing_le.text().replace(" ", ""),
+                extra_args=self._extra_args_le.text(),
+            )
         else:
             indexing_config = None
-        self._config: TypeProcessingConfig = {
-            "config_template": self._template_le.text(),
-            "tag": self._tag_le.text(),
-            "geometry": self._geometry_le.text(),
-            "mask": self._mask_le.text(),
-            "indexing_config": indexing_config,
-            "event_list": None,
-            "write_data_files": True,
-        }
-        if not self._config["config_template"] or not self._config["geometry"]:
+        self._config: ProcessingConfig = ProcessingConfig(
+            config_template=self._template_le.text(),
+            tag=self._tag_le.text(),
+            geometry=self._geometry_le.text(),
+            mask=self._mask_le.text(),
+            indexing_config=indexing_config,
+            event_list=None,
+            write_data_files=True,
+        )
+        if not self._config.config_template or not self._config.geometry:
             self._button_box.buttons()[0].setEnabled(False)
         else:
             self._button_box.buttons()[0].setEnabled(True)
@@ -261,7 +259,7 @@ class RunProcessingDialog(QtWidgets.QDialog):  # type: ignore
 
     def get_config(
         self,
-    ) -> TypeProcessingConfig:
+    ) -> ProcessingConfig:
         """
         Get processing config.
 

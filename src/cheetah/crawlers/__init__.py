@@ -87,7 +87,7 @@ class InstrumentInfo:
 
 
 @dataclass
-class TypeFacilityInfo:
+class FacilityInfo:
     """
     A dictionary storing information about supported instruments and detectors for a
     certain facility as well as functions and classes associated with the facility.
@@ -117,188 +117,188 @@ class TypeFacilityInfo:
     kill_processing_job: Callable[[str, pathlib.Path], str]
 
 
-facilities: Dict[str, TypeFacilityInfo] = {
-    "LCLS": {
-        "instruments": {
-            "MFX": {
-                "detectors": {
-                    "epix10k2M": {
-                        "calib_resources": {
+facilities: Dict[str, FacilityInfo] = {
+    "LCLS": FacilityInfo(
+        instruments={
+            "MFX": InstrumentInfo(
+                detectors={
+                    "epix10k2M": DetectorInfo(
+                        calib_resources={
                             "geometry": "epix10k2M.geom",
                             "mask": "mask_epix10k2M.h5",
                             "psana_mask_script": "scripts/psana_mask.py",
                         },
-                        "om_config_template": "mfx_epix_template.yaml",
-                        "process_template": "lcls_slurm_template.sh",
-                        "streaming_template": "lcls_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_lcls,
-                        "crawler": LclsCrawler,
-                    },
-                    "rayonix": {
-                        "calib_resources": {
+                        om_config_template="mfx_epix_template.yaml",
+                        process_template="lcls_slurm_template.sh",
+                        streaming_template="lcls_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_lcls,
+                        crawler=LclsCrawler,
+                    ),
+                    "rayonix": DetectorInfo(
+                        calib_resources={
                             "geometry": "rayonix.geom",
                             "mask": "mask_rayonix.h5",
                             "psana_mask_script": "scripts/psana_mask.py",
                         },
-                        "om_config_template": "mfx_rayonix_template.yaml",
-                        "process_template": "lcls_slurm_template.sh",
-                        "streaming_template": "lcls_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_lcls,
-                        "crawler": LclsCrawler,
-                    },
-                    "cspad": {
-                        "calib_resources": {
+                        om_config_template="mfx_rayonix_template.yaml",
+                        process_template="lcls_slurm_template.sh",
+                        streaming_template="lcls_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_lcls,
+                        crawler=LclsCrawler,
+                    ),
+                    "cspad": DetectorInfo(
+                        calib_resources={
                             "geometry": "cspad.geom",
                             "mask": "mask_cspad.h5",
                         },
-                        "om_config_template": "mfx_cspad_template.yaml",
-                        "process_template": "lcls_slurm_template.sh",
-                        "streaming_template": "lcls_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_lcls,
-                        "crawler": LclsCrawler,
-                    },
+                        om_config_template="mfx_cspad_template.yaml",
+                        process_template="lcls_slurm_template.sh",
+                        streaming_template="lcls_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_lcls,
+                        crawler=LclsCrawler,
+                    ),
                 },
-            },
-            "CXI": {
-                "detectors": {
-                    "jungfrau4M": {
-                        "calib_resources": {
+            ),
+            "CXI": InstrumentInfo(
+                detectors={
+                    "jungfrau4M": DetectorInfo(
+                        calib_resources={
                             "geometry": "jungfrau4M.geom",
                             "mask": "mask_jungfrau4M.h5",
                             "psana_mask_script": "scripts/psana_mask.py",
                         },
-                        "om_config_template": "cxi_jungfrau_template.yaml",
-                        "process_template": "lcls_slurm_template.sh",
-                        "streaming_template": "lcls_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_lcls,
-                        "crawler": LclsCrawler,
-                    },
-                    "cspad": {
-                        "calib_resources": {
+                        om_config_template="cxi_jungfrau_template.yaml",
+                        process_template="lcls_slurm_template.sh",
+                        streaming_template="lcls_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_lcls,
+                        crawler=LclsCrawler,
+                    ),
+                    "cspad": DetectorInfo(
+                        calib_resources={
                             "geometry": "cspad.geom",
                             "mask": "mask_cspad.h5",
                         },
-                        "om_config_template": "cxi_cspad_template.yaml",
-                        "process_template": "lcls_slurm_template.sh",
-                        "streaming_template": "lcls_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_lcls,
-                        "crawler": LclsCrawler,
-                    },
+                        om_config_template="cxi_cspad_template.yaml",
+                        process_template="lcls_slurm_template.sh",
+                        streaming_template="lcls_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_lcls,
+                        crawler=LclsCrawler,
+                    ),
                 },
-            },
+            ),
         },
-        "guess_raw_directory": guess_raw_directory_lcls,
-        "guess_experiment_id": guess_experiment_id_lcls,
-        "guess_batch_queue": guess_batch_queue_lcls,
-        "kill_processing_job": kill_slurm_job,
-    },
-    "DESY (PETRA III)": {
-        "instruments": {
-            "P09": {
-                "detectors": {
-                    "Lambda1M5": {
-                        "calib_resources": {
+        guess_raw_directory=guess_raw_directory_lcls,
+        guess_experiment_id=guess_experiment_id_lcls,
+        guess_batch_queue=guess_batch_queue_lcls,
+        kill_processing_job=kill_slurm_job,
+    ),
+    "DESY (PETRA III)": FacilityInfo(
+        instruments={
+            "P09": InstrumentInfo(
+                detectors={
+                    "Lambda1M5": DetectorInfo(
+                        calib_resources={
                             "geometry": "lambda1M5.geom",
                             "mask": "mask_lambda1M5.h5",
                         },
-                        "om_config_template": "p09_lambda_template.yaml",
-                        "process_template": "desy_slurm_template.sh",
-                        "streaming_template": "desy_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_p09_lambda,
-                        "crawler": P09LambdaCrawler,
-                    },
-                    "Pilatus": {
-                        "calib_resources": {
+                        om_config_template="p09_lambda_template.yaml",
+                        process_template="desy_slurm_template.sh",
+                        streaming_template="desy_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_p09_lambda,
+                        crawler=P09LambdaCrawler,
+                    ),
+                    "Pilatus": DetectorInfo(
+                        calib_resources={
                             "geometry": "pilatus6M.geom",
                             "mask": "mask_pilatus6M.h5",
                         },
-                        "om_config_template": "p09_pilatus_template.yaml",
-                        "process_template": "desy_slurm_template.sh",
-                        "streaming_template": "desy_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_p09_pilatus,
-                        "crawler": P09PilatusCrawler,
-                    },
-                }
-            },
-            "P11": {
-                "detectors": {
-                    "Eiger16M": {
-                        "calib_resources": {
+                        om_config_template="p09_pilatus_template.yaml",
+                        process_template="desy_slurm_template.sh",
+                        streaming_template="desy_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_p09_pilatus,
+                        crawler=P09PilatusCrawler,
+                    ),
+                },
+            ),
+            "P11": InstrumentInfo(
+                detectors={
+                    "Eiger16M": DetectorInfo(
+                        calib_resources={
                             "geometry": "eiger16M.geom",
                             "mask": "mask_eiger16M.h5",
                         },
-                        "om_config_template": "p11_eiger_template.yaml",
-                        "process_template": "desy_slurm_template.sh",
-                        "streaming_template": "desy_slurm_streaming_template.sh",
-                        "prepare_om_source": prepare_om_source_p11_eiger,
-                        "crawler": P11EigerCrawler,
-                    }
-                }
-            },
+                        om_config_template="p11_eiger_template.yaml",
+                        process_template="desy_slurm_template.sh",
+                        streaming_template="desy_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_p11_eiger,
+                        crawler=P11EigerCrawler,
+                    ),
+                },
+            ),
         },
-        "guess_raw_directory": guess_raw_directory_desy,
-        "guess_experiment_id": guess_experiment_id_desy,
-        "guess_batch_queue": guess_batch_queue_desy,
-        "kill_processing_job": kill_slurm_job,
-    },
-    "DESY (external beamtime)": {
-        "instruments": {
-            "APS/BioCARS": {
-                "detectors": {
-                    "RayonixMccd16M": {
-                        "calib_resources": {
+        guess_raw_directory=guess_raw_directory_desy,
+        guess_experiment_id=guess_experiment_id_desy,
+        guess_batch_queue=guess_batch_queue_desy,
+        kill_processing_job=kill_slurm_job,
+    ),
+    "DESY (external beamtime)": FacilityInfo(
+        instruments={
+            "APS/BioCARS": InstrumentInfo(
+                detectors={
+                    "RayonixMccd16M": DetectorInfo(
+                        calib_resources={
                             "geometry": "mccd16M.geom",
                             "mask": "mask_mccd16M.h5",
                         },
-                        "om_config_template": "biocars_mccd_template.yaml",
-                        "process_template": "desy_slurm_template.sh",
-                        "streaming_template": None,
-                        "prepare_om_source": prepare_om_source_biocars_mccd,
-                        "crawler": BioCarsMccdCrawler,
-                    },
-                    "Jungfrau1M": {
-                        "calib_resources": {
+                        om_config_template="biocars_mccd_template.yaml",
+                        process_template="desy_slurm_template.sh",
+                        streaming_template=None,
+                        prepare_om_source=prepare_om_source_biocars_mccd,
+                        crawler=BioCarsMccdCrawler,
+                    ),
+                    "Jungfrau1M": DetectorInfo(
+                        calib_resources={
                             "geometry": "jungfrau1M.geom",
                             "mask": "mask_jungfrau1M.h5",
                             "process_darks_script": "scripts/process_darks_jungfrau.py",
                         },
-                        "om_config_template": "jungfrau1M_template.yaml",
-                        "process_template": "desy_slurm_template.sh",
-                        "streaming_template": None,
-                        "prepare_om_source": prepare_om_source_jungfrau1M,
-                        "crawler": Jungfrau1MCrawler,
-                    },
-                }
-            },
+                        om_config_template="jungfrau1M_template.yaml",
+                        process_template="desy_slurm_template.sh",
+                        streaming_template=None,
+                        prepare_om_source=prepare_om_source_jungfrau1M,
+                        crawler=Jungfrau1MCrawler,
+                    ),
+                },
+            ),
         },
-        "guess_raw_directory": guess_raw_directory_desy,
-        "guess_experiment_id": guess_experiment_id_desy,
-        "guess_batch_queue": guess_batch_queue_desy,
-        "kill_processing_job": kill_slurm_job,
-    },
-    "APS": {
-        "instruments": {
-            "BioCARS": {
-                "detectors": {
-                    "RayonixMccd16M": {
-                        "calib_resources": {
+        guess_raw_directory=guess_raw_directory_desy,
+        guess_experiment_id=guess_experiment_id_desy,
+        guess_batch_queue=guess_batch_queue_desy,
+        kill_processing_job=kill_slurm_job,
+    ),
+    "APS": FacilityInfo(
+        instruments={
+            "BioCARS": InstrumentInfo(
+                detectors={
+                    "RayonixMccd16M": DetectorInfo(
+                        calib_resources={
                             "geometry": "mccd16M.geom",
                             "mask": "mask_mccd16M.h5",
                         },
-                        "om_config_template": "biocars_mccd_template.yaml",
-                        "process_template": "local_template.sh",
-                        "streaming_template": None,
-                        "prepare_om_source": prepare_om_source_biocars_mccd,
-                        "crawler": BioCarsMccdCrawler,
-                    },
-                }
-            },
+                        om_config_template="biocars_mccd_template.yaml",
+                        process_template="local_template.sh",
+                        streaming_template=None,
+                        prepare_om_source=prepare_om_source_biocars_mccd,
+                        crawler=BioCarsMccdCrawler,
+                    ),
+                },
+            ),
         },
-        "guess_raw_directory": lambda p: pathlib.Path(""),
-        "guess_experiment_id": lambda p: "",
-        "guess_batch_queue": lambda p: "",
-        "kill_processing_job": kill_local_job,
-    },
+        guess_raw_directory=lambda p: pathlib.Path(""),
+        guess_experiment_id=lambda p: "",
+        guess_batch_queue=lambda p: "",
+        kill_processing_job=kill_local_job,
+    ),
 }
 """
 Supported facilities, instruments and detectors.

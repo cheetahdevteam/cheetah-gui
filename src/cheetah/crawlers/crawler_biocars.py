@@ -45,9 +45,9 @@ class BioCarsMccdCrawler(Crawler):
                 status: str = "Ready"
             else:
                 status = "In progress"
-            raw_status.append({"run_id": run_id, "status": status})
+            raw_status.append(RawStatusItem(run_id=run_id, status=status))
 
-        return sorted(raw_status, key=lambda s: s["run_id"])
+        return sorted(raw_status, key=lambda s: s.run_id)
 
     def raw_id_to_table_id(self, raw_id: str) -> str:
         """

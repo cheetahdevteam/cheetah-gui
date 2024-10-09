@@ -37,7 +37,7 @@ class P11EigerCrawler(Crawler):
                 status: str = "Ready"
             else:
                 status = "In progress"
-            raw_status.append({"run_id": run_id, "status": status})
+            raw_status.append(RawStatusItem(run_id=run_id, status=status))
 
         return raw_status
 

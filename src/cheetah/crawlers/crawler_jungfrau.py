@@ -70,10 +70,10 @@ class Jungfrau1MCrawler(Crawler):
                 status = "In progress"
 
             if run_id not in run_ids:
-                raw_status.append({"run_id": run_id, "status": status})
+                raw_status.append(RawStatusItem(run_id=run_id, status=status))
                 run_ids.add(run_id)
             else:
-                raw_status[-1]["status"] = status
+                raw_status[-1].status = status
 
         return raw_status
 

@@ -5,6 +5,8 @@ This module contains the implementation of the main Cheetah GUI.
 """
 
 import csv
+import logging
+import logging.config
 import os
 import pathlib
 import sys
@@ -14,25 +16,17 @@ from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Un
 
 import click  # type: ignore
 from ansi2html import Ansi2HTMLConverter  # type: ignore
-from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
-
-try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal  # type: ignore
-
-import logging
-import logging.config
-
 from om.lib.exceptions import OmConfigurationFileSyntaxError
 from om.lib.files import load_configuration_parameters
 from pydantic import BaseModel, Field, ValidationError
+from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
+from typing_extensions import Literal  # type: ignore
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.crawlers.base import Crawler, TableRow
 from cheetah.dialogs import process_dialogs, setup_dialogs
 from cheetah.experiment import CheetahExperiment, ExperimentConfig
-from cheetah.process import TypeProcessingConfig
+from cheetah.process import ProcessingConfig
 from cheetah.utils.logging import LoggingPopen, QtHandler, logging_config
 
 logger: logging.Logger = logging.getLogger("cheetah")
@@ -192,7 +186,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         self,
         experiment: CheetahExperiment,
         runs: List[str],
-        config: TypeProcessingConfig,
+        config: ProcessingConfig,
         streaming: bool,
         hit_files: Optional[Dict[str, pathlib.Path]] = None,
     ) -> None:
@@ -222,7 +216,7 @@ class ProcessThread(QtCore.QThread):  # type: ignore
         super(ProcessThread, self).__init__()
         self._experiment: CheetahExperiment = experiment
         self._runs: List[str] = runs
-        self._config: TypeProcessingConfig = config
+        self._config: ProcessingConfig = config
         self._streaming: bool = streaming
         self._hit_files: Optional[Dict[str, pathlib.Path]] = hit_files
 
@@ -568,7 +562,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             first_selected_hdf5_dir = selected_proc_dirs[0]
         latest_config_template: str = self.experiment.get_last_processing_config(
             first_selected_hdf5_dir
-        )["config_template"]
+        ).config_template
         selected_config_template: str = QtWidgets.QFileDialog().getOpenFileName(
             self, "Select config template file", latest_config_template, filter="*.yaml"
         )[0]
@@ -636,9 +630,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if len(selected_runs) == 0:
             return
         input_str: str = " ".join(selected_runs)
-        latest_config: str = self.experiment.get_last_processing_config()[
-            "config_template"
-        ]
+        latest_config: str = self.experiment.get_last_processing_config().config_template
         selected_config: str = QtWidgets.QFileDialog().getOpenFileName(
             self, "Select config template file", latest_config, filter="*.yaml"
         )[0]
@@ -667,7 +659,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _get_psana_detector_name(self) -> str:
         # Get psana detector name from OM config template
         config_template: pathlib.Path = pathlib.Path(
-            self.experiment.get_last_processing_config()["config_template"]
+            self.experiment.get_last_processing_config().config_template
         )
         if not config_template.exists():
             logger.error(
@@ -824,7 +816,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if dialog.exec() == 0:
             return
 
-        processing_config: TypeProcessingConfig = dialog.get_config()
+        processing_config: ProcessingConfig = dialog.get_config()
         process_hits: bool = dialog.process_hits()
 
         if process_hits:
@@ -844,7 +836,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 return
 
         if not save_data:
-            processing_config["write_data_files"] = False
+            processing_config.write_data_files = False
 
         self._process_thread: ProcessThread = ProcessThread(
             self.experiment,
@@ -858,7 +850,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         self._process_thread.finished.connect(self._process_thread.deleteLater)
         self._process_thread.start()
 
-        tag: str = processing_config["tag"]
+        tag: str = processing_config.tag
         selected_rows: Set[int] = set((int(row) for row in selected.rows))
         self._update_rows_with_tag(tag, selected_rows)
 
@@ -1147,7 +1139,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
                 parameters.peakfinder8_peak_detection.bad_pixel_map_filename
             )
         else:
-            geometry = self.experiment.get_last_processing_config()["geometry"]
+            geometry = self.experiment.get_last_processing_config().geometry
             mask = None
 
         geometry_arg: str = f"-g {geometry}"
@@ -1237,7 +1229,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             return
 
         input_str: str = " ".join(peak_files)
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        geometry: str = self.experiment.get_last_processing_config().geometry
         command: str = f"cheetah_peakogram.py {input_str} -g {geometry}"
         logger.info(f"Running command: {command}")
         LoggingPopen(logger.getChild("peakogram"), command, shell=True)
@@ -1245,7 +1237,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
     def _view_mask(self) -> None:
         # Open mask file selection dialog and launches Cheetah Viewer on the selected
         # file.
-        latest_mask: str = self.experiment.get_last_processing_config()["mask"]
+        latest_mask: str = self.experiment.get_last_processing_config().mask
         if latest_mask != "" and pathlib.Path(latest_mask).is_file():
             path: str = latest_mask
         else:
@@ -1255,7 +1247,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )[0]
         if not filename:
             return
-        geometry: str = self.experiment.get_last_processing_config()["geometry"]
+        geometry: str = self.experiment.get_last_processing_config().geometry
         viewer_command: str = (
             f"cheetah_viewer.py {filename} -d /data/data -g {geometry}"
         )

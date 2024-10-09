@@ -3,16 +3,9 @@ Frame retrieval from OM data retrieval.
 """
 
 import logging
-from typing import Any, Dict, List, TextIO
-
-try:
-    from typing import Self
-except:
-    from typing_extensions import Self
-
-
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Dict, List, TextIO
 
 from om.algorithms.crystallography import PeakList as OmPeakList
 from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
@@ -21,12 +14,9 @@ from om.lib.exceptions import OmConfigurationFileSyntaxError
 from om.lib.files import load_configuration_parameters
 from om.lib.geometry import GeometryInformation
 from pydantic import BaseModel, Field, ValidationError, model_validator
+from typing_extensions import Self
 
-from cheetah.frame_retrieval.base import (
-    CheetahFrameRetrieval,
-    EventData,
-    PeakList,
-)
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -35,13 +25,13 @@ class _CrytallograhyParametersBinning(BaseModel):
     binning: bool
 
 
-class _BinningParaemters(BaseModel):
+class _BinningParameters(BaseModel):
     bin_size: int = Field(default=None)
 
 
 class _MonitorParametersBinning(BaseModel):
-    cystallography: _CrytallograhyParametersBinning
-    binning: _BinningParaemters
+    crystallography: _CrytallograhyParametersBinning
+    binning: _BinningParameters
 
     @model_validator(mode="after")
     def check_bin_size(self) -> Self:
@@ -66,7 +56,7 @@ class _MonitorParametersGeometry(BaseModel):
 
 
 @dataclass
-class _TypeOmEvent:
+class _OmEvent:
     # A dictionary used internally to store information about a single data event which
     # can be retrieved using OM frame retrieval.
 
@@ -119,7 +109,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                   files.
         """
         self._om_retrievals: Dict[str, OmEventDataRetrieval] = {}
-        self._events: List[_TypeOmEvent] = []
+        self._events: List[_OmEvent] = []
         self._peak_lists: Dict[str, Dict[str, PeakList]] = {}
         self._peakfinders: Dict[str, CrystallographyPeakFinding] = {}
 
@@ -161,7 +151,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                         )
                         continue
                     self._events.extend(
-                        [{"filename": filename, "event_id": eid} for eid in event_ids]
+                        [_OmEvent(filename=filename, event_id=eid) for eid in event_ids]
                     )
                     if (
                         "peak_lists" in parameters
@@ -196,8 +186,10 @@ class OmRetrieval(CheetahFrameRetrieval):
                                 f"{exception}"
                             )
 
-                        geometry_information: GeometryInformation = GeometryInformation.from_file(
-                            geometry_filename=geometry_parameters.crystallography.geometry_file
+                        geometry_information: GeometryInformation = (
+                            GeometryInformation.from_file(
+                                geometry_filename=geometry_parameters.crystallography.geometry_file
+                            )
                         )
                         self._peakfinders[filename] = CrystallographyPeakFinding(
                             parameters=monitor_parameters,
@@ -223,19 +215,19 @@ class OmRetrieval(CheetahFrameRetrieval):
                 event_id = split_items[0].strip()
                 if event_id != previous_id:
                     try:
-                        peaks[event_id] = {
-                            "num_peaks": int(split_items[1]),
-                            "fs": [],
-                            "ss": [],
-                        }
+                        peaks[event_id] = PeakList(
+                            num_peaks=int(split_items[1]),
+                            fs=[],
+                            ss=[],
+                        )
                         previous_id = event_id
                     except Exception:
                         # TODO: figure out why it breaks here at random times
                         continue
-                peaks[event_id]["fs"].append(
+                peaks[event_id].fs.append(
                     (float(split_items[2]) + 0.5) * bin_size - 0.5
                 )
-                peaks[event_id]["ss"].append(
+                peaks[event_id].ss.append(
                     (float(split_items[3]) + 0.5) * bin_size - 0.5
                 )
         return peaks
@@ -254,7 +246,7 @@ class OmRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
-        return [event["event_id"] for event in self._events]
+        return [event.event_id for event in self._events]
 
     def get_data(self, event_index: int) -> EventData:
         """
@@ -278,28 +270,31 @@ class OmRetrieval(CheetahFrameRetrieval):
             A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: EventData = {}
-        filename: str = self._events[event_index]["filename"]
-        event_id: str = self._events[event_index]["event_id"]
+        event_data: EventData = EventData()
+        filename: str = self._events[event_index].filename
+        event_id: str = self._events[event_index].event_id
 
         data: Dict[str, Any] = self._om_retrievals[filename].retrieve_event_data(
             event_id=event_id
         )
 
-        event_data["data"] = data["detector_data"]
-        event_data["photon_energy"] = data["beam_energy"]
-        event_data["clen"] = data["detector_distance"]
+        event_data.data = data["detector_data"]
+        event_data.photon_energy = data["beam_energy"]
+        event_data.clen = data["detector_distance"]
 
         if filename in self._peak_lists.keys():
-            event_data["peaks"] = self._peak_lists[filename][event_id]
+            event_data.peaks = self._peak_lists[filename][event_id]
         elif filename in self._peakfinders.keys():
-            peak_list: OmPeakList = self._peakfinders[filename].find_peaks(
-                detector_data=event_data["data"]
-            )
-            event_data["peaks"] = {
-                "num_peaks": peak_list.num_peaks,
-                "fs": peak_list.fs,
-                "ss": peak_list.ss,
-            }
+            if event_data.data is not None:
+                peak_list: OmPeakList = self._peakfinders[filename].find_peaks(
+                    detector_data=event_data.data
+                )
+                event_data.peaks = PeakList(
+                    num_peaks=peak_list.num_peaks,
+                    fs=peak_list.fs,
+                    ss=peak_list.ss,
+                )
+            else:
+                raise RuntimeError("Cannot perform peakfinding, data is None")
 
         return event_data

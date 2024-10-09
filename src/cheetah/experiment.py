@@ -16,7 +16,7 @@ import yaml
 
 from cheetah.crawlers import DetectorInfo, facilities
 from cheetah.crawlers.base import Crawler
-from cheetah.process import CheetahProcess, IndexingConfig, TypeProcessingConfig
+from cheetah.process import CheetahProcess, IndexingConfig, ProcessingConfig
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
 
 logger = logging.getLogger(__name__)
@@ -97,9 +97,9 @@ class CheetahExperiment:
         else:
             self._load_existing_experiment(path)
         self._crawler_csv_filename: pathlib.Path = self._gui_directory / "crawler.txt"
-        self._crawler: Crawler = facilities[self._facility]["instruments"][
+        self._crawler: Crawler = facilities[self._facility].instruments[
             self._instrument
-        ]["detectors"][self._detector]["crawler"](
+        ].detectors[self._detector].crawler(
             self._raw_directory,
             self._proc_directory,
             self._crawler_csv_filename,
@@ -254,50 +254,50 @@ class CheetahExperiment:
         # cheetah/gui/crawler.config file and copies required resources to
         # cheetah/calib and cheetah/process.
         logger.info("Setting up new experiment\n")
-        self._facility = new_experiment_config["facility"]
-        self._instrument = new_experiment_config["instrument"]
-        self._detector = new_experiment_config["detector"]
-        self._raw_directory = pathlib.Path(new_experiment_config["raw_dir"])
+        self._facility = new_experiment_config.facility
+        self._instrument = new_experiment_config.instrument
+        self._detector = new_experiment_config.detector
+        self._raw_directory = pathlib.Path(new_experiment_config.raw_dir)
         self._base_path = self._raw_directory.parent
-        self._experiment_id = new_experiment_config["experiment_id"]
+        self._experiment_id = new_experiment_config.experiment_id
 
         logger.info(
-            f"Creating new Cheetah directory:\n{new_experiment_config['output_dir']}\n"
+            f"Creating new Cheetah directory:\n{new_experiment_config.output_dir}\n"
         )
-        self._gui_directory = pathlib.Path(new_experiment_config["output_dir"]) / "gui"
+        self._gui_directory = pathlib.Path(new_experiment_config.output_dir) / "gui"
         self._gui_directory.mkdir(parents=True, exist_ok=False)
 
         self._proc_directory = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "hdf5"
+            pathlib.Path(new_experiment_config.output_dir) / "hdf5"
         )
         self._proc_directory.mkdir(parents=True, exist_ok=False)
 
         self._calib_directory = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "calib"
+            pathlib.Path(new_experiment_config.output_dir) / "calib"
         )
         self._calib_directory.mkdir(parents=True, exist_ok=False)
 
         self._process_directory = (
-            pathlib.Path(new_experiment_config["output_dir"]) / "process"
+            pathlib.Path(new_experiment_config.output_dir) / "process"
         )
         self._process_directory.mkdir(parents=True, exist_ok=False)
 
         self._process_script = pathlib.Path("cheetah_process.py")
 
-        resources: DetectorInfo = facilities[new_experiment_config["facility"]][
-            "instruments"
-        ][new_experiment_config["instrument"]]["detectors"][
-            new_experiment_config["detector"]
+        resources: DetectorInfo = facilities[
+            new_experiment_config.facility
+        ].instruments[new_experiment_config.instrument].detectors[
+            new_experiment_config.detector
         ]
         logger.info(
-            f"Copying {new_experiment_config['detector']} geometry and mask to \n"
+            f"Copying {new_experiment_config.detector} geometry and mask to \n"
             f"{self._calib_directory}\n"
         )
         resource: str
-        for resource in resources["calib_resources"].values():
+        for resource in resources.calib_resources.values():
             resource_path: pathlib.Path = pathlib.Path(resource)
             shutil.copyfile(
-                pathlib.Path(new_experiment_config["cheetah_resources"]) / resource,
+                pathlib.Path(new_experiment_config.cheetah_resources) / resource,
                 self._calib_directory / resource_path.name,
             )
             if resource_path.parts[0] == "scripts":
@@ -305,32 +305,32 @@ class CheetahExperiment:
                 script.chmod(script.stat().st_mode | stat.S_IEXEC)
 
         self._last_geometry = (
-            self._calib_directory / resources["calib_resources"]["geometry"]
+            self._calib_directory / resources.calib_resources["geometry"]
         )
-        self._last_mask = self._calib_directory / resources["calib_resources"]["mask"]
+        self._last_mask = self._calib_directory / resources.calib_resources["mask"]
 
         logger.info(
             f"Copying OM config and process script templates to \n"
             f"{self._process_directory}\n"
         )
-        om_template: str = resources["om_config_template"]
-        process_template: str = resources["process_template"]
+        om_template: str = resources.om_config_template
+        process_template: str = resources.process_template
         shutil.copyfile(
-            pathlib.Path(new_experiment_config["cheetah_resources"])
+            pathlib.Path(new_experiment_config.cheetah_resources)
             / "templates"
             / om_template,
             self._process_directory / "template.yaml",
         )
         shutil.copyfile(
-            pathlib.Path(new_experiment_config["cheetah_resources"])
+            pathlib.Path(new_experiment_config.cheetah_resources)
             / "templates"
             / process_template,
             self._process_directory / "process_template.sh",
         )
-        if resources["streaming_template"] is not None:
-            streaming_template: str = resources["streaming_template"]
+        if resources.streaming_template is not None:
+            streaming_template: str = resources.streaming_template
             shutil.copyfile(
-                pathlib.Path(new_experiment_config["cheetah_resources"])
+                pathlib.Path(new_experiment_config.cheetah_resources)
                 / "templates"
                 / streaming_template,
                 self._process_directory / "streaming_template.sh",
@@ -459,7 +459,7 @@ class CheetahExperiment:
 
     def get_last_processing_config(
         self, run_proc_dir: Optional[str] = None
-    ) -> TypeProcessingConfig:
+    ) -> ProcessingConfig:
         """
         Get the last processing config.
 
@@ -493,16 +493,16 @@ class CheetahExperiment:
                     or run_process_config["indexing_config"] is None
                 ):
                     run_process_config["indexing_config"] = self._last_indexing_config
-                return cast(TypeProcessingConfig, run_process_config)
-        return {
-            "config_template": str(self._last_process_config_filename),
-            "tag": self._last_tag,
-            "geometry": str(self._last_geometry),
-            "mask": str(self._last_mask) if self._last_mask else "",
-            "indexing_config": self._last_indexing_config,
-            "event_list": None,
-            "write_data_files": True,
-        }
+                return cast(ProcessingConfig, run_process_config)
+        return ProcessingConfig(
+            config_template= str(self._last_process_config_filename),
+            tag=self._last_tag,
+            geometry=str(self._last_geometry),
+            mask=str(self._last_mask) if self._last_mask else "",
+            indexing_config=self._last_indexing_config,
+            event_list=None,
+            write_data_files=True,
+        )
 
     def get_raw_directory(self) -> pathlib.Path:
         """
@@ -612,7 +612,7 @@ class CheetahExperiment:
     def process_runs(
         self,
         run_ids: List[str],
-        processing_config: Optional[TypeProcessingConfig],
+        processing_config: Optional[ProcessingConfig],
         streaming: bool,
         hit_files: Optional[Dict[str, pathlib.Path]] = None,
         queue: Optional[str] = None,
@@ -653,16 +653,16 @@ class CheetahExperiment:
             processing_config = self.get_last_processing_config()
         else:
             self._last_process_config_filename = pathlib.Path(
-                processing_config["config_template"]
+                processing_config.config_template
             )
-            self._last_tag = processing_config["tag"]
-            self._last_geometry = pathlib.Path(processing_config["geometry"])
-            if processing_config["mask"]:
-                self._last_mask = pathlib.Path(processing_config["mask"])
+            self._last_tag = processing_config.tag
+            self._last_geometry = pathlib.Path(processing_config.geometry)
+            if processing_config.mask:
+                self._last_mask = pathlib.Path(processing_config.mask)
             else:
                 self._last_mask = None
-            if processing_config["indexing_config"]:
-                self._last_indexing_config = processing_config["indexing_config"]
+            if processing_config.indexing_config:
+                self._last_indexing_config = processing_config.indexing_config
 
         run_id: str
         if streaming and self._streaming_process is None:
@@ -676,7 +676,7 @@ class CheetahExperiment:
                         f"No hit file provided for run {run_id}. Skipping this run."
                     )
                     continue
-                processing_config["event_list"] = str(hit_files[run_id])
+                processing_config.event_list = str(hit_files[run_id])
             if streaming:
                 self._streaming_process.process_run(  # type: ignore
                     run_id,

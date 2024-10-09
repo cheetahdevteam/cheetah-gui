@@ -12,17 +12,12 @@ import shutil
 import stat
 import subprocess
 import time
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Dict, Optional, TextIO, Union
 
 import jinja2
 import yaml
-
-try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal
-
-from dataclasses import dataclass
+from typing_extensions import Literal
 
 from cheetah.crawlers import facilities
 from cheetah.utils.logging import log_subprocess_run_output
@@ -88,7 +83,7 @@ class IndexingConfig:
 
 
 @dataclass
-class TypeProcessingConfig:
+class ProcessingConfig:
     """
     A dictionary storing processing configuration parameters.
 
@@ -170,12 +165,15 @@ class CheetahProcess:
         self._proc_directory: pathlib.Path = proc_directory
         self._prepare_om_source: Callable[
             [str, str, pathlib.Path, pathlib.Path], str
-        ] = facilities[self._facility]["instruments"][instrument]["detectors"][
-            detector
-        ]["prepare_om_source"]
+        ] = (
+            facilities[self._facility]
+            .instruments[instrument]
+            .detectors[detector]
+            .prepare_om_source
+        )
         self._kill_processing_job: Callable[[str, pathlib.Path], str] = facilities[
             self._facility
-        ]["kill_processing_job"]
+        ].kill_processing_job
         if streaming:
             self._om_processing_layer: Union[
                 Literal["CheetahProcessing"],
@@ -195,7 +193,7 @@ class CheetahProcess:
     def _write_process_config_file(
         self,
         output_directory: pathlib.Path,
-        config: TypeProcessingConfig,
+        config: ProcessingConfig,
         process_template_data: _ProcessScriptTemplateData,
         om_config_template_data: _OmConfigTemplateData,
     ) -> None:
@@ -264,27 +262,30 @@ class CheetahProcess:
             logger.error(error)
         return error
 
-    def _copy_config_files(self, config: TypeProcessingConfig, directory: pathlib.Path):
+    def _copy_config_files(self, config: ProcessingConfig, directory: pathlib.Path):
         # Copy configuration files to the output directory.
         directory.mkdir(parents=True, exist_ok=True)
+        config_dict = asdict(config)
+        new_config_dict = {}
         for key in ["config_template", "geometry", "mask", "event_list"]:
-            if not config[key]:
+            if not config_dict[key]:
                 continue
-            filename: pathlib.Path = directory / pathlib.Path(config[key]).name
-            shutil.copy(config[key], filename)
-            config[key] = str(filename)
+            filename: pathlib.Path = directory / pathlib.Path(config_dict[key]).name
+            shutil.copy(config_dict[key], filename)
+            new_config_dict[key] = str(filename)
+        config = ProcessingConfig(**new_config_dict)
 
-        if config["indexing_config"]:
-            if config["indexing_config"]["cell_file"]:
+
+        if config.indexing_config:
+            if config.indexing_config.cell_file:
                 filename: pathlib.Path = (
-                    directory
-                    / pathlib.Path(config["indexing_config"]["cell_file"]).name
+                    directory / pathlib.Path(config.indexing_config.cell_file).name
                 )
-                shutil.copy(config["indexing_config"]["cell_file"], filename)
-                config["indexing_config"]["cell_file"] = str(filename)
+                shutil.copy(config.indexing_config.cell_file, filename)
+                config.indexing_config.cell_file = str(filename)
 
     def _setup_output_directory(
-        self, directory: pathlib.Path, config: TypeProcessingConfig
+        self, directory: pathlib.Path, config: ProcessingConfig
     ) -> Optional[pathlib.Path]:
         # Create output directory for the processed run.
 
@@ -316,7 +317,7 @@ class CheetahProcess:
     def process_run(
         self,
         run_id: str,
-        config: TypeProcessingConfig,
+        config: ProcessingConfig,
         queue: Optional[str] = None,
         n_processes: Optional[int] = None,
     ) -> None:
@@ -349,9 +350,9 @@ class CheetahProcess:
                 parameter will be inserted in the process script template. If this
                 parameter is None, 12 nodes will be used. Defaults to None.
         """
-        input_config: TypeProcessingConfig = copy.deepcopy(config)
+        input_config: ProcessingConfig = copy.deepcopy(config)
         proc_id: str = self._raw_id_to_proc_id(run_id)
-        tag: str = config["tag"]
+        tag: str = config.tag
         if tag:
             output_directory_name: str = f"{proc_id}-{tag}"
         else:
@@ -362,10 +363,10 @@ class CheetahProcess:
         if not output_directory:
             return
 
-        om_config_template_file: pathlib.Path = pathlib.Path(config["config_template"])
-        geometry_file: pathlib.Path = pathlib.Path(config["geometry"])
+        om_config_template_file: pathlib.Path = pathlib.Path(config.config_template)
+        geometry_file: pathlib.Path = pathlib.Path(config.geometry)
         mask_file: Union[pathlib.Path, Literal["null"]] = (
-            pathlib.Path(config["mask"]) if config["mask"] else "null"
+            pathlib.Path(config.mask) if config.mask else "null"
         )
 
         logger.info(f"Copying configuration file: {om_config_template_file}")
@@ -376,21 +377,21 @@ class CheetahProcess:
         with open(om_config_template_file) as fh:
             om_config_template: jinja2.Template = jinja2.Template(fh.read())
 
-        om_config_data: _OmConfigTemplateData = {
-            "processing_layer": self._om_processing_layer,
-            "psana_calib_dir": self._raw_directory.parent / "calib",
-            "filename_prefix": proc_id.split("/")[-1],
-            "output_dir": output_directory,
-            "experiment_id": self._experiment_id,
-            "run_id": proc_id,
-            "geometry_file": geometry_file,
-            "mask_file": mask_file,
-        }
+        om_config_data: _OmConfigTemplateData = _OmConfigTemplateData(
+            processing_layer=self._om_processing_layer,
+            psana_calib_dir=self._raw_directory.parent / "calib",
+            filename_prefix=proc_id.split("/")[-1],
+            output_dir=output_directory,
+            experiment_id=self._experiment_id,
+            run_id=proc_id,
+            geometry_file=geometry_file,
+            mask_file=mask_file,
+        )
         with open(om_config_file, "w") as fh:
             fh.write(om_config_template.render(om_config_data))
 
         # If data files are not written, remove the HDF5 fields from the OM config file
-        if not config["write_data_files"]:
+        if not config.write_data_files:
             with open(om_config_file, "r") as fh:
                 om_config: Dict[str, Any] = yaml.safe_load(fh)
             try:
@@ -409,41 +410,39 @@ class CheetahProcess:
             run_id, self._experiment_id, self._raw_directory, output_directory
         )
         if not queue:
-            queue = facilities[self._facility]["guess_batch_queue"](self._raw_directory)
+            queue = facilities[self._facility].guess_batch_queue(self._raw_directory)
         if not n_processes:
             n_processes = 12
 
         event_list_arg = ""
-        if config["event_list"]:
-            event_list_arg = f"--event-list={config['event_list']}"
+        if config.event_list:
+            event_list_arg = f"--event-list={config.event_list}"
 
         cell_file_arg = ""
         indexing_arg = ""
         extra_args = ""
-        if config["indexing_config"]:
-            if config["indexing_config"]["cell_file"]:
-                cell_file_arg: str = f"-p {config['indexing_config']['cell_file']}"
-            if config["indexing_config"]["indexing"]:
-                indexing_arg: str = (
-                    f"--indexing={config['indexing_config']['indexing']}"
-                )
-            extra_args: str = config["indexing_config"]["extra_args"]
+        if config.indexing_config:
+            if config.indexing_config.cell_file:
+                cell_file_arg: str = f"-p {config.indexing_config.cell_file}"
+            if config.indexing_config.indexing:
+                indexing_arg: str = f"--indexing={config.indexing_config.indexing}"
+            extra_args: str = config.indexing_config.extra_args
 
-        process_script_data: _ProcessScriptTemplateData = {
-            "queue": queue,
-            "job_name": output_directory_name,
-            "n_processes": n_processes,
-            "om_source": om_source,
-            "om_config": om_config_file,
-            "event_list_arg": event_list_arg,
-            "filename_prefix": proc_id.split("/")[-1],
-            "output_dir": output_directory,
-            "experiment_id": self._experiment_id,
-            "geometry_file": geometry_file,
-            "cell_file_arg": cell_file_arg,
-            "indexing_arg": indexing_arg,
-            "extra_args": extra_args,
-        }
+        process_script_data: _ProcessScriptTemplateData = _ProcessScriptTemplateData(
+            queue=queue,
+            job_name=output_directory_name,
+            n_processes=n_processes,
+            om_source=om_source,
+            om_config=om_config_file,
+            event_list_arg=event_list_arg,
+            filename_prefix=proc_id.split("/")[-1],
+            output_dir=output_directory,
+            experiment_id=self._experiment_id,
+            geometry_file=geometry_file,
+            cell_file_arg=cell_file_arg,
+            indexing_arg=indexing_arg,
+            extra_args=extra_args,
+        )
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)

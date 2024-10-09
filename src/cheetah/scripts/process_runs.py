@@ -4,13 +4,13 @@ Process script.
 This module contains Cheetah process script.
 """
 
-import click  # type: ignore
 import pathlib
+from typing import List, Optional
 
-from typing import Optional, List
+import click  # type: ignore
 
 from cheetah.experiment import CheetahExperiment
-from cheetah.process import CheetahProcess, TypeProcessingConfig
+from cheetah.process import CheetahProcess, ProcessingConfig
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
@@ -115,13 +115,13 @@ def main(
         experiment.get_raw_directory(),
         experiment.get_proc_directory(),
     )
-    config: TypeProcessingConfig = experiment.get_last_processing_config()
-    config["tag"] = tag
-    config["config_template"] = config_template
+    config: ProcessingConfig = experiment.get_last_processing_config()
+    config.tag = tag
+    config.config_template = config_template
     if geometry_filename:
-        config["geometry"] = str(pathlib.Path(geometry_filename).absolute())
+        config.geometry = str(pathlib.Path(geometry_filename).absolute())
     if mask_filename:
-        config["mask"] = str(pathlib.Path(mask_filename).absolute())
+        config.mask = str(pathlib.Path(mask_filename).absolute())
 
     run: str
     for run in runs:

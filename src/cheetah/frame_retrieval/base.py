@@ -4,7 +4,7 @@ Frame retrieval base classes.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
 import numpy.typing
 
@@ -55,12 +55,14 @@ class EventData:
             indexed crystal (optional).
     """
 
-    data: numpy.typing.NDArray[Any]
-    source: str
-    peaks: PeakList
-    photon_energy: float
-    clen: float
-    crystals: List[PeakList]
+    data: Optional[
+        Union[numpy.typing.NDArray[numpy.float_], numpy.typing.NDArray[numpy.float_]]
+    ] = None
+    source: Optional[str] = None
+    peaks: Optional[PeakList] = None
+    photon_energy: Optional[float] = None
+    clen: Optional[float] = None
+    crystals: Optional[List[PeakList]] = None
 
 
 class CheetahFrameRetrieval(ABC):

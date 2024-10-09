@@ -49,9 +49,11 @@ class _PeaksReader(FileReader):
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
 
-        self._radius_pixelmap: NDArray[numpy.float_] = GeometryInformation.from_file(
-            geometry_filename=parameters["geometry"]
-        ).get_pixel_maps()["radius"]
+        self._radius_pixelmap: NDArray[numpy.float_] = (
+            GeometryInformation.from_file(geometry_filename=parameters["geometry"])
+            .get_pixel_maps()
+            .radius
+        )
 
         self._peak_list: List[_Peak] = []
         self._npeaks: int = 0
@@ -70,12 +72,12 @@ class _PeaksReader(FileReader):
             peak_ss: float = float(split_items[-5])
 
             self._peak_list.append(
-                {
-                    "radius": self._radius_pixelmap[
+                _Peak(
+                    radius=self._radius_pixelmap[
                         int(round(peak_ss)), int(round(peak_fs))
                     ],
-                    "intensity": float(split_items[-2]),
-                }
+                    intensity=float(split_items[-2]),
+                )
             )
 
     def _prepare_output(self) -> Optional[Dict[str, Any]]:
@@ -88,9 +90,7 @@ class _PeaksReader(FileReader):
         self._npeaks += len(self._peak_list)
 
         peak: _Peak
-        peaks_max_intensity: float = max(
-            (peak["intensity"] for peak in self._peak_list)
-        )
+        peaks_max_intensity: float = max((peak.intensity for peak in self._peak_list))
         peakogram_max_intensity: float = (
             self._peakogram.shape[1] * self._peakogram_intensity_bin_size
         )
@@ -111,7 +111,7 @@ class _PeaksReader(FileReader):
                 ),
                 axis=1,
             )
-        peaks_max_radius: float = max((peak["radius"] for peak in self._peak_list))
+        peaks_max_radius: float = max((peak.radius for peak in self._peak_list))
         peakogram_max_radius: float = (
             self._peakogram.shape[0] * self._peakogram_radius_bin_size
         )
@@ -134,8 +134,8 @@ class _PeaksReader(FileReader):
             )
         for peak in self._peak_list:
             self._peakogram[
-                int(peak["radius"] // self._peakogram_radius_bin_size),
-                int(peak["intensity"] // self._peakogram_intensity_bin_size),
+                int(peak.radius // self._peakogram_radius_bin_size),
+                int(peak.intensity // self._peakogram_intensity_bin_size),
             ] += 1
 
         self._peak_list = []
@@ -230,10 +230,8 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_peakogram(self, data: _PeakogramData) -> None:
         # Updates the peakogram.
-        self._peakogram_plot_widget.setTitle(
-            f"Peakogram: {data['npeaks']} peaks loaded."
-        )
-        peakogram: NDArray[numpy.float_] = data["peakogram"]
+        self._peakogram_plot_widget.setTitle(f"Peakogram: {data.npeaks} peaks loaded.")
+        peakogram: NDArray[numpy.float_] = data.peakogram
         peakogram[numpy.where(peakogram == 0)] = numpy.nan
         self._peakogram_plot_image_view.setImage(
             numpy.log(peakogram),
