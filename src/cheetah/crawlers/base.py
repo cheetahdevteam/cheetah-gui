@@ -121,17 +121,17 @@ class TableRow:
         Calibration: The name of the calibration file used for the data processing.
     """
 
-    Run: str
-    Rawdata: str
-    Dataset: str
-    Cheetah: str
-    H5Directory: str
-    Nprocessed: Union[int, Literal["---"]]
-    Nhits: Union[int, Literal["---"]]
-    Nindexed: Union[int, Literal["---"]]
-    Hitrate: Union[float, Literal["---"]]
-    Idxrate: Union[float, Literal["---"]]
-    Recipe: str
+    Run: str = ""
+    Rawdata: str = ""
+    Dataset: str = "---"
+    Cheetah: str = "---"
+    H5Directory: str = "---"
+    Nprocessed: Union[int, Literal["---"]] = "---"
+    Nhits: Union[int, Literal["---"]] = "---"
+    Nindexed: Union[int, Literal["---"]] = "---"
+    Hitrate: Union[float, Literal["---"]] = "---"
+    Idxrate: Union[float, Literal["---"]] = "---"
+    Recipe: str = ""
 
 
 class Crawler(ABC):
@@ -474,24 +474,16 @@ class Crawler(ABC):
             proc_id: str = self.raw_id_to_proc_id(raw_id)
             proc_status_item: ProcStatusItem
 
-            row: TableRow = cast(
-                TableRow,
-                {key: "---" for key in TableRow.__annotations__.keys()},
+            row: TableRow = TableRow(
+                Run=self.raw_id_to_table_id(raw_id), Rawdata=raw_status_item.status
             )
-            row.Run = self.raw_id_to_table_id(raw_id)
-            row.Rawdata = raw_status_item.status
             table_rows.append(row)
 
             n_proc_items_run = 0
             for proc_status_item in proc_status:
                 if proc_status_item.run_id == proc_id:
                     if n_proc_items_run > 0:
-                        row = cast(
-                            TableRow,
-                            {key: "---" for key in TableRow.__annotations__.keys()},
-                        )
-                        row.Run = ""
-                        row.Rawdata = ""
+                        row = TableRow()
                         table_rows.append(row)
                     row.Dataset = proc_status_item.tag
                     row.H5Directory = proc_status_item.run_name
