@@ -786,7 +786,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_peaks(self) -> None:
         # Updates peaks shown by the viewer.
-        if self._current_event_data.peaks is not None:
+        if self._current_event_data.peaks is None:
+            self._ui.show_peaks_cb.setChecked(False)
             self._ui.show_peaks_cb.setEnabled(False)
         else:
             self._ui.show_peaks_cb.setEnabled(True)
