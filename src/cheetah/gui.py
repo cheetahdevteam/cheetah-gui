@@ -10,6 +10,7 @@ import logging.config
 import os
 import pathlib
 import sys
+import ruamel.yaml  # type: ignore
 from operator import itemgetter
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
@@ -284,7 +285,10 @@ class TextFileViewer(QtWidgets.QMainWindow):  # type: ignore
         if pathlib.Path(self._filename).exists():
             fh: TextIO
             with open(self._filename, "r") as fh:
-                self._text_edit.setHtml(self._converter.convert(fh.read()))
+                try:
+                    self._text_edit.setHtml(self._converter.convert(fh.read()))
+                except UnicodeDecodeError:
+                    logger.warning(f"Could not read file {self._filename}.")
                 self._text_edit.moveCursor(QtGui.QTextCursor.End)
         else:
             self._text_edit.setPlainText(f"File {self._filename} doesn't exist.")
@@ -668,11 +672,13 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             )
             return ""
         fh: TextIO
-        detector_name: str = ""
         with open(config_template) as fh:
-            for line in fh:
-                if "psana_detector_name" in line:
-                    detector_name = line.split(":")[-1].strip()
+            _yaml: Any = ruamel.yaml.YAML(typ="jinja2")
+            config: Dict[str, Any] = _yaml.load(fh)
+            try:
+                detector_name: str = config["data_retrieval_layer"]["detector_data"]["psana_name"]
+            except KeyError:
+                detector_name = ""
         return detector_name
 
     def _psana_mask(self) -> None:
