@@ -288,7 +288,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         if self._facility:
             self._instrument_cb.setEnabled(True)
             self._instrument_cb.addItems(
-                getattr(facilities, self._facility)["instruments"].keys()
+                facilities[self._facility].instruments.keys()
             )
             instrument: Optional[str] = self._guess_instrument()
             if instrument:
@@ -328,7 +328,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
     def _guess_instrument(self) -> Optional[str]:
         # Tries to guess the instrument name based on experiment path.
         instrument: str
-        for instrument in getattr(facilities, self._facility)["instruments"].keys():
+        for instrument in facilities[self._facility].instruments.keys():
             if "/" + instrument in str(self._path) or "/" + instrument.lower() in str(
                 self._path
             ):
