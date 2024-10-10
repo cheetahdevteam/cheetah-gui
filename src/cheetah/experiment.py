@@ -493,7 +493,7 @@ class CheetahExperiment:
                     or run_process_config["indexing_config"] is None
                 ):
                     run_process_config["indexing_config"] = self._last_indexing_config
-                return cast(ProcessingConfig, run_process_config)
+                return ProcessingConfig(**run_process_config)
         return ProcessingConfig(
             config_template= str(self._last_process_config_filename),
             tag=self._last_tag,

@@ -203,9 +203,9 @@ class CheetahProcess:
             fh.write(
                 yaml.dump(
                     {
-                        "Processing config": config,
-                        "Process script template data": process_template_data,
-                        "OM config template data": om_config_template_data,
+                        "Processing config": asdict(config),
+                        "Process script template data": asdict(process_template_data),
+                        "OM config template data": asdict(om_config_template_data),
                     },
                     Dumper=CheetahSafeDumper,
                     sort_keys=False,
@@ -266,7 +266,7 @@ class CheetahProcess:
         # Copy configuration files to the output directory.
         directory.mkdir(parents=True, exist_ok=True)
         config_dict = asdict(config)
-        new_config_dict = {}
+        new_config_dict = config_dict.copy()
         for key in ["config_template", "geometry", "mask", "event_list"]:
             if not config_dict[key]:
                 continue
@@ -274,7 +274,6 @@ class CheetahProcess:
             shutil.copy(config_dict[key], filename)
             new_config_dict[key] = str(filename)
         config = ProcessingConfig(**new_config_dict)
-
 
         if config.indexing_config:
             if config.indexing_config.cell_file:
@@ -388,7 +387,7 @@ class CheetahProcess:
             mask_file=mask_file,
         )
         with open(om_config_file, "w") as fh:
-            fh.write(om_config_template.render(om_config_data))
+            fh.write(om_config_template.render(asdict(om_config_data)))
 
         # If data files are not written, remove the HDF5 fields from the OM config file
         if not config.write_data_files:
@@ -444,7 +443,7 @@ class CheetahProcess:
             extra_args=extra_args,
         )
         with open(process_script, "w") as fh:
-            fh.write(process_template.render(process_script_data))
+            fh.write(process_template.render(asdict(process_script_data)))
         process_script.chmod(process_script.stat().st_mode | stat.S_IEXEC)
 
         # Run the process script
