@@ -3,11 +3,10 @@ LCLS Crawler.
 
 This module contains Cheetah Crawler for LCLS.
 """
-
 import pathlib
-from typing import Dict, List
 
-from cheetah.crawlers.base import Crawler, RawStatusItem
+from cheetah.crawlers.base import Crawler, TypeRawStatusItem
+from typing import List, Dict
 
 
 class LclsCrawler(Crawler):
@@ -15,7 +14,7 @@ class LclsCrawler(Crawler):
     Cheetah Crawler for LCLS.
     """
 
-    def _scan_raw_directory(self) -> List[RawStatusItem]:
+    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
         # This function scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. At LCLS the name of the raw data file starts with "r{NNNN}-"
@@ -32,7 +31,7 @@ class LclsCrawler(Crawler):
             elif filename.suffix == ".fromtape":
                 status[run_id] = "Restoring"
 
-        raw_status: List[RawStatusItem] = []
+        raw_status: List[TypeRawStatusItem] = []
         for run_id in sorted(status):
             raw_status.append({"run_id": run_id, "status": status[run_id]})
         return raw_status

@@ -3,13 +3,12 @@ BioCARS APS Crawler.
 
 This module contains Cheetah Crawler for BioCARS 14-ID-B beamline at APS.
 """
-
 import pathlib
 import subprocess
 import time
-from typing import List
 
-from cheetah.crawlers.base import Crawler, RawStatusItem
+from cheetah.crawlers.base import Crawler, TypeRawStatusItem
+from typing import List
 
 
 class BioCarsMccdCrawler(Crawler):
@@ -17,7 +16,7 @@ class BioCarsMccdCrawler(Crawler):
     Cheetah Crawler for Rayonix MX340-HS detector at BioCARS beamline at APS.
     """
 
-    def _scan_raw_directory(self) -> List[RawStatusItem]:
+    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
         # This function scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all sub-directories which contain .mccd files in the
@@ -26,7 +25,7 @@ class BioCarsMccdCrawler(Crawler):
         # the status of the raw data to 'Ready'. Otherwise, it sets the status to
         # 'In progress'.
 
-        raw_status: List[RawStatusItem] = []
+        raw_status: List[TypeRawStatusItem] = []
         child_directory: pathlib.Path
         for child_directory in self._raw_directory.glob("**/"):
             # Check if there're mccd files in the child directory

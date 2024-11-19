@@ -1,32 +1,34 @@
 """
 Frame retrieval from CrystFEL stream files.
 """
-
 import logging
 import pathlib
 import subprocess
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, TextIO, Tuple, Union
+from typing import Any, Dict, List, TextIO, Tuple, Union, Optional
 
 import h5py  # type: ignore
-from om.algorithms.generic import Binning, BinningPassthrough
-from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
-from om.lib.files import load_configuration_parameters
-from om.lib.geometry import GeometryInformation
+
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
-    EventData,
-    PeakList,
+    TypeEventData,
+    TypePeakList,
 )
 from cheetah.utils.logging import log_subprocess_run_output
+
+from om.algorithms.generic import Binning, BinningPassthrough
+from om.data_retrieval_layer import OmEventDataRetrieval
+from om.lib.geometry import GeometryInformation
+from om.lib.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-@dataclass
-class _StreamEvent:
+class _TypeStreamEvent(TypedDict):
     # A dictionary used internally to store information about a single data event in a
     # stream file. offset is a byte offset to the event chunk in the stream file.
 
@@ -34,8 +36,7 @@ class _StreamEvent:
     offset: int
 
 
-@dataclass
-class _ChunkData:
+class _TypeChunkData(TypedDict, total=False):
     # A dictionary used internally to store data extracted from a stream file chunk.
 
     image_filename: str
@@ -45,8 +46,8 @@ class _ChunkData:
     om_config: str
     photon_energy: float
     clen: float
-    peaks: PeakList
-    crystals: List[PeakList]
+    peaks: TypePeakList
+    crystals: List[TypePeakList]
 
 
 class StreamRetrieval(CheetahFrameRetrieval):
@@ -74,7 +75,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 retrieve data from stream files.
         """
         self._streams: Dict[str, TextIO] = {}
-        self._events: List[_StreamEvent] = []
+        self._events: List[_TypeStreamEvent] = []
         self._om_retrievals: Dict[Tuple[str, str], OmEventDataRetrieval] = {}
         filename: str
         for filename in sources:
@@ -128,7 +129,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     f"Index file {index_filename} is outdated, creating new index."
                 )
         else:
-            logger.info("Creating new index.")
+            logger.info(f"Creating new index.")
 
         command: str = (
             f"grep --byte-offset 'Begin chunk' {stream_filename} "
@@ -151,9 +152,9 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
         return offsets
 
-    def _parse_chunk(self, event: _StreamEvent) -> _ChunkData:
+    def _parse_chunk(self, event: _TypeStreamEvent) -> _TypeChunkData:
         # Parses stream chunk and returns chunk data.
-        chunk_data: _ChunkData = {}
+        chunk_data: _TypeChunkData = {}
         stream: TextIO = self._streams[event["filename"]]
         stream.seek(event["offset"])
 
@@ -204,9 +205,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
         return chunk_data
 
-    def _initialize_binning(
-        self, monitor_parameters: Dict[str, Dict[str, Any]]
-    ) -> None:
+    def _initialize_binning(self, monitor_parameters: MonitorParameters) -> None:
         # Initializes binning algorithm to be applied to all frames.
         self._geometry_information = GeometryInformation.from_file(
             geometry_filename=monitor_parameters.get_parameter(
@@ -250,9 +249,10 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
+        event: _TypeStreamEvent
         return [f"{event['filename']} // {event['offset']}" for event in self._events]
 
-    def get_data(self, event_index: int) -> EventData:
+    def get_data(self, event_index: int) -> TypeEventData:
         """
         Get all available frame data for a requested event.
 
@@ -275,8 +275,8 @@ class StreamRetrieval(CheetahFrameRetrieval):
             A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: EventData = {}
-        chunk_data: _ChunkData = self._parse_chunk(self._events[event_index])
+        event_data: TypeEventData = {}
+        chunk_data: _TypeChunkData = self._parse_chunk(self._events[event_index])
         if (
             "om_source" in chunk_data
             and "om_config" in chunk_data
@@ -287,21 +287,19 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 chunk_data["om_config"],
             ) not in self._om_retrievals:
                 try:
-                    monitor_params: Dict[str, Dict[str, Any]] = (
-                        load_configuration_parameters(
-                            config=Path(chunk_data["om_config"])
-                        )
+                    monitor_params: MonitorParameters = MonitorParameters(
+                        config=chunk_data["om_config"]
                     )
                     self._om_retrievals[
                         (chunk_data["om_source"], chunk_data["om_config"])
                     ] = OmEventDataRetrieval(
                         source=chunk_data["om_source"],
-                        parameters=monitor_params,
+                        monitor_parameters=monitor_params,
                     )
                     if len(self._om_retrievals) == 1:
                         # Initialize binning algorithm once to be applied to all frames
                         self._initialize_binning(monitor_params)
-                except Exception:
+                except Exception as e:
                     logger.exception(
                         f"Couldn't initialize OM frame retrieval from "
                         f"{chunk_data['om_source']} source using "
@@ -316,7 +314,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     data=om_data["detector_data"]
                 )
                 event_data["source"] = chunk_data["om_event_id"]
-            except Exception:
+            except Exception as e:
                 logger.exception(
                     f"Couldn't extract image data for event id "
                     f"{chunk_data['om_event_id']}:"
@@ -329,9 +327,9 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     event_data["data"] = h5_file[self._hdf5_data_path][
                         chunk_data["event"]
                     ]
-                event_data["source"] = (
-                    f"{chunk_data['image_filename']} // {chunk_data['event']}"
-                )
+                event_data[
+                    "source"
+                ] = f"{chunk_data['image_filename']} // {chunk_data['event']}"
             except:
                 logger.exception(
                     f"Couldn't extract image data from {chunk_data['image_filename']},"

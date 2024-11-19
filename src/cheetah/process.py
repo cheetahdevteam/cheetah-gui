@@ -12,27 +12,24 @@ import shutil
 import stat
 import subprocess
 import time
-from typing import Any, Callable, Dict, Optional, TextIO, Union
+from typing import Any, Callable, Dict, TextIO, Union, Optional
 
 import jinja2
 import yaml
 
 try:
-    from typing import Literal
+    from typing import Literal, TypedDict
 except:
-    from typing_extensions import Literal
-
-from dataclasses import dataclass
+    from typing_extensions import Literal, TypedDict  # type: ignore
 
 from cheetah.crawlers import facilities
-from cheetah.utils.logging import log_subprocess_run_output
 from cheetah.utils.yaml_dumper import CheetahSafeDumper
+from cheetah.utils.logging import log_subprocess_run_output
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class _OmConfigTemplateData:
+class _TypeOmConfigTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill OM config
     # template, which can be used to process data from a single run.
 
@@ -48,8 +45,7 @@ class _OmConfigTemplateData:
     mask_file: Union[pathlib.Path, Literal["null"]]
 
 
-@dataclass
-class _ProcessScriptTemplateData:
+class _TypeProcessScriptTemplateData(TypedDict, total=False):
     # A dictionary used internally to store information required to fill process script
     # template, which can be used to process data from a single run.
 
@@ -68,8 +64,7 @@ class _ProcessScriptTemplateData:
     extra_args: str
 
 
-@dataclass
-class IndexingConfig:
+class TypeIndexingConfig(TypedDict):
     """
     A dictionary storing indexing configuration parameters.
 
@@ -87,8 +82,7 @@ class IndexingConfig:
     extra_args: str
 
 
-@dataclass
-class TypeProcessingConfig:
+class TypeProcessingConfig(TypedDict):
     """
     A dictionary storing processing configuration parameters.
 
@@ -117,7 +111,7 @@ class TypeProcessingConfig:
     tag: str
     geometry: str
     mask: str
-    indexing_config: Optional[IndexingConfig]
+    indexing_config: Optional[TypeIndexingConfig]
     event_list: Optional[str]
     write_data_files: bool
 
@@ -172,7 +166,9 @@ class CheetahProcess:
             [str, str, pathlib.Path, pathlib.Path], str
         ] = facilities[self._facility]["instruments"][instrument]["detectors"][
             detector
-        ]["prepare_om_source"]
+        ][
+            "prepare_om_source"
+        ]
         self._kill_processing_job: Callable[[str, pathlib.Path], str] = facilities[
             self._facility
         ]["kill_processing_job"]
@@ -196,8 +192,8 @@ class CheetahProcess:
         self,
         output_directory: pathlib.Path,
         config: TypeProcessingConfig,
-        process_template_data: _ProcessScriptTemplateData,
-        om_config_template_data: _OmConfigTemplateData,
+        process_template_data: _TypeProcessScriptTemplateData,
+        om_config_template_data: _TypeOmConfigTemplateData,
     ) -> None:
         # Writes process.config file in the output run directory.
         fh: TextIO
@@ -376,7 +372,7 @@ class CheetahProcess:
         with open(om_config_template_file) as fh:
             om_config_template: jinja2.Template = jinja2.Template(fh.read())
 
-        om_config_data: _OmConfigTemplateData = {
+        om_config_data: _TypeOmConfigTemplateData = {
             "processing_layer": self._om_processing_layer,
             "psana_calib_dir": self._raw_directory.parent / "calib",
             "filename_prefix": proc_id.split("/")[-1],
@@ -429,7 +425,7 @@ class CheetahProcess:
                 )
             extra_args: str = config["indexing_config"]["extra_args"]
 
-        process_script_data: _ProcessScriptTemplateData = {
+        process_script_data: _TypeProcessScriptTemplateData = {
             "queue": queue,
             "job_name": output_directory_name,
             "n_processes": n_processes,

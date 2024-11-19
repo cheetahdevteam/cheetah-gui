@@ -1,14 +1,18 @@
 """
 Cheetah Crawlers.
 
-This package contains all facility-, instrument- and detector-dependent code in Cheetah
+This package contains all facility-, instrument- and detector-dependent code in Cheetah 
 GUI. Function and classes for different facilities are implemented in separate
-modules in this package.
+modules in this package. 
 """
 
 import pathlib
-from dataclasses import dataclass
 from typing import Callable, Dict, Optional, Type
+
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 from cheetah.crawlers.base import Crawler
 from cheetah.crawlers.crawler_biocars import BioCarsMccdCrawler
@@ -26,7 +30,7 @@ from cheetah.crawlers.functions_desy import (
     prepare_om_source_p09_pilatus,
     prepare_om_source_p11_eiger,
 )
-from cheetah.crawlers.functions_generic import kill_local_job, kill_slurm_job
+from cheetah.crawlers.functions_generic import kill_slurm_job, kill_local_job
 from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
     guess_experiment_id_lcls,
@@ -35,8 +39,7 @@ from cheetah.crawlers.functions_lcls import (
 )
 
 
-@dataclass
-class DetectorInfo:
+class TypeDetectorInfo(TypedDict):
     """
     A dictionary storing information about resources associated with a certain detector.
 
@@ -70,8 +73,7 @@ class DetectorInfo:
     crawler: Type[Crawler]
 
 
-@dataclass
-class InstrumentInfo:
+class TypeInstrumentInfo(TypedDict):
     """
     A dictionary storing information about supported detectors and associated with them
     resources for a certain facility.
@@ -83,11 +85,10 @@ class InstrumentInfo:
             [TypeDetectorInfo][cheetah.crawlers.TypeDetectorInfo] dictionaries.
     """
 
-    detectors: Dict[str, DetectorInfo]
+    detectors: Dict[str, TypeDetectorInfo]
 
 
-@dataclass
-class TypeFacilityInfo:
+class TypeFacilityInfo(TypedDict):
     """
     A dictionary storing information about supported instruments and detectors for a
     certain facility as well as functions and classes associated with the facility.
@@ -110,7 +111,7 @@ class TypeFacilityInfo:
         kill_processing_job: A function which kills OM processing job.
     """
 
-    instruments: Dict[str, InstrumentInfo]
+    instruments: Dict[str, TypeInstrumentInfo]
     guess_raw_directory: Callable[[pathlib.Path], pathlib.Path]
     guess_experiment_id: Callable[[pathlib.Path], str]
     guess_batch_queue: Callable[[pathlib.Path], str]

@@ -3,33 +3,35 @@ Peakogram GUI.
 
 This module contains Cheetah peakogram GUI.
 """
-
 import pathlib
 import sys
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import click  # type: ignore
+
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
+
 import numpy
 import pyqtgraph  # type: ignore
-from numpy.typing import NDArray
-from om.lib.geometry import GeometryInformation
-from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
-
 from cheetah import __file__ as cheetah_src_path
 from cheetah.utils.file_reader_base import FileReader
+from numpy.typing import NDArray
+from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
+
+from om.lib.geometry import GeometryInformation
 
 
-@dataclass
-class _Peak:
+class _TypePeak(TypedDict):
     # This typed dictionary is used internally to store peak radius and maximum pixel
     # intensity used to construct a peakogram.
     radius: float
     intensity: float
 
 
-@dataclass
-class _PeakogramData:
+class _TypePeakogramData(TypedDict):
     # This typed dictionary is used internally to store peakogram data.
     peakogram: NDArray[numpy.float_]
     npeaks: int
@@ -53,7 +55,7 @@ class _PeaksReader(FileReader):
             geometry_filename=parameters["geometry"]
         ).get_pixel_maps()["radius"]
 
-        self._peak_list: List[_Peak] = []
+        self._peak_list: List[_TypePeak] = []
         self._npeaks: int = 0
 
         self._peakogram_radius_bin_size: float = parameters["radius_bin_size"]
@@ -87,7 +89,7 @@ class _PeaksReader(FileReader):
 
         self._npeaks += len(self._peak_list)
 
-        peak: _Peak
+        peak: _TypePeak
         peaks_max_intensity: float = max(
             (peak["intensity"] for peak in self._peak_list)
         )
@@ -228,7 +230,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         self._stop_reader_thread.connect(self._peak_reader.stop)
         self._peak_reader_thread.start()
 
-    def _update_peakogram(self, data: _PeakogramData) -> None:
+    def _update_peakogram(self, data: _TypePeakogramData) -> None:
         # Updates the peakogram.
         self._peakogram_plot_widget.setTitle(
             f"Peakogram: {data['npeaks']} peaks loaded."

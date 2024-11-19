@@ -10,7 +10,6 @@ import math
 import pathlib
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import datetime
 from operator import itemgetter
 from typing import Any, Dict, List, TextIO, Tuple, Union, cast
@@ -18,9 +17,9 @@ from typing import Any, Dict, List, TextIO, Tuple, Union, cast
 import yaml
 
 try:
-    from typing import Literal
+    from typing import Literal, TypedDict
 except:
-    from typing_extensions import Literal
+    from typing_extensions import Literal, TypedDict  # type: ignore
 
 logger = logging.getLogger("cheetah.crawler")
 
@@ -33,8 +32,7 @@ def _round_to_sig_digits(number: float, n: int) -> float:
         return 0.0
 
 
-@dataclass
-class ProcStatusItem:
+class TypeProcStatusItem(TypedDict):
     """
     A dictionary storing information about the status of the processing of a single run.
 
@@ -73,7 +71,7 @@ class ProcStatusItem:
     recipe: str
 
 
-class RawStatusItem:
+class TypeRawStatusItem(TypedDict):
     """
     A dictionary storing information about the status of the raw data for a single run.
 
@@ -88,8 +86,7 @@ class RawStatusItem:
     status: str
 
 
-@dataclass
-class TableRow:
+class TypeTableRow(TypedDict):
     """
     A dictionary storing information from one row in the Cheetah GUI run table. The
     attributes of this dictionary correspond to the column names of the table.
@@ -182,7 +179,7 @@ class Crawler(ABC):
         self._proc_directory_scan_enabled: bool = proc_directory_scan_enabled
 
     @abstractmethod
-    def _scan_raw_directory(self) -> List[RawStatusItem]:
+    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
         # This function is called every time crawler updates the the run table
         # displayed in Cheetah GUI. It scans raw data directory and returns the list of
         # TypeRawStatusItem dictionaries containing each run ID and the status of the
@@ -246,12 +243,12 @@ class Crawler(ABC):
             proc_id = "_" + proc_id[1:]
         return proc_id
 
-    def _scan_proc_directory(self) -> List[ProcStatusItem]:
+    def _scan_proc_directory(self) -> List[TypeProcStatusItem]:
         # This function is called every time crawler updates the run table displayed
         # in Cheetah GUI. It scans processed data directory and returns the list of
         # TypeProcStatusItem dictionaries containing information of the data processing
         # status for each processing run.
-        proc_status: List[ProcStatusItem] = []
+        proc_status: List[TypeProcStatusItem] = []
         status_file: pathlib.Path
         for status_file in self._proc_directory.rglob("status.txt"):
             run_directory: pathlib.Path = status_file.parent
@@ -325,10 +322,10 @@ class Crawler(ABC):
                     break
         return indexed, crystals
 
-    def _read_table(self) -> Tuple[List[RawStatusItem], List[ProcStatusItem]]:
+    def _read_table(self) -> Tuple[List[TypeRawStatusItem], List[TypeProcStatusItem]]:
         # Reads data from the crawler CSV file.
-        raw_status: List[RawStatusItem] = []
-        proc_status: List[ProcStatusItem] = []
+        raw_status: List[TypeRawStatusItem] = []
+        proc_status: List[TypeProcStatusItem] = []
         if self._output_filename.exists():
             csvfile: TextIO
             with open(self._output_filename, "r") as csvfile:
@@ -367,16 +364,16 @@ class Crawler(ABC):
                         )
         return raw_status, proc_status
 
-    def _write_table(self, table_rows: List[TableRow]) -> None:
+    def _write_table(self, table_rows: List[TypeTableRow]) -> None:
         # Writes a list of TypeTableRow dictionaries to the output CSV file using the
         # keys of TypeTableRow as column names.
         csvfile: TextIO
         with open(self._output_filename, "w", newline="") as csvfile:
             writer: csv.DictWriter[str] = csv.DictWriter(
-                csvfile, fieldnames=list(TableRow.__annotations__.keys())
+                csvfile, fieldnames=list(TypeTableRow.__annotations__.keys())
             )
             writer.writeheader()
-            row: TableRow
+            row: TypeTableRow
             for row in table_rows:
                 writer.writerow(row)
 
@@ -459,8 +456,8 @@ class Crawler(ABC):
             logger.info(
                 "Both raw and hdf5 directory scanning is disabled,doing nothing."
             )
-        raw_status: List[RawStatusItem]
-        proc_status: List[ProcStatusItem]
+        raw_status: List[TypeRawStatusItem]
+        proc_status: List[TypeProcStatusItem]
         raw_status, proc_status = self._read_table()
         if self._raw_directory_scan_enabled:
             logger.info("Scanning raw directory")
@@ -470,15 +467,16 @@ class Crawler(ABC):
             proc_status = self._scan_proc_directory()
         proc_status = sorted(proc_status, key=itemgetter("update_time"), reverse=True)
 
-        raw_status_item: RawStatusItem
-        table_rows: List[TableRow] = []
+        raw_status_item: TypeRawStatusItem
+        table_rows: List[TypeTableRow] = []
         for raw_status_item in raw_status:
             raw_id: str = raw_status_item["run_id"]
             proc_id: str = self.raw_id_to_proc_id(raw_id)
-            proc_status_item: ProcStatusItem
+            proc_status_item: TypeProcStatusItem
 
-            row: TableRow = TableRow(
-                Run=self.raw_id_to_table_id(raw_id), Rawdata=raw_status_item.status
+            row: TypeTableRow = cast(
+                TypeTableRow,
+                {key: "---" for key in TypeTableRow.__annotations__.keys()},
             )
             row["Run"] = self.raw_id_to_table_id(raw_id)
             row["Rawdata"] = raw_status_item["status"]
@@ -489,8 +487,8 @@ class Crawler(ABC):
                 if proc_status_item["run_id"] == proc_id:
                     if n_proc_items_run > 0:
                         row = cast(
-                            TableRow,
-                            {key: "---" for key in TableRow.__annotations__.keys()},
+                            TypeTableRow,
+                            {key: "---" for key in TypeTableRow.__annotations__.keys()},
                         )
                         row["Run"] = ""
                         row["Rawdata"] = ""
