@@ -10,13 +10,17 @@ import math
 import pathlib
 import time
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass
 from datetime import datetime
-from operator import attrgetter
+from operator import itemgetter
 from typing import Any, Dict, List, TextIO, Tuple, Union, cast
 
 import yaml
-from typing_extensions import Literal
+
+try:
+    from typing import Literal
+except:
+    from typing_extensions import Literal
 
 logger = logging.getLogger("cheetah.crawler")
 
@@ -69,7 +73,6 @@ class ProcStatusItem:
     recipe: str
 
 
-@dataclass
 class RawStatusItem:
     """
     A dictionary storing information about the status of the raw data for a single run.
@@ -293,18 +296,18 @@ class Crawler(ABC):
                 else:
                     indexing_results = (-1, -1)
                 proc_status.append(
-                    ProcStatusItem(
-                        run_name=run_name,
-                        run_id=run_id,
-                        tag=tag,
-                        status=status["Status"],
-                        update_time=update_time,
-                        processed=processed,
-                        hits=hits,
-                        indexed=indexing_results[0],
-                        crystals=indexing_results[1],
-                        recipe=recipe,
-                    )
+                    {
+                        "run_name": run_name,
+                        "run_id": run_id,
+                        "tag": tag,
+                        "status": status["Status"],
+                        "update_time": update_time,
+                        "processed": processed,
+                        "hits": hits,
+                        "indexed": indexing_results[0],
+                        "crystals": indexing_results[1],
+                        "recipe": recipe,
+                    }
                 )
 
         return proc_status
@@ -334,10 +337,10 @@ class Crawler(ABC):
                 for table_row in reader:
                     if table_row["Run"]:
                         raw_status.append(
-                            RawStatusItem(
-                                run_id=self.table_id_to_raw_id(table_row["Run"]),
-                                status=table_row["Rawdata"],
-                            )
+                            {
+                                "run_id": self.table_id_to_raw_id(table_row["Run"]),
+                                "status": table_row["Rawdata"],
+                            }
                         )
                     if table_row["H5Directory"] != "---":
                         split_items: List[str] = table_row["H5Directory"].split("-")
@@ -349,18 +352,18 @@ class Crawler(ABC):
                         else:
                             indexed = -1
                         proc_status.append(
-                            ProcStatusItem(
-                                run_name=table_row["H5Directory"],
-                                run_id=run_id,
-                                tag=tag,
-                                status=table_row["Cheetah"],
-                                update_time=update_time,
-                                processed=int(table_row["Nprocessed"]),
-                                hits=int(table_row["Nhits"]),
-                                indexed=indexed,
-                                crystals=-1,
-                                recipe=table_row["Recipe"],
-                            )
+                            {
+                                "run_name": table_row["H5Directory"],
+                                "run_id": run_id,
+                                "tag": tag,
+                                "status": table_row["Cheetah"],
+                                "update_time": update_time,
+                                "processed": int(table_row["Nprocessed"]),
+                                "hits": int(table_row["Nhits"]),
+                                "indexed": indexed,
+                                "crystals": -1,
+                                "recipe": table_row["Recipe"],
+                            }
                         )
         return raw_status, proc_status
 
@@ -370,12 +373,12 @@ class Crawler(ABC):
         csvfile: TextIO
         with open(self._output_filename, "w", newline="") as csvfile:
             writer: csv.DictWriter[str] = csv.DictWriter(
-                csvfile, fieldnames=list([field.name for field in fields(TableRow)])
+                csvfile, fieldnames=list(TableRow.__annotations__.keys())
             )
             writer.writeheader()
             row: TableRow
             for row in table_rows:
-                writer.writerow(asdict(row))
+                writer.writerow(row)
 
     def raw_directory_scan_is_enabled(self) -> bool:
         """
@@ -465,49 +468,56 @@ class Crawler(ABC):
         if self._proc_directory_scan_enabled:
             logger.info("Scanning hdf5 directory")
             proc_status = self._scan_proc_directory()
-        proc_status = sorted(proc_status, key=attrgetter("update_time"), reverse=True)
+        proc_status = sorted(proc_status, key=itemgetter("update_time"), reverse=True)
 
         raw_status_item: RawStatusItem
         table_rows: List[TableRow] = []
         for raw_status_item in raw_status:
-            raw_id: str = raw_status_item.run_id
+            raw_id: str = raw_status_item["run_id"]
             proc_id: str = self.raw_id_to_proc_id(raw_id)
             proc_status_item: ProcStatusItem
 
             row: TableRow = TableRow(
                 Run=self.raw_id_to_table_id(raw_id), Rawdata=raw_status_item.status
             )
+            row["Run"] = self.raw_id_to_table_id(raw_id)
+            row["Rawdata"] = raw_status_item["status"]
             table_rows.append(row)
 
             n_proc_items_run = 0
             for proc_status_item in proc_status:
-                if proc_status_item.run_id == proc_id:
+                if proc_status_item["run_id"] == proc_id:
                     if n_proc_items_run > 0:
-                        row = TableRow()
+                        row = cast(
+                            TableRow,
+                            {key: "---" for key in TableRow.__annotations__.keys()},
+                        )
+                        row["Run"] = ""
+                        row["Rawdata"] = ""
                         table_rows.append(row)
-                    row.Dataset = proc_status_item.tag
-                    row.H5Directory = proc_status_item.run_name
-                    row.Cheetah = proc_status_item.status
-                    row.Recipe = proc_status_item.recipe
+                    row["Dataset"] = proc_status_item["tag"]
+                    row["H5Directory"] = proc_status_item["run_name"]
+                    row["Cheetah"] = proc_status_item["status"]
+                    row["Recipe"] = proc_status_item["recipe"]
 
-                    hits: int = proc_status_item.hits
-                    processed: int = proc_status_item.processed
+                    hits: int = proc_status_item["hits"]
+                    processed: int = proc_status_item["processed"]
                     hitrate: Union[Literal["---"], float] = (
                         _round_to_sig_digits(100 * hits / processed, 3)
                         if processed > 0
                         else "---"
                     )
-                    indexed: int = proc_status_item.indexed
+                    indexed: int = proc_status_item["indexed"]
                     if indexed >= 0:
-                        row.Nindexed = indexed
-                        row.Idxrate = (
+                        row["Nindexed"] = indexed
+                        row["Idxrate"] = (
                             _round_to_sig_digits(100 * indexed / hits, 3)
                             if hits > 0
                             else "---"
                         )
-                    row.Nprocessed = processed
-                    row.Nhits = hits
-                    row.Hitrate = hitrate
+                    row["Nprocessed"] = processed
+                    row["Nhits"] = hits
+                    row["Hitrate"] = hitrate
                     n_proc_items_run += 1
 
         self._write_table(table_rows)
