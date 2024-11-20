@@ -8,11 +8,11 @@ import csv
 import os
 import pathlib
 import sys
-import ruamel.yaml  # type: ignore
 from operator import itemgetter
 from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
 
 import click  # type: ignore
+import ruamel.yaml  # type: ignore
 from ansi2html import Ansi2HTMLConverter  # type: ignore
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
 
@@ -24,14 +24,13 @@ except:
 import logging
 import logging.config
 
-from om.lib.parameters import MonitorParameters
-
 from cheetah import __file__ as cheetah_src_path
 from cheetah.crawlers.base import Crawler, TypeTableRow
 from cheetah.dialogs import process_dialogs, setup_dialogs
 from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
 from cheetah.process import TypeProcessingConfig
 from cheetah.utils.logging import LoggingPopen, QtHandler, logging_config
+from cheetah.utils.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger("cheetah")
 
@@ -669,7 +668,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             _yaml: Any = ruamel.yaml.YAML(typ="jinja2")
             config: Dict[str, Any] = _yaml.load(fh)
             try:
-                detector_name: str = config["data_retrieval_layer"]["detector_data"]["psana_name"]
+                detector_name: str = config["data_retrieval_layer"]["detector_data"][
+                    "psana_name"
+                ]
             except KeyError:
                 detector_name = ""
         return detector_name

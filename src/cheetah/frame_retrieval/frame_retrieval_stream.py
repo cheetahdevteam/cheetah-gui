@@ -1,10 +1,11 @@
 """
 Frame retrieval from CrystFEL stream files.
 """
+
 import logging
 import pathlib
 import subprocess
-from typing import Any, Dict, List, TextIO, Tuple, Union, Optional
+from typing import Any, Dict, List, Optional, TextIO, Tuple, Union
 
 import h5py  # type: ignore
 
@@ -13,17 +14,17 @@ try:
 except:
     from typing_extensions import TypedDict
 
+from om.algorithms.generic import Binning, BinningPassthrough
+from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
+from om.lib.geometry import GeometryInformation
+
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,
     TypePeakList,
 )
 from cheetah.utils.logging import log_subprocess_run_output
-
-from om.algorithms.generic import Binning, BinningPassthrough
-from om.data_retrieval_layer import OmEventDataRetrieval
-from om.lib.geometry import GeometryInformation
-from om.lib.parameters import MonitorParameters
+from cheetah.utils.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -327,9 +328,9 @@ class StreamRetrieval(CheetahFrameRetrieval):
                     event_data["data"] = h5_file[self._hdf5_data_path][
                         chunk_data["event"]
                     ]
-                event_data[
-                    "source"
-                ] = f"{chunk_data['image_filename']} // {chunk_data['event']}"
+                event_data["source"] = (
+                    f"{chunk_data['image_filename']} // {chunk_data['event']}"
+                )
             except:
                 logger.exception(
                     f"Couldn't extract image data from {chunk_data['image_filename']},"

@@ -1,8 +1,8 @@
 """
 Frame retrieval from OM data retrieval.
 """
-import logging
 
+import logging
 from typing import Any, Dict, List, TextIO, cast
 
 try:
@@ -10,17 +10,17 @@ try:
 except:
     from typing_extensions import TypedDict
 
+from om.algorithms.crystallography import PeakList as OmTypePeakList
+from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
+from om.lib.crystallography import CrystallographyPeakFinding
+from om.lib.geometry import GeometryInformation
+
 from cheetah.frame_retrieval.base import (
     CheetahFrameRetrieval,
     TypeEventData,
     TypePeakList,
 )
-
-from om.algorithms.crystallography import TypePeakList as OmTypePeakList
-from om.data_retrieval_layer import OmEventDataRetrieval
-from om.lib.crystallography import CrystallographyPeakFinding
-from om.lib.geometry import GeometryInformation
-from om.lib.parameters import MonitorParameters
+from cheetah.utils.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                         )
                         self._om_retrievals[filename] = OmEventDataRetrieval(
                             source=parameters["om_sources"][filename],
-                            monitor_parameters=monitor_params,
+                            parameters=monitor_params.asdict(),
                         )
                     except Exception as e:
                         logger.exception(
@@ -250,9 +250,9 @@ class OmRetrieval(CheetahFrameRetrieval):
                 detector_data=event_data["data"]
             )
             event_data["peaks"] = {
-                "num_peaks": peak_list["num_peaks"],
-                "fs": peak_list["fs"],
-                "ss": peak_list["ss"],
+                "num_peaks": peak_list.num_peaks,
+                "fs": peak_list.fs,
+                "ss": peak_list.ss,
             }
 
         return event_data

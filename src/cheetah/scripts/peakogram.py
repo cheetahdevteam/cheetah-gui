@@ -3,6 +3,7 @@ Peakogram GUI.
 
 This module contains Cheetah peakogram GUI.
 """
+
 import pathlib
 import sys
 from typing import Any, Dict, List, Optional, cast
@@ -16,12 +17,12 @@ except:
 
 import numpy
 import pyqtgraph  # type: ignore
-from cheetah import __file__ as cheetah_src_path
-from cheetah.utils.file_reader_base import FileReader
 from numpy.typing import NDArray
+from om.lib.geometry import GeometryInformation
 from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
 
-from om.lib.geometry import GeometryInformation
+from cheetah import __file__ as cheetah_src_path
+from cheetah.utils.file_reader_base import FileReader
 
 
 class _TypePeak(TypedDict):
@@ -51,9 +52,11 @@ class _PeaksReader(FileReader):
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
 
-        self._radius_pixelmap: NDArray[numpy.float_] = GeometryInformation.from_file(
-            geometry_filename=parameters["geometry"]
-        ).get_pixel_maps()["radius"]
+        self._radius_pixelmap: NDArray[numpy.float_] = (
+            GeometryInformation.from_file(geometry_filename=parameters["geometry"])
+            .get_pixel_maps()
+            .radius
+        )
 
         self._peak_list: List[_TypePeak] = []
         self._npeaks: int = 0
