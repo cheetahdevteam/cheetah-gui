@@ -278,6 +278,9 @@ class CheetahProcess:
                 )
                 shutil.copy(config["indexing_config"]["cell_file"], filename)
                 config["indexing_config"]["cell_file"] = str(filename)
+        
+        # Wait a bit to make sure the files are copied
+        time.sleep(0.2)
 
     def _setup_output_directory(
         self, directory: pathlib.Path, config: TypeProcessingConfig
