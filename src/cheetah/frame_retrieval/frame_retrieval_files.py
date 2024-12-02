@@ -1,23 +1,20 @@
 """
 Frame retrieval from files.
 """
+
 import logging
 import h5py  # type: ignore
-
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
-
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class _TypeH5Event(TypedDict):
-    # A dictionary used internally to store information about a single data event in an
+@dataclass
+class _H5Event:
+    # A data class used internally to store information about a single data event in an
     # HDF5 file. For multi-event files index is the index of the event in the dataset,
     # for single-event files index is -1.
 
@@ -84,7 +81,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
             self._clen_path = None
 
         self._multi_event_files: Dict[str, Any] = {}
-        self._events: List[_TypeH5Event] = []
+        self._events: List[_H5Event] = []
         filename: str
         for filename in sources:
             fh: Any = h5py.File(filename, "r")
@@ -98,12 +95,12 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
             if len(data.shape) == 2:
                 # Close single-event files to let Cheetah update them while the viewer
                 # is running
-                self._events.append({"filename": filename, "index": -1})
+                self._events.append(_H5Event(filename, -1))
                 fh.close()
             else:
                 i: int
                 self._events.extend(
-                    [{"filename": filename, "index": i} for i in range(data.shape[0])]
+                    [_H5Event(filename, i) for i in range(data.shape[0])]
                 )
                 # Keep multi-event files open
                 self._multi_event_files[filename] = fh
@@ -130,10 +127,10 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
-        event: _TypeH5Event
-        return [f"{event['filename']} // {event['index']}" for event in self._events]
+        event: _H5Event
+        return [f"{event.filename} // {event.index}" for event in self._events]
 
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 
@@ -160,21 +157,21 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
 
         Returns:
 
-            A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
+            A [EventData][cheetah.frame_retrieval.base.EventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: TypeEventData = {}
-        filename: str = self._events[event_index]["filename"]
-        index: int = self._events[event_index]["index"]
+        event_data: EventData = EventData()
+        filename: str = self._events[event_index].filename
+        index: int = self._events[event_index].index
 
         if index == -1:
             fh: Any = h5py.File(filename)
-            event_data["data"] = fh[self._hdf5_data_path][()]
+            event_data.data = fh[self._hdf5_data_path][()]
             fh.close()
         else:
-            event_data["data"] = self._multi_event_files[filename][
-                self._hdf5_data_path
-            ][index]
+            event_data.data = self._multi_event_files[filename][self._hdf5_data_path][
+                index
+            ]
 
             if self._hdf5_peaks_path:
                 if self._hdf5_peaks_path not in self._multi_event_files[filename]:
@@ -193,7 +190,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
                         self._hdf5_peaks_path
                     ]["peakYPosRaw"][index][:num_peaks]
 
-                    event_data["peaks"] = {"num_peaks": num_peaks, "fs": fs, "ss": ss}
+                    event_data.peaks = PeakList(num_peaks, fs, ss)
 
             if self._photon_energy_path:
                 if self._photon_energy_path not in self._multi_event_files[filename]:
@@ -202,7 +199,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
                         f"in {filename}."
                     )
                 else:
-                    event_data["photon_energy"] = self._multi_event_files[filename][
+                    event_data.photon_energy = self._multi_event_files[filename][
                         self._photon_energy_path
                     ][index]
 
@@ -213,7 +210,7 @@ class H5FilesRetrieval(CheetahFrameRetrieval):
                         f"in {filename}."
                     )
                 else:
-                    event_data["clen"] = (
+                    event_data.clen = (
                         self._multi_event_files[filename][self._clen_path][index] * 1e-3
                     )
 

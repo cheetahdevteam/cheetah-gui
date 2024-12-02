@@ -7,6 +7,7 @@ Cheetah experiments.
 
 import os
 import pathlib
+from dataclasses import asdict
 
 from PyQt5 import QtWidgets  # type: ignore
 from typing import Any, List, TextIO, Callable, Optional
@@ -14,7 +15,7 @@ from typing import Any, List, TextIO, Callable, Optional
 from cheetah.dialogs.generic_dialogs import PathDoesNotExistDialog
 from cheetah.crawlers import facilities
 from cheetah import __file__ as cheetah_src_path
-from cheetah.experiment import TypeExperimentConfig
+from cheetah.experiment import ExperimentConfig
 
 
 class ExperimentSelectionDialog(QtWidgets.QDialog):  # type: ignore
@@ -232,9 +233,9 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         cheetah_resources_layout: Any = QtWidgets.QHBoxLayout()
         cheetah_resources_layout.addWidget(self._cheetah_resources_le)
         cheetah_resources_layout.addWidget(self._cheetah_resources_button)
-        cheetah_resources_directory: Optional[
-            pathlib.Path
-        ] = self._guess_cheetah_resources_directory()
+        cheetah_resources_directory: Optional[pathlib.Path] = (
+            self._guess_cheetah_resources_directory()
+        )
         if cheetah_resources_directory:
             self._cheetah_resources_le.setText(str(cheetah_resources_directory))
             self._cheetah_resources_button.setEnabled(False)
@@ -265,16 +266,16 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
 
     def _check_config(self) -> None:
         # Checks that all fields in the form are filled. If not disaples "OK" button.
-        self._config: TypeExperimentConfig = {
-            "facility": self._facility_cb.currentText(),
-            "instrument": self._instrument_cb.currentText(),
-            "detector": self._detector_cb.currentText(),
-            "raw_dir": self._raw_directory_le.text(),
-            "experiment_id": self._experiment_id_le.text(),
-            "output_dir": self._cheetah_directory_le.text(),
-            "cheetah_resources": self._cheetah_resources_le.text(),
-        }
-        if "" in self._config.values():
+        self._config: ExperimentConfig = ExperimentConfig(
+            facility=self._facility_cb.currentText(),
+            instrument=self._instrument_cb.currentText(),
+            detector=self._detector_cb.currentText(),
+            raw_dir=self._raw_directory_le.text(),
+            experiment_id=self._experiment_id_le.text(),
+            output_dir=self._cheetah_directory_le.text(),
+            cheetah_resources=self._cheetah_resources_le.text(),
+        )
+        if "" in asdict(self._config).values():
             self._button_box.buttons()[0].setEnabled(False)
         else:
             self._button_box.buttons()[0].setEnabled(True)
@@ -286,9 +287,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         self._instrument_cb.clear()
         if self._facility:
             self._instrument_cb.setEnabled(True)
-            self._instrument_cb.addItems(
-                facilities[self._facility]["instruments"].keys()
-            )
+            self._instrument_cb.addItems(facilities[self._facility].instruments.keys())
             instrument: Optional[str] = self._guess_instrument()
             if instrument:
                 index: int = self._instrument_cb.findText(instrument)
@@ -296,9 +295,9 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
                     self._instrument_cb.setCurrentIndex(index)
         else:
             self._instrument_cb.setEnabled(False)
-        possible_raw_directory: Optional[
-            pathlib.Path
-        ] = self._guess_raw_data_directory()
+        possible_raw_directory: Optional[pathlib.Path] = (
+            self._guess_raw_data_directory()
+        )
         if possible_raw_directory is not None and possible_raw_directory.is_dir():
             self._raw_directory_le.setText(str(possible_raw_directory))
 
@@ -317,9 +316,9 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         # Tries to guess experiment ID based on the facility and experiment path.
         self._facility = self._facility_cb.currentText()
         if self._facility:
-            function: Callable[[pathlib.Path], str] = facilities[self._facility][
-                "guess_experiment_id"
-            ]
+            function: Callable[[pathlib.Path], str] = facilities[
+                self._facility
+            ].guess_experiment_id
             return function(path)
         else:
             return None
@@ -327,7 +326,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
     def _guess_instrument(self) -> Optional[str]:
         # Tries to guess the instrument name based on experiment path.
         instrument: str
-        for instrument in facilities[self._facility]["instruments"].keys():
+        for instrument in facilities[self._facility].instruments.keys():
             if "/" + instrument in str(self._path) or "/" + instrument.lower() in str(
                 self._path
             ):
@@ -339,7 +338,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         if self._facility:
             function: Callable[[pathlib.Path], pathlib.Path] = facilities[
                 self._facility
-            ]["guess_raw_directory"]
+            ].guess_raw_directory
 
             return function(self._path)
         else:
@@ -353,7 +352,7 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
         if self._instrument:
             self._detector_cb.setEnabled(True)
             self._detector_cb.addItems(
-                facilities[self._facility]["instruments"][self._instrument]["detectors"]
+                facilities[self._facility].instruments[self._instrument].detectors
             )
         else:
             self._detector_cb.setEnabled(False)
@@ -395,14 +394,14 @@ class SetupNewExperimentDialog(QtWidgets.QDialog):  # type: ignore
             self._cheetah_resources_le.setText(path)
         self._check_config()
 
-    def get_config(self) -> TypeExperimentConfig:
+    def get_config(self) -> ExperimentConfig:
         """
         Get new experiment config.
 
         This function is called when the dialog exits with signal 1.
 
         Returns:
-            A [TypeExperimentConfig][cheetah.experiment.TypeExperimentConfig]
+            A [ExperimentConfig][cheetah.experiment.ExperimentConfig]
             dictionary containing selected experiment configuration parameters.
         """
         self._check_config()

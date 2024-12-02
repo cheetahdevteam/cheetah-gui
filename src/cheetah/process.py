@@ -164,14 +164,15 @@ class CheetahProcess:
         self._proc_directory: pathlib.Path = proc_directory
         self._prepare_om_source: Callable[
             [str, str, pathlib.Path, pathlib.Path], str
-        ] = facilities[self._facility]["instruments"][instrument]["detectors"][
-            detector
-        ][
-            "prepare_om_source"
-        ]
+        ] = (
+            facilities[self._facility]
+            .instruments[instrument]
+            .detectors[detector]
+            .prepare_om_source
+        )
         self._kill_processing_job: Callable[[str, pathlib.Path], str] = facilities[
             self._facility
-        ]["kill_processing_job"]
+        ].kill_processing_job
         if streaming:
             self._om_processing_layer: Union[
                 Literal["CheetahProcessing"],
@@ -278,7 +279,7 @@ class CheetahProcess:
                 )
                 shutil.copy(config["indexing_config"]["cell_file"], filename)
                 config["indexing_config"]["cell_file"] = str(filename)
-        
+
         # Wait a bit to make sure the files are copied
         time.sleep(0.2)
 
@@ -408,7 +409,7 @@ class CheetahProcess:
             run_id, self._experiment_id, self._raw_directory, output_directory
         )
         if not queue:
-            queue = facilities[self._facility]["guess_batch_queue"](self._raw_directory)
+            queue = facilities[self._facility].guess_batch_queue(self._raw_directory)
         if not n_processes:
             n_processes = 12
 

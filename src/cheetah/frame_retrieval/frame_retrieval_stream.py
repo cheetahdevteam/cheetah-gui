@@ -5,50 +5,44 @@ Frame retrieval from CrystFEL stream files.
 import logging
 import pathlib
 import subprocess
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TextIO, Tuple, Union
 
 import h5py  # type: ignore
-
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
 
 from om.algorithms.generic import Binning, BinningPassthrough
 from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
 from om.lib.geometry import GeometryInformation
 
-from cheetah.frame_retrieval.base import (
-    CheetahFrameRetrieval,
-    TypeEventData,
-    TypePeakList,
-)
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 from cheetah.utils.logging import log_subprocess_run_output
 from cheetah.utils.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class _TypeStreamEvent(TypedDict):
-    # A dictionary used internally to store information about a single data event in a
+@dataclass
+class _StreamEvent:
+    # A data class used internally to store information about a single data event in a
     # stream file. offset is a byte offset to the event chunk in the stream file.
 
     filename: str
     offset: int
 
 
-class _TypeChunkData(TypedDict, total=False):
-    # A dictionary used internally to store data extracted from a stream file chunk.
+@dataclass
+class _ChunkData:
+    # A data class used internally to store data extracted from a stream file chunk.
 
-    image_filename: str
-    event: Optional[int]
-    om_event_id: str
-    om_source: str
-    om_config: str
-    photon_energy: float
-    clen: float
-    peaks: TypePeakList
-    crystals: List[TypePeakList]
+    image_filename: Optional[str] = None
+    event: Optional[int] = None
+    om_event_id: Optional[str] = None
+    om_source: Optional[str] = None
+    om_config: Optional[str] = None
+    photon_energy: Optional[float] = None
+    clen: Optional[float] = None
+    peaks: Optional[PeakList] = None
+    crystals: Optional[List[PeakList]] = None
 
 
 class StreamRetrieval(CheetahFrameRetrieval):
@@ -76,7 +70,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 retrieve data from stream files.
         """
         self._streams: Dict[str, TextIO] = {}
-        self._events: List[_TypeStreamEvent] = []
+        self._events: List[_StreamEvent] = []
         self._om_retrievals: Dict[Tuple[str, str], OmEventDataRetrieval] = {}
         filename: str
         for filename in sources:
@@ -86,7 +80,7 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 continue
             self._streams[filename] = open(filename, "r")
             self._events.extend(
-                [{"filename": filename, "offset": offset} for offset in offsets]
+                _StreamEvent(filename=filename, offset=offset) for offset in offsets
             )
         self._hdf5_data_path: str = self._get_hdf5_data_path()
         self._num_events: int = len(self._events)
@@ -153,55 +147,53 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
         return offsets
 
-    def _parse_chunk(self, event: _TypeStreamEvent) -> _TypeChunkData:
+    def _parse_chunk(self, event: _StreamEvent) -> _ChunkData:
         # Parses stream chunk and returns chunk data.
-        chunk_data: _TypeChunkData = {}
-        stream: TextIO = self._streams[event["filename"]]
-        stream.seek(event["offset"])
+        chunk_data: _ChunkData = _ChunkData(peaks=PeakList(0, [], []), crystals=[])
+        stream: TextIO = self._streams[event.filename]
+        stream.seek(event.offset)
 
-        chunk_data["peaks"] = {"num_peaks": 0, "fs": [], "ss": []}
-        chunk_data["crystals"] = []
         reading_peaks: bool = False
         reading_reflections: bool = False
 
         line: str = stream.readline()
         while not line.startswith("----- End chunk -----"):
             if line.startswith("Image filename:"):
-                chunk_data["image_filename"] = line.split(":")[-1].strip()
+                chunk_data.image_filename = line.split(":")[-1].strip()
             elif line.startswith("Event:"):
                 try:
-                    chunk_data["event"] = int(line.split("//")[-1])
+                    chunk_data.event = int(line.split("//")[-1])
                 except ValueError:
-                    chunk_data["event"] = None
+                    pass
             elif line.startswith("header/str/event_id"):
-                chunk_data["om_event_id"] = "=".join(line.split("=")[1:]).strip()
+                chunk_data.om_event_id = "=".join(line.split("=")[1:]).strip()
             elif line.startswith("header/str/source"):
-                chunk_data["om_source"] = "=".join(line.split("=")[1:]).strip()
+                chunk_data.om_source = "=".join(line.split("=")[1:]).strip()
             elif line.startswith("header/str/configuration_file"):
-                chunk_data["om_config"] = "=".join(line.split("=")[1:]).strip()
+                chunk_data.om_config = "=".join(line.split("=")[1:]).strip()
             elif line.startswith("photon_energy_eV"):
-                chunk_data["photon_energy"] = float(line.split("=")[-1])
+                chunk_data.photon_energy = float(line.split("=")[-1])
             elif line.startswith("average_camera_length"):
-                chunk_data["clen"] = float(line.split()[-2])
+                chunk_data.clen = float(line.split()[-2])
             elif line.startswith("End of peak list"):
                 reading_peaks = False
             elif reading_peaks:
                 split_items: List[str] = line.split()
-                chunk_data["peaks"]["num_peaks"] += 1
-                chunk_data["peaks"]["fs"].append(float(split_items[0]))
-                chunk_data["peaks"]["ss"].append(float(split_items[1]))
+                chunk_data.peaks.num_peaks += 1
+                chunk_data.peaks.fs.append(float(split_items[0]))
+                chunk_data.peaks.ss.append(float(split_items[1]))
             elif line.startswith("  fs/px   ss/px"):
                 reading_peaks = True
             elif line.startswith("End of reflections"):
                 reading_reflections = False
             elif reading_reflections:
                 split_items = line.split()
-                chunk_data["crystals"][-1]["num_peaks"] += 1
-                chunk_data["crystals"][-1]["fs"].append(float(split_items[7]))
-                chunk_data["crystals"][-1]["ss"].append(float(split_items[8]))
+                chunk_data.crystals[-1].num_peaks += 1
+                chunk_data.crystals[-1].fs.append(float(split_items[7]))
+                chunk_data.crystals[-1].ss.append(float(split_items[8]))
             elif line.startswith("   h    k    l"):
                 reading_reflections = True
-                chunk_data["crystals"].append({"num_peaks": 0, "fs": [], "ss": []})
+                chunk_data.crystals.append(PeakList(0, [], []))
             line = stream.readline()
 
         return chunk_data
@@ -250,10 +242,10 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
-        event: _TypeStreamEvent
-        return [f"{event['filename']} // {event['offset']}" for event in self._events]
+        event: _StreamEvent
+        return [f"{event.filename} // {event.offset}" for event in self._events]
 
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 
@@ -273,28 +265,35 @@ class StreamRetrieval(CheetahFrameRetrieval):
 
         Returns:
 
-            A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
+            A [EventData][cheetah.frame_retrieval.base.EventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: TypeEventData = {}
-        chunk_data: _TypeChunkData = self._parse_chunk(self._events[event_index])
-        if (
-            "om_source" in chunk_data
-            and "om_config" in chunk_data
-            and "om_event_id" in chunk_data
+        chunk_data: _ChunkData = self._parse_chunk(self._events[event_index])
+
+        event_data: EventData = EventData(
+            photon_energy=chunk_data.photon_energy,
+            clen=chunk_data.clen,
+            peaks=chunk_data.peaks,
+            crystals=chunk_data.crystals,
+        )
+
+        if None not in (
+            chunk_data.om_source,
+            chunk_data.om_config,
+            chunk_data.om_event_id,
         ):
             if (
-                chunk_data["om_source"],
-                chunk_data["om_config"],
+                chunk_data.om_source,
+                chunk_data.om_config,
             ) not in self._om_retrievals:
                 try:
                     monitor_params: MonitorParameters = MonitorParameters(
-                        config=chunk_data["om_config"]
+                        config=chunk_data.om_config
                     )
                     self._om_retrievals[
-                        (chunk_data["om_source"], chunk_data["om_config"])
+                        (chunk_data.om_source, chunk_data.om_config)
                     ] = OmEventDataRetrieval(
-                        source=chunk_data["om_source"],
+                        source=chunk_data.om_source,
                         monitor_parameters=monitor_params,
                     )
                     if len(self._om_retrievals) == 1:
@@ -303,43 +302,34 @@ class StreamRetrieval(CheetahFrameRetrieval):
                 except Exception as e:
                     logger.exception(
                         f"Couldn't initialize OM frame retrieval from "
-                        f"{chunk_data['om_source']} source using "
-                        f"{chunk_data['om_config']} config file:"
+                        f"{chunk_data.om_source} source using "
+                        f"{chunk_data.om_config} config file:"
                     )
 
             try:
                 om_data: Dict[str, Any] = self._om_retrievals[
-                    (chunk_data["om_source"], chunk_data["om_config"])
-                ].retrieve_event_data(event_id=chunk_data["om_event_id"])
-                event_data["data"] = self._binning.bin_detector_data(
+                    (chunk_data.om_source, chunk_data.om_config)
+                ].retrieve_event_data(event_id=chunk_data.om_event_id)
+                event_data.data = self._binning.bin_detector_data(
                     data=om_data["detector_data"]
                 )
-                event_data["source"] = chunk_data["om_event_id"]
+                event_data.source = chunk_data.om_event_id
             except Exception as e:
                 logger.exception(
                     f"Couldn't extract image data for event id "
-                    f"{chunk_data['om_event_id']}:"
+                    f"{chunk_data.om_event_id}:"
                 )
 
-        elif chunk_data["image_filename"] and chunk_data["event"] is not None:
+        elif chunk_data.image_filename and chunk_data.event is not None:
             try:
                 h5_file: Any
-                with h5py.File(chunk_data["image_filename"]) as h5_file:
-                    event_data["data"] = h5_file[self._hdf5_data_path][
-                        chunk_data["event"]
-                    ]
-                event_data["source"] = (
-                    f"{chunk_data['image_filename']} // {chunk_data['event']}"
-                )
+                with h5py.File(chunk_data.image_filename) as h5_file:
+                    event_data.data = h5_file[self._hdf5_data_path][chunk_data.event]
+                event_data.source = f"{chunk_data.image_filename} // {chunk_data.event}"
             except:
                 logger.exception(
-                    f"Couldn't extract image data from {chunk_data['image_filename']},"
-                    f" event //{chunk_data['event']}"
+                    f"Couldn't extract image data from {chunk_data.image_filename},"
+                    f" event //{chunk_data.event}"
                 )
-
-        event_data["photon_energy"] = chunk_data["photon_energy"]
-        event_data["clen"] = chunk_data["clen"]
-        event_data["peaks"] = chunk_data["peaks"]
-        event_data["crystals"] = chunk_data["crystals"]
 
         return event_data

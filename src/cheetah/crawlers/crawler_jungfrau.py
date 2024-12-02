@@ -3,13 +3,14 @@ Jungfrau 1M Files Crawler.
 
 This module contains Cheetah Crawler for Jungfray 1M files.
 """
+
 import h5py  # type: ignore
 import pathlib
 import re
 import time
 
 from datetime import datetime
-from cheetah.crawlers.base import Crawler, TypeRawStatusItem
+from cheetah.crawlers.base import Crawler, RawStatusItem
 from typing import List, Set, Any
 
 
@@ -39,9 +40,9 @@ class Jungfrau1MCrawler(Crawler):
 
         return timestamp
 
-    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
+    def _scan_raw_directory(self) -> List[RawStatusItem]:
         # This function scans raw data directory and returns the list of
-        # TypeRawStatusItem dictionaries containing ID and the status of the raw data
+        # RawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all
         # {relative_run_directory_path}/{run_name}_master_*.h5 files in the raw data
         # directory and uses '{relative_run_directory_path}/{run_name}' string as the
@@ -50,7 +51,7 @@ class Jungfrau1MCrawler(Crawler):
         # the status to 'In progress'.
 
         run_id_pattern: re.Pattern[str] = re.compile(r"(.+)_master_\d+\.h5")
-        raw_status: List[TypeRawStatusItem] = []
+        raw_status: List[RawStatusItem] = []
         run_ids: Set[str] = set()
         filename: pathlib.Path
         current_time: float = time.time()
@@ -68,10 +69,10 @@ class Jungfrau1MCrawler(Crawler):
                 status = "In progress"
 
             if run_id not in run_ids:
-                raw_status.append({"run_id": run_id, "status": status})
+                raw_status.append(RawStatusItem(run_id, status))
                 run_ids.add(run_id)
             else:
-                raw_status[-1]["status"] = status
+                raw_status[-1].status = status
 
         return raw_status
 

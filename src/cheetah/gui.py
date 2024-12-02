@@ -9,6 +9,7 @@ import os
 import pathlib
 import sys
 from operator import itemgetter
+from dataclasses import fields
 from typing import Any, Dict, List, NamedTuple, Optional, Set, TextIO, Tuple, Union
 
 import click  # type: ignore
@@ -25,9 +26,9 @@ import logging
 import logging.config
 
 from cheetah import __file__ as cheetah_src_path
-from cheetah.crawlers.base import Crawler, TypeTableRow
+from cheetah.crawlers.base import Crawler, TableRow
 from cheetah.dialogs import process_dialogs, setup_dialogs
-from cheetah.experiment import CheetahExperiment, TypeExperimentConfig
+from cheetah.experiment import CheetahExperiment, ExperimentConfig
 from cheetah.process import TypeProcessingConfig
 from cheetah.utils.logging import LoggingPopen, QtHandler, logging_config
 from cheetah.utils.parameters import MonitorParameters
@@ -363,7 +364,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         )
 
         # Set up table
-        self._table_column_names: List[str] = list(TypeTableRow.__annotations__.keys())
+        self._table_column_names: List[str] = list(
+            [field.name for field in fields(TableRow)]
+        )
         self._proc_dir_column: int = self._table_column_names.index("H5Directory")
         self._cheetah_status_column: int = self._table_column_names.index("Cheetah")
         self._dataset_tag_column: int = self._table_column_names.index("Dataset")
@@ -1050,7 +1053,7 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
         if dialog.exec() == 0:
             self._select_experiment()
         else:
-            new_experiment_config: TypeExperimentConfig = dialog.get_config()
+            new_experiment_config: ExperimentConfig = dialog.get_config()
             self.experiment = CheetahExperiment(
                 path, new_experiment_config=new_experiment_config
             )

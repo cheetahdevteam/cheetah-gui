@@ -6,14 +6,11 @@ This module contains Cheetah peakogram GUI.
 
 import pathlib
 import sys
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, cast
 
 import click  # type: ignore
 
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
 
 import numpy
 import pyqtgraph  # type: ignore
@@ -25,17 +22,12 @@ from cheetah import __file__ as cheetah_src_path
 from cheetah.utils.file_reader_base import FileReader
 
 
-class _TypePeak(TypedDict):
-    # This typed dictionary is used internally to store peak radius and maximum pixel
-    # intensity used to construct a peakogram.
+@dataclass
+class _Peak:
+    # This dataclass is used internally to store peak radius and maximum pixel intensity
+    # used to construct a peakogram.
     radius: float
     intensity: float
-
-
-class _TypePeakogramData(TypedDict):
-    # This typed dictionary is used internally to store peakogram data.
-    peakogram: NDArray[numpy.float_]
-    npeaks: int
 
 
 class _PeaksReader(FileReader):
@@ -58,7 +50,7 @@ class _PeaksReader(FileReader):
             .radius
         )
 
-        self._peak_list: List[_TypePeak] = []
+        self._peak_list: List[_Peak] = []
         self._npeaks: int = 0
 
         self._peakogram_radius_bin_size: float = parameters["radius_bin_size"]
@@ -75,12 +67,12 @@ class _PeaksReader(FileReader):
             peak_ss: float = float(split_items[-5])
 
             self._peak_list.append(
-                {
-                    "radius": self._radius_pixelmap[
+                _Peak(
+                    radius=self._radius_pixelmap[
                         int(round(peak_ss)), int(round(peak_fs))
                     ],
-                    "intensity": float(split_items[-2]),
-                }
+                    intensity=float(split_items[-2]),
+                )
             )
 
     def _prepare_output(self) -> Optional[Dict[str, Any]]:
@@ -92,10 +84,8 @@ class _PeaksReader(FileReader):
 
         self._npeaks += len(self._peak_list)
 
-        peak: _TypePeak
-        peaks_max_intensity: float = max(
-            (peak["intensity"] for peak in self._peak_list)
-        )
+        peak: _Peak
+        peaks_max_intensity: float = max((peak.intensity for peak in self._peak_list))
         peakogram_max_intensity: float = (
             self._peakogram.shape[1] * self._peakogram_intensity_bin_size
         )
@@ -116,7 +106,7 @@ class _PeaksReader(FileReader):
                 ),
                 axis=1,
             )
-        peaks_max_radius: float = max((peak["radius"] for peak in self._peak_list))
+        peaks_max_radius: float = max((peak.radius for peak in self._peak_list))
         peakogram_max_radius: float = (
             self._peakogram.shape[0] * self._peakogram_radius_bin_size
         )
@@ -139,8 +129,8 @@ class _PeaksReader(FileReader):
             )
         for peak in self._peak_list:
             self._peakogram[
-                int(peak["radius"] // self._peakogram_radius_bin_size),
-                int(peak["intensity"] // self._peakogram_intensity_bin_size),
+                int(peak.radius // self._peakogram_radius_bin_size),
+                int(peak.intensity // self._peakogram_intensity_bin_size),
             ] += 1
 
         self._peak_list = []
@@ -233,7 +223,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         self._stop_reader_thread.connect(self._peak_reader.stop)
         self._peak_reader_thread.start()
 
-    def _update_peakogram(self, data: _TypePeakogramData) -> None:
+    def _update_peakogram(self, data: Dict[str, Any]) -> None:
         # Updates the peakogram.
         self._peakogram_plot_widget.setTitle(
             f"Peakogram: {data['npeaks']} peaks loaded."

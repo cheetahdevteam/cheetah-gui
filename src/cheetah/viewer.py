@@ -37,7 +37,7 @@ from scipy import constants  # type: ignore
 from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
 
 from cheetah import __file__ as cheetah_src_path
-from cheetah.frame_retrieval.base import CheetahFrameRetrieval, TypeEventData
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 from cheetah.frame_retrieval.frame_retrieval_files import H5FilesRetrieval
 from cheetah.frame_retrieval.frame_retrieval_om import OmRetrieval
 from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
@@ -594,11 +594,11 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         try:
             if self._clen_from:
-                detector_distance: float = self._current_event_data["clen"] * 1e3
+                detector_distance: float = self._current_event_data.clen * 1e3
             else:
                 detector_distance = self._clen * 1e3
             if self._photon_energy_from:
-                photon_energy: float = self._current_event_data["photon_energy"]
+                photon_energy: float = self._current_event_data.photon_energy
             else:
                 photon_energy = self._photon_energy
             lambda_: float = constants.h * constants.c / (photon_energy * constants.e)
@@ -677,7 +677,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.intensity_label.setText(f"Intensity = {value:.4g}")
 
     def _retrieve_current_data(self) -> None:
-        self._current_event_data: TypeEventData = self._frame_retrieval.get_data(
+        self._current_event_data: EventData = self._frame_retrieval.get_data(
             self._current_event_index
         )
 
@@ -728,8 +728,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._ui.play_button.setEnabled(True)
 
     def _update_image(self) -> None:
-        if "data" in self._current_event_data:
-            data: NDArray[Any] = self._current_event_data["data"]
+        if self._current_event_data.data is not None:
+            data: NDArray[Any] = self._current_event_data.data
         else:
             data = self._empty_frame
 
@@ -760,10 +760,10 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._update_image()
         self._update_peaks()
         self._update_reflections()
-        if "source" in self._current_event_data:
+        if self._current_event_data.source is not None:
             status_message: str = (
                 f"{self._events[self._current_event_index]}: "
-                f"{self._current_event_data['source']}"
+                f"{self._current_event_data.source}"
             )
         else:
             status_message = f"{self._events[self._current_event_index]}"
@@ -783,7 +783,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
     def _update_peaks(self) -> None:
         # Updates peaks shown by the viewer.
-        if "peaks" not in self._current_event_data.keys():
+        if self._current_event_data.peaks is None:
             self._ui.show_peaks_cb.setEnabled(False)
         else:
             self._ui.show_peaks_cb.setEnabled(True)
@@ -792,28 +792,23 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if (
             self._current_tab == 0
             and self._ui.show_peaks_cb.isChecked()
-            and "peaks" in self._current_event_data.keys()
+            and self._current_event_data.peaks is not None
         ):
-            peak_list = self._current_event_data["peaks"]
+            peak_list = self._current_event_data.peaks
         elif (
             self._current_tab == 2
             and self._peakfinder
-            and "data" in self._current_event_data
+            and self._current_event_data.data is not None
         ):
-            peak_list = asdict(
-                self._peakfinder.find_peaks(data=self._current_event_data["data"])
-            )
-            self._pt_num_peaks = len(peak_list["fs"])
+            peak_list = self._peakfinder.find_peaks(data=self._current_event_data.data)
+            self._pt_num_peaks = len(peak_list.fs)
             self._update_pt_info_label()
         else:
-            peak_list = {"fs": [], "ss": []}
+            peak_list = PeakList(0, [], [])
 
         peak_fs: float
         peak_ss: float
-        for peak_fs, peak_ss in zip(
-            peak_list["fs"],
-            peak_list["ss"],
-        ):
+        for peak_fs, peak_ss in zip(peak_list.fs, peak_list.ss):
             peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[1] + int(
                 round(peak_fs)
             )
@@ -847,14 +842,14 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         # Updates reflections peaks shown by the viewer.
         self._ui.next_crystal_button.setEnabled(False)
         self._ui.previous_crystal_button.setEnabled(False)
-        if "crystals" not in self._current_event_data.keys():
+        if self._current_event_data.crystals is None:
             self._ui.show_crystals_widget.hide()
             return
         else:
             self._ui.show_crystals_widget.show()
 
         self._refl_canvas.clear()
-        n_crystals: int = len(self._current_event_data["crystals"])
+        n_crystals: int = len(self._current_event_data.crystals)
         if n_crystals == 0:
             return
 
@@ -880,8 +875,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             peak_fs: float
             peak_ss: float
             for peak_fs, peak_ss in zip(
-                self._current_event_data["crystals"][index]["fs"],
-                self._current_event_data["crystals"][index]["ss"],
+                self._current_event_data.crystals[index].fs,
+                self._current_event_data.crystals[index].ss,
             ):
                 peak_index_in_slab: int = int(round(peak_ss)) * self._data_shape[
                     1
@@ -905,7 +900,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 [
                     pen,
                 ]
-                * self._current_event_data["crystals"][index]["num_peaks"]
+                * self._current_event_data.crystals[index].num_peaks
             )
         self._refl_canvas.setData(
             x=peak_list_y_in_frame,
@@ -1006,10 +1001,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_original_pixels(numpy.where(rsquared_map <= radius**2))
 
     def _mask_outside_histogram(self) -> None:
+        if self._current_event_data.data is None:
+            return
         self._mask_original_pixels(
             numpy.where(
-                (self._current_event_data["data"] < self._levels_range[0])
-                | (self._current_event_data["data"] > self._levels_range[1])
+                (self._current_event_data.data < self._levels_range[0])
+                | (self._current_event_data.data > self._levels_range[1])
             )
         )
 

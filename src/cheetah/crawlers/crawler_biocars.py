@@ -3,11 +3,12 @@ BioCARS APS Crawler.
 
 This module contains Cheetah Crawler for BioCARS 14-ID-B beamline at APS.
 """
+
 import pathlib
 import subprocess
 import time
 
-from cheetah.crawlers.base import Crawler, TypeRawStatusItem
+from cheetah.crawlers.base import Crawler, RawStatusItem
 from typing import List
 
 
@@ -16,16 +17,16 @@ class BioCarsMccdCrawler(Crawler):
     Cheetah Crawler for Rayonix MX340-HS detector at BioCARS beamline at APS.
     """
 
-    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
+    def _scan_raw_directory(self) -> List[RawStatusItem]:
         # This function scans raw data directory and returns the list of
-        # TypeRawStatusItem dictionaries containing ID and the status of the raw data
+        # RawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all sub-directories which contain .mccd files in the
         # raw data directory and uses relative directory path as the raw run ID. If the
         # latest .mccd file in the run was last modified more than a minite ago it sets
         # the status of the raw data to 'Ready'. Otherwise, it sets the status to
         # 'In progress'.
 
-        raw_status: List[TypeRawStatusItem] = []
+        raw_status: List[RawStatusItem] = []
         child_directory: pathlib.Path
         for child_directory in self._raw_directory.glob("**/"):
             # Check if there're mccd files in the child directory
@@ -44,9 +45,9 @@ class BioCarsMccdCrawler(Crawler):
                 status: str = "Ready"
             else:
                 status = "In progress"
-            raw_status.append({"run_id": run_id, "status": status})
+            raw_status.append(RawStatusItem(run_id, status))
 
-        return sorted(raw_status, key=lambda s: s["run_id"])
+        return sorted(raw_status, key=lambda s: s.run_id)
 
     def raw_id_to_table_id(self, raw_id: str) -> str:
         """

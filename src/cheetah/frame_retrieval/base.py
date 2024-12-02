@@ -1,20 +1,18 @@
 """
 Frame retrieval base classes.
 """
+
 import numpy.typing
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
-
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
-class TypePeakList(TypedDict):
+@dataclass
+class PeakList:
     """
-    A typed dictionary which stores information about positions of detected peaks in a
+    A data class which stores information about positions of detected peaks in a
     detector data frame.
 
     Attributes:
@@ -33,35 +31,35 @@ class TypePeakList(TypedDict):
     ss: List[float]
 
 
-class TypeEventData(TypedDict, total=False):
+@dataclass
+class EventData:
     """
-    A typed dictionary which stores data from a single event.
+    A data class which stores data from a single event.
 
     Attributes:
 
-        data: Detector data as a numpy array (optional).
+        data: Detector data as a numpy array.
 
         source: Source of the detector data, for example image filename and event index
-            for events extracted from a stream file (optional).
+            for events extracted from a stream file.
 
-        peaks: A [TypePeakList][cheetah.frame_retrieval.TypePeakList] dictionary
-            containing information about detected peaks (optional).
+        peaks: A [PeakList][cheetah.frame_retrieval.base.PeakList] dictionary containing
+            information about detected peaks.
 
-        photon_energy: Photon energy in eV (optional).
+        photon_energy: Photon energy in eV.
 
-        clen: Detector distance in meters (optional).
+        clen: Detector distance in meters.
 
-        crystals: A list of [TypePeakList][cheetah.frame_retrieval.TypePeakList]
-            dictionaries containing information about predicted reflections for each
-            indexed crystal (optional).
+        crystals: A list of [PeakList][cheetah.frame_retrieval.base.PeakList] dictionaries
+            containing information about predicted reflections for each indexed crystal.
     """
 
-    data: numpy.typing.NDArray[Any]
-    source: str
-    peaks: TypePeakList
-    photon_energy: float
-    clen: float
-    crystals: List[TypePeakList]
+    data: Optional[numpy.typing.NDArray[Any]] = None
+    source: Optional[str] = None
+    peaks: Optional[PeakList] = None
+    photon_energy: Optional[float] = None
+    clen: Optional[float] = None
+    crystals: Optional[List[PeakList]] = None
 
 
 class CheetahFrameRetrieval(ABC):
@@ -103,7 +101,7 @@ class CheetahFrameRetrieval(ABC):
         pass
 
     @abstractmethod
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 
@@ -115,7 +113,7 @@ class CheetahFrameRetrieval(ABC):
 
         Returns:
 
-            A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
+            A [EventData][cheetah.frame_retrieval.base.EventData] dictionary
             containing all available data related to the requested event.
         """
         pass

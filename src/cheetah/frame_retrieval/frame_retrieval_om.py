@@ -3,30 +3,23 @@ Frame retrieval from OM data retrieval.
 """
 
 import logging
-from typing import Any, Dict, List, TextIO, cast
-
-try:
-    from typing import TypedDict
-except:
-    from typing_extensions import TypedDict
+from dataclasses import dataclass
+from typing import Any, Dict, List, TextIO
 
 from om.algorithms.crystallography import PeakList as OmTypePeakList
 from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
 from om.lib.crystallography import CrystallographyPeakFinding
 from om.lib.geometry import GeometryInformation
 
-from cheetah.frame_retrieval.base import (
-    CheetahFrameRetrieval,
-    TypeEventData,
-    TypePeakList,
-)
+from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 from cheetah.utils.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class _TypeOmEvent(TypedDict):
-    # A dictionary used internally to store information about a single data event which
+@dataclass
+class _OmEvent:
+    # A data class used internally to store information about a single data event which
     # can be retrieved using OM frame retrieval.
 
     filename: str
@@ -78,8 +71,8 @@ class OmRetrieval(CheetahFrameRetrieval):
                   files.
         """
         self._om_retrievals: Dict[str, OmEventDataRetrieval] = {}
-        self._events: List[_TypeOmEvent] = []
-        self._peak_lists: Dict[str, Dict[str, TypePeakList]] = {}
+        self._events: List[_OmEvent] = []
+        self._peak_lists: Dict[str, Dict[str, PeakList]] = {}
         self._peakfinders: Dict[str, CrystallographyPeakFinding] = {}
         filename: str
         for filename in sources:
@@ -117,9 +110,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                             f"{parameters['om_configs'][filename]} config file: "
                         )
                         continue
-                    self._events.extend(
-                        [{"filename": filename, "event_id": eid} for eid in event_ids]
-                    )
+                    self._events.extend([_OmEvent(filename, eid) for eid in event_ids])
                     if (
                         "peak_lists" in parameters.keys()
                         and filename in parameters["peak_lists"].keys()
@@ -160,11 +151,11 @@ class OmRetrieval(CheetahFrameRetrieval):
 
     def _load_peaks_from_file(
         self, filename: str, bin_size: int = 1
-    ) -> Dict[str, TypePeakList]:
+    ) -> Dict[str, PeakList]:
         # Loads peaks from the peak list file written by Cheetah processing.
         # If binning was used (bin_size > 1) transforms peak positions to match the
         # original image size.
-        peaks: Dict[str, TypePeakList] = {}
+        peaks: Dict[str, PeakList] = {}
         previous_id: str = ""
         fh: TextIO
         with open(filename) as fh:
@@ -175,19 +166,15 @@ class OmRetrieval(CheetahFrameRetrieval):
                 event_id = split_items[0].strip()
                 if event_id != previous_id:
                     try:
-                        peaks[event_id] = {
-                            "num_peaks": int(split_items[1]),
-                            "fs": [],
-                            "ss": [],
-                        }
+                        peaks[event_id] = PeakList(int(split_items[1]), [], [])
                         previous_id = event_id
                     except Exception as e:
                         # TODO: figure out why it breaks here at random times
                         continue
-                peaks[event_id]["fs"].append(
+                peaks[event_id].fs.append(
                     (float(split_items[2]) + 0.5) * bin_size - 0.5
                 )
-                peaks[event_id]["ss"].append(
+                peaks[event_id].ss.append(
                     (float(split_items[3]) + 0.5) * bin_size - 0.5
                 )
         return peaks
@@ -206,10 +193,10 @@ class OmRetrieval(CheetahFrameRetrieval):
 
             A list of event IDs.
         """
-        event: _TypeOmEvent
-        return [event["event_id"] for event in self._events]
+        event: _OmEvent
+        return [event.event_id for event in self._events]
 
-    def get_data(self, event_index: int) -> TypeEventData:
+    def get_data(self, event_index: int) -> EventData:
         """
         Get all available frame data for a requested event.
 
@@ -228,31 +215,27 @@ class OmRetrieval(CheetahFrameRetrieval):
 
         Returns:
 
-            A [TypeEventData][cheetah.frame_retrieval.base.TypeEventData] dictionary
+            A [EventData][cheetah.frame_retrieval.base.EventData] dictionary
             containing all available data related to the requested event.
         """
-        event_data: TypeEventData = {}
-        filename: str = self._events[event_index]["filename"]
-        event_id: str = self._events[event_index]["event_id"]
-
+        filename: str = self._events[event_index].filename
+        event_id: str = self._events[event_index].event_id
         data: Dict[str, Any] = self._om_retrievals[filename].retrieve_event_data(
             event_id=event_id
         )
 
-        event_data["data"] = data["detector_data"]
-        event_data["photon_energy"] = data["beam_energy"]
-        event_data["clen"] = data["detector_distance"]
+        event_data: EventData = EventData(
+            data=data["detector_data"],
+            photon_energy=data["beam_energy"],
+            clen=data["detector_distance"],
+        )
 
         if filename in self._peak_lists.keys():
-            event_data["peaks"] = self._peak_lists[filename][event_id]
+            event_data.peaks = self._peak_lists[filename][event_id]
         elif filename in self._peakfinders.keys():
             peak_list: OmTypePeakList = self._peakfinders[filename].find_peaks(
                 detector_data=event_data["data"]
             )
-            event_data["peaks"] = {
-                "num_peaks": peak_list.num_peaks,
-                "fs": peak_list.fs,
-                "ss": peak_list.ss,
-            }
+            event_data.peaks = PeakList(peak_list.num_peaks, peak_list.fs, peak_list.ss)
 
         return event_data

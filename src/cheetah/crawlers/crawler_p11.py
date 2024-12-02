@@ -3,10 +3,11 @@ P11 Petra III Crawler.
 
 This module contains Cheetah Crawler for P11 beamline at PETRA III.
 """
+
 import pathlib
 import time
 
-from cheetah.crawlers.base import Crawler, TypeRawStatusItem
+from cheetah.crawlers.base import Crawler, RawStatusItem
 from typing import List
 
 
@@ -15,16 +16,16 @@ class P11EigerCrawler(Crawler):
     Cheetah Crawler for Eiger 16M detector at P11 beamline at PETRA III.
     """
 
-    def _scan_raw_directory(self) -> List[TypeRawStatusItem]:
+    def _scan_raw_directory(self) -> List[RawStatusItem]:
         # This function scans raw data directory and returns the list of
-        # TypeRawStatusItem dictionaries containing ID and the status of the raw data
+        # RawStatusItem dictionaries containing ID and the status of the raw data
         # for each run. It finds all {relative_run_directory_path}/{run_name}_master.h5
         # files in the raw data directory and uses
         # '{relative_run_directory_path}/{run_name}' string as the raw run ID. If the
         # master.h5 file was last modified more than a minite ago it sets the status of
         # the raw data to 'Ready'. Otherwise, it sets the status to 'In progress'.
 
-        raw_status: List[TypeRawStatusItem] = []
+        raw_status: List[RawStatusItem] = []
         filename: pathlib.Path
         current_time: float = time.time()
         for filename in sorted(
@@ -36,7 +37,7 @@ class P11EigerCrawler(Crawler):
                 status: str = "Ready"
             else:
                 status = "In progress"
-            raw_status.append({"run_id": run_id, "status": status})
+            raw_status.append(RawStatusItem(run_id, status))
 
         return raw_status
 
