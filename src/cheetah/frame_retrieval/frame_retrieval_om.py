@@ -231,7 +231,13 @@ class OmRetrieval(CheetahFrameRetrieval):
         )
 
         if filename in self._peak_lists.keys():
-            event_data.peaks = self._peak_lists[filename][event_id]
+            try:
+                event_data.peaks = self._peak_lists[filename][event_id]
+            except KeyError:
+                logger.warning(
+                    f"Peak list for event {event_id} in file {filename} is not "
+                    f"available."
+                )
         elif filename in self._peakfinders.keys():
             peak_list: OmTypePeakList = self._peakfinders[filename].find_peaks(
                 detector_data=event_data["data"]
