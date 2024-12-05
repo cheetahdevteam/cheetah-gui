@@ -5,6 +5,7 @@ This module contains classes and functions that provide information related to a
 particular experiment and control its data processing.
 """
 
+import copy
 import logging
 import pathlib
 import shutil
@@ -677,17 +678,18 @@ class CheetahExperiment:
                     )
                     continue
                 processing_config["event_list"] = str(hit_files[run_id])
+            process_config_run: Dict[str, Any] = copy.deepcopy(processing_config)
             if streaming:
                 self._streaming_process.process_run(  # type: ignore
                     run_id,
-                    processing_config,
+                    process_config_run,
                     queue,
                     n_processes,
                 )
             else:
                 self._cheetah_process.process_run(
                     run_id,
-                    processing_config,
+                    process_config_run,
                     queue,
                     n_processes,
                 )
