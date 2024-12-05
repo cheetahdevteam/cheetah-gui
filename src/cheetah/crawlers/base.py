@@ -465,10 +465,17 @@ class Crawler(ABC):
         raw_status, proc_status = self._read_table()
         if self._raw_directory_scan_enabled:
             logger.info("Scanning raw directory")
-            raw_status = self._scan_raw_directory()
+            try:
+                raw_status = self._scan_raw_directory()
+            except Exception as e:
+                logger.error(f"Error scanning raw directory: {e}")
         if self._proc_directory_scan_enabled:
             logger.info("Scanning hdf5 directory")
-            proc_status = self._scan_proc_directory()
+            try:
+                proc_status = self._scan_proc_directory()
+            except Exception as e:
+                logger.error(f"Error scanning hdf5 directory: {e}")
+
         proc_status = sorted(proc_status, key=lambda i: i.update_time, reverse=True)
 
         raw_status_item: RawStatusItem
