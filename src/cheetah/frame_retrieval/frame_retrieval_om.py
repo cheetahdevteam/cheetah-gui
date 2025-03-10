@@ -143,7 +143,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                             )
                         )
                         self._peakfinders[filename] = CrystallographyPeakFinding(
-                            monitor_parameters=monitor_params,
+                            parameters=monitor_params.asdict(),
                             geometry_information=geometry_information,
                         )
 
@@ -240,7 +240,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                 )
         elif filename in self._peakfinders.keys():
             peak_list: OmTypePeakList = self._peakfinders[filename].find_peaks(
-                detector_data=event_data["data"]
+                detector_data=event_data.data
             )
             event_data.peaks = PeakList(peak_list.num_peaks, peak_list.fs, peak_list.ss)
 
