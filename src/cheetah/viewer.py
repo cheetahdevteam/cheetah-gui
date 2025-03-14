@@ -1605,6 +1605,9 @@ def main(
     \b
     Usage example: cheetah_viewer.py -i stream lyso_*.stream
     """
+    # Create logging directory if it doesn't exist.
+    (pathlib.Path.home() / ".cheetah/logs").mkdir(parents=True, exist_ok=True)
+
     # Set up logging.
     logging.config.dictConfig(logging_config)
 
