@@ -36,6 +36,8 @@ cheetah:
     event_id: "/data/event_id"
     timestamp: "/data/timestamp"
     peak_list: "/data/peaks"
+  responding_url: "ipc://{{output_dir}}/ipc-socket"
+  external_data_request_list_size: 16
 
 crystallography:
   num_frames_in_event_to_process: null
