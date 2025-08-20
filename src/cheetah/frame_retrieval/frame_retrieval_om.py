@@ -10,9 +10,11 @@ from om.algorithms.crystallography import PeakList as OmTypePeakList
 from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
 from om.lib.crystallography import CrystallographyPeakFinding
 from om.lib.geometry import GeometryInformation
+from om.lib.files import load_configuration_parameters
 
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
-from cheetah.utils.parameters import MonitorParameters
+# from cheetah.utils.parameters import MonitorParameters
+from om.lib.parameters import MonitorParameters
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -96,12 +98,14 @@ class OmRetrieval(CheetahFrameRetrieval):
                 event_ids: List[str] = [line.strip() for line in fh]
                 if len(event_ids) > 0:
                     try:
-                        monitor_params: MonitorParameters = MonitorParameters(
-                            config=parameters["om_configs"][filename]
+                        monitor_params: MonitorParameters = (
+                            load_configuration_parameters(
+                                config=parameters["om_configs"][filename]
+                            )
                         )
                         self._om_retrievals[filename] = OmEventDataRetrieval(
                             source=parameters["om_sources"][filename],
-                            parameters=monitor_params.asdict(),
+                            parameters=monitor_params
                         )
                     except Exception as e:
                         logger.exception(
@@ -115,17 +119,8 @@ class OmRetrieval(CheetahFrameRetrieval):
                         "peak_lists" in parameters.keys()
                         and filename in parameters["peak_lists"].keys()
                     ):
-                        if monitor_params.get_parameter(
-                            group="crystallography",
-                            parameter="binning",
-                            parameter_type=bool,
-                        ):
-                            bin_size: int = monitor_params.get_parameter(
-                                group="binning",
-                                parameter="bin_size",
-                                parameter_type=int,
-                                required=True,
-                            )
+                        if monitor_params.crystallography.post_processing_binning:
+                            bin_size: int = monitor_params.binning.bin_size
                         else:
                             bin_size = 1
                         self._peak_lists[filename] = self._load_peaks_from_file(
@@ -143,7 +138,7 @@ class OmRetrieval(CheetahFrameRetrieval):
                             )
                         )
                         self._peakfinders[filename] = CrystallographyPeakFinding(
-                            parameters=monitor_params.asdict(),
+                            parameters=monitor_params,
                             geometry_information=geometry_information,
                         )
 

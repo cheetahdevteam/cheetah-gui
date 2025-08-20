@@ -21,6 +21,7 @@ import ruamel.yaml  # type: ignore
 import yaml
 from numpy.typing import NDArray
 from om.algorithms.crystallography import Peakfinder8PeakDetection
+from om.lib.parameters import Peakfinder8PeakDetectionParameters
 from om.lib.geometry import (
     Beam,
     DataVisualizer,
@@ -1209,10 +1210,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         pf8_config: Dict[str, Any] = self._pt_config[
             "peakfinder8_peak_detection"
         ].copy()
-        pf8_config["min_num_peaks_for_hit"] = self._pt_config["crystallography"][
-            "min_num_peaks_for_hit"
-        ]
-        self._fill_peakfinder_parameters(pf8_config)
         if not pathlib.Path(pf8_config["bad_pixel_map_filename"]).is_file():
             if self._ui.show_mask_cb.isEnabled():
                 pf8_config["bad_pixel_map_filename"] = self._mask_filename
@@ -1229,8 +1226,12 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._peakfinder = Peakfinder8PeakDetection(
             radius_pixel_map=self._radius_pixel_map,
             layout_info=self._detector_layout_info,
-            parameters=pf8_config,
+            parameters=Peakfinder8PeakDetectionParameters.model_validate(pf8_config),
         )
+        pf8_config["min_num_peaks_for_hit"] = self._pt_config["crystallography"][
+            "min_num_peaks_for_hit"
+        ]
+        self._fill_peakfinder_parameters(pf8_config)
         self._update_mask_image(self._pt_mask)
         self._update_peaks()
 
