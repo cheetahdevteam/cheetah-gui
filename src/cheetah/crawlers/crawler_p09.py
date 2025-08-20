@@ -47,7 +47,7 @@ class P09LambdaCrawler(Crawler):
                 status = "In progress"
             raw_status.append(RawStatusItem(run_id, status))
 
-        return sorted(raw_status, key=lambda s: s["run_id"])
+        return sorted(raw_status, key=lambda s: s.run_id)
 
     def raw_id_to_table_id(self, raw_id: str) -> str:
         """
@@ -128,7 +128,7 @@ class P09PilatusCrawler(Crawler):
                 status = "In progress"
             raw_status.append(RawStatusItem(run_id, status))
 
-        return sorted(raw_status, key=lambda s: s["run_id"])
+        return sorted(raw_status, key=lambda s: s.run_id)
 
     def raw_id_to_table_id(self, raw_id: str) -> str:
         """

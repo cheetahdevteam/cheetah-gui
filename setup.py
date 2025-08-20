@@ -69,7 +69,6 @@ setup(
             "cheetah_viewer.py=cheetah.viewer:main",
             "cheetah_peakogram.py=cheetah.scripts.peakogram:main",
             "cheetah_hitrate.py=cheetah.scripts.hitrate:main",
-            "online_cell_monitor.py=cheetah.scripts.cell_monitor:main",
         ],
     },
     packages=find_packages(where="src"),

@@ -36,6 +36,8 @@ cheetah:
     event_id: "/entry/data/event_id"
     timestamp: "/entry/data/timestamp"
     peak_list: "/entry_1/result_1"
+  responding_url: "ipc://{{output_dir}}/ipc-socket"
+  external_data_request_list_size: 16
 
 crystallography:
   num_frames_in_event_to_process: null
@@ -46,8 +48,6 @@ crystallography:
   geometry_is_optimized: false
   speed_report_interval: 100
   post_processing_binning: false
-  responding_url: "ipc://{{output_dir}}/ipc-socket"
-  external_data_request_list_size: 16
 
 binning:
   bin_size: 2
