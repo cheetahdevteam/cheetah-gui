@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Using: " $(which om_monitor.py)
+echo "Using: " $(which om_monitor)
 
 sbatch << EOF
 #!/bin/bash
@@ -23,7 +23,7 @@ indexamajig --zmq-input=ipc:///{{output_dir}}/ipc-socket --zmq-request=next  \
 
 pid=$!
 
-mpirun -n 40 om_monitor.py {{om_source}} -c {{om_config}} {{event_list_arg}} > om.out 2>&1
+mpirun -n 40 om_monitor {{om_source}} -c {{om_config}} {{event_list_arg}} > om.out 2>&1
 
 sleep 60
 kill -10 $pid

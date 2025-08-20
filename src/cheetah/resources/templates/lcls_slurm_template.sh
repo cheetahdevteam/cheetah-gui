@@ -1,8 +1,8 @@
 #!/bin/bash
 
-echo "Using: " $(which om_monitor.py)
+echo "Using: " $(which om_monitor)
 
-FULLCOMMAND="mpirun om_monitor.py {{om_source}} -c {{om_config}} {{event_list_arg}}"
+FULLCOMMAND="mpirun om_monitor {{om_source}} -c {{om_config}} {{event_list_arg}}"
 echo $FULLCOMMAND
 
 sbatch << EOF

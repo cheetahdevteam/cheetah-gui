@@ -1,6 +1,6 @@
 om:
   parallelization_layer: MpiParallelization
-  data_retrieval_layer: MfxLclsRayonixDataRetrieval
+  data_retrieval_layer: PsanaDataEventHandler
   processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
@@ -26,11 +26,10 @@ cheetah:
   write_class_sums: true
   class_sums_update_interval: 5
   class_sums_sending_interval: 100
-  class_sum_filename_prefix: "{{run_id}}"
+  class_sums_filename_prefix: "{{run_id}}"
   status_file_update_interval: 100
   hdf5_file_data_type: "float32"
   hdf5_file_compression: null
-  hdf5_file_compression_opts: null
   hdf5_file_max_num_peaks: 2048
   hdf5_fields:
     detector_data: "/entry_1/data_1/data"
@@ -41,7 +40,7 @@ cheetah:
     peak_list: "/entry_1/result_1"
 
 crystallography:
-  num_frames_in_event_to_process: null
+  data_broadcast_interval: 0
   geometry_file: {{geometry_file}}
   min_num_peaks_for_hit: 10
   max_num_peaks_for_hit: 5000
@@ -49,7 +48,7 @@ crystallography:
   geometry_is_optimized: true
   speed_report_interval: 100
   responding_url: "ipc://{{output_dir}}/ipc-socket"
-  external_data_request_list_size: 36
+  external_data_request_list_size: 80
 
 peakfinder8_peak_detection:
   max_num_peaks: 2048
