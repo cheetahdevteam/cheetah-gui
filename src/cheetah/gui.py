@@ -671,9 +671,9 @@ class CheetahGui(QtWidgets.QMainWindow):  # type: ignore
             _yaml: Any = ruamel.yaml.YAML(typ="jinja2")
             config: Dict[str, Any] = _yaml.load(fh)
             try:
-                detector_name: str = config["data_retrieval_layer"]["detector_data"][
-                    "psana_name"
-                ]
+                detector_name: str = config["data_retrieval_layer"]["data_sources"][
+                    "detector_data"
+                ]["psana_name"]
             except KeyError:
                 detector_name = ""
         return detector_name
