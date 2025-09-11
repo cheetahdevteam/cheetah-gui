@@ -31,7 +31,8 @@ from cheetah.crawlers.functions_lcls import (
     guess_batch_queue_lcls,
     guess_experiment_id_lcls,
     guess_raw_directory_lcls,
-    prepare_om_source_lcls,
+    prepare_om_source_psana,
+    prepare_om_source_psana2,
 )
 
 
@@ -122,6 +123,18 @@ facilities: Dict[str, FacilityInfo] = {
         instruments={
             "MFX": InstrumentInfo(
                 detectors={
+                    "jungfrau16M": DetectorInfo(
+                        calib_resources={
+                            "geometry": "jungfrau16M.geom",
+                            "mask": "mask_jungfrau16M.h5",
+                            "psana_mask_script": "scripts/psana_mask.py",
+                        },
+                        om_config_template="mfx_jungfrau_template.yaml",
+                        process_template="lcls_slurm_template.sh",
+                        streaming_template="lcls_slurm_streaming_template.sh",
+                        prepare_om_source=prepare_om_source_psana2,
+                        crawler=LclsCrawler,
+                    ),
                     "epix10k2M": DetectorInfo(
                         calib_resources={
                             "geometry": "epix10k2M.geom",
@@ -131,7 +144,7 @@ facilities: Dict[str, FacilityInfo] = {
                         om_config_template="mfx_epix_template.yaml",
                         process_template="lcls_slurm_template.sh",
                         streaming_template="lcls_slurm_streaming_template.sh",
-                        prepare_om_source=prepare_om_source_lcls,
+                        prepare_om_source=prepare_om_source_psana,
                         crawler=LclsCrawler,
                     ),
                     "rayonix": DetectorInfo(
@@ -143,7 +156,7 @@ facilities: Dict[str, FacilityInfo] = {
                         om_config_template="mfx_rayonix_template.yaml",
                         process_template="lcls_slurm_template.sh",
                         streaming_template="lcls_slurm_streaming_template.sh",
-                        prepare_om_source=prepare_om_source_lcls,
+                        prepare_om_source=prepare_om_source_psana,
                         crawler=LclsCrawler,
                     ),
                     "cspad": DetectorInfo(
@@ -155,7 +168,7 @@ facilities: Dict[str, FacilityInfo] = {
                         om_config_template="mfx_cspad_template.yaml",
                         process_template="lcls_slurm_template.sh",
                         streaming_template="lcls_slurm_streaming_template.sh",
-                        prepare_om_source=prepare_om_source_lcls,
+                        prepare_om_source=prepare_om_source_psana,
                         crawler=LclsCrawler,
                     ),
                 },
@@ -171,7 +184,7 @@ facilities: Dict[str, FacilityInfo] = {
                         om_config_template="cxi_jungfrau_template.yaml",
                         process_template="lcls_slurm_template.sh",
                         streaming_template="lcls_slurm_streaming_template.sh",
-                        prepare_om_source=prepare_om_source_lcls,
+                        prepare_om_source=prepare_om_source_psana,
                         crawler=LclsCrawler,
                     ),
                     "cspad": DetectorInfo(
@@ -183,7 +196,7 @@ facilities: Dict[str, FacilityInfo] = {
                         om_config_template="cxi_cspad_template.yaml",
                         process_template="lcls_slurm_template.sh",
                         streaming_template="lcls_slurm_streaming_template.sh",
-                        prepare_om_source=prepare_om_source_lcls,
+                        prepare_om_source=prepare_om_source_psana,
                         crawler=LclsCrawler,
                     ),
                 },

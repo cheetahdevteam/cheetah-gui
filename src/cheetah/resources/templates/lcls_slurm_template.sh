@@ -13,7 +13,7 @@ sbatch << EOF
 #SBATCH -t 10:00:00
 #SBATCH --job-name {{job_name}}
 #SBATCH --output batch.out
-#SBATCH --ntasks={{n_processes}}
+#SBATCH --ntasks=60
 $FULLCOMMAND
 EOF
 

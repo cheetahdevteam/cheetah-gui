@@ -94,7 +94,7 @@ def guess_raw_directory_lcls(path: pathlib.Path) -> pathlib.Path:
     return pathlib.Path(*parts[: index + 2]) / "xtc"
 
 
-def prepare_om_source_lcls(
+def prepare_om_source_psana(
     run_id: str,
     experiment_id: str,
     raw_directory: pathlib.Path,
@@ -123,3 +123,33 @@ def prepare_om_source_lcls(
     """
     run_number: int = int(run_id[1:])
     return f"exp={experiment_id}:run={run_number}:dir={raw_directory}"
+
+def prepare_om_source_psana2(
+    run_id: str,
+    experiment_id: str,
+    raw_directory: pathlib.Path,
+    run_proc_directory: pathlib.Path,
+) -> str:
+    """
+    Prepare OM data source for the data processing at LCLS.
+
+    The OM data source string for the data retrieval at LCLS is the same as psana data
+    source. This function creates psana data source string from the experiment ID, run
+    number and raw data directory.
+
+    Arguments:
+
+        run_id: Run ID of the raw data.
+
+        experiment_id: Experiment ID.
+
+        raw_directory: The raw data directory path of the experiment.
+
+        run_proc_directory: The processed data directory path of the run.
+
+    Returns:
+
+        OM data source string.
+    """
+    run_number: int = int(run_id[1:])
+    return f"exp={experiment_id},run={run_number},dir={raw_directory}"

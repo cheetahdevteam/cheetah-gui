@@ -5,10 +5,11 @@ import h5py  # type: ignore
 import psana  # type: ignore
 import traceback
 
-from typing import Any, Tuple, Optional
+from typing import Any, Tuple, Optional, Dict
 
 import numpy
 from numpy.typing import NDArray
+from scipy import ndimage
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))  # type: ignore
@@ -77,9 +78,9 @@ from numpy.typing import NDArray
 )
 @click.option(  # type: ignore
     "--mode",
-    type=click.Choice(["1", "2", "3"]),
+    type=click.Choice([1, 2, 3]),
     show_default=True,
-    default="2",
+    default=2,
     help="masks zero/four/eight neighbors around each bad pixel",
 )
 @click.option(  # type: ignore
@@ -124,6 +125,39 @@ def main(
             width=width,
             mode=int(mode),
         ).astype(numpy.int8)
+
+    except psana.datasource.InvalidDataSource:
+        # This means we are using psana2
+        source_items: Dict[str, str] = {
+            item[0]: item[1] for item in (part.split("=") for part in source.split(":"))
+        }
+        source_items["run"] = int(source_items["run"])
+
+        ds: Any = psana.DataSource(**(source_items))
+        run: Any = next(ds.runs())
+        det: Any = run.Detector(detector)
+        status: NDArray[numpy.int_] = det.calibconst["pixel_status"][0]
+        if len(status.shape) == 4:
+            # Use only first gain
+            status = status[0]
+
+        psana_mask = numpy.zeros_like(status, dtype=numpy.int8)
+        if mode > 1:
+            for i, panel in enumerate(status):
+                psana_mask[i][:] = ndimage.binary_dilation(
+                    panel,
+                    structure=ndimage.generate_binary_structure(2, mode - 1)
+                ).astype(panel.dtype)
+
+        if not edges:
+            width = 0
+
+        for panel in psana_mask:
+            panel[:width, :] = 1
+            panel[-width:, :] = 1
+            panel[:, :width] = 1
+            panel[:, -width:] = 1
+
     except Exception as e:
         print(traceback.format_exc())
         print(e)
