@@ -13,6 +13,7 @@ import h5py  # type: ignore
 from om.algorithms.generic import Binning, BinningPassthrough
 from om.data_retrieval_layer.event_retrieval import OmEventDataRetrieval
 from om.lib.geometry import GeometryInformation
+from om.lib.files import load_configuration_parameters
 
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
 from cheetah.utils.logging import log_subprocess_run_output
@@ -294,7 +295,9 @@ class StreamRetrieval(CheetahFrameRetrieval):
                         (chunk_data.om_source, chunk_data.om_config)
                     ] = OmEventDataRetrieval(
                         source=chunk_data.om_source,
-                        monitor_parameters=monitor_params,
+                        parameters=load_configuration_parameters(
+                            config=chunk_data.om_config
+                        )
                     )
                     if len(self._om_retrievals) == 1:
                         # Initialize binning algorithm once to be applied to all frames
