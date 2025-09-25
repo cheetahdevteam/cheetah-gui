@@ -123,7 +123,7 @@ def main(
             unbondnbrs=unbondnbrs,
             unbondnbrs8=unbondnbrs8,
             width=width,
-            mode=int(mode),
+            mode=mode,
         ).astype(numpy.int8)
 
     except psana.datasource.InvalidDataSource:
@@ -136,27 +136,19 @@ def main(
         ds: Any = psana.DataSource(**(source_items))
         run: Any = next(ds.runs())
         det: Any = run.Detector(detector)
-        status: NDArray[numpy.int_] = det.calibconst["pixel_status"][0]
-        if len(status.shape) == 4:
-            # Use only first gain
-            status = status[0]
-
-        psana_mask = numpy.zeros_like(status, dtype=numpy.int8)
-        if mode > 1:
-            for i, panel in enumerate(status):
-                psana_mask[i][:] = ndimage.binary_dilation(
-                    panel,
-                    structure=ndimage.generate_binary_structure(2, mode - 1)
-                ).astype(panel.dtype)
-
-        if not edges:
-            width = 0
-
-        for panel in psana_mask:
-            panel[:width, :] = 1
-            panel[-width:, :] = 1
-            panel[:, :width] = 1
-            panel[:, -width:] = 1
+        psana_mask = det.raw._mask(
+            calib=calib,
+            status=status,
+            status_bits=(1<<64)-1,
+            gain_range_inds=(0,1,2,3,4),
+            edges=edges,
+            width=width,
+            center=central,
+            neighbors=True,
+            rad=mode-1,
+            ptrn='s',
+            dtype=numpy.int8,
+        )
 
     except Exception as e:
         print(traceback.format_exc())
