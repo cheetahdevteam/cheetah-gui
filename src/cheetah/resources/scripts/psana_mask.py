@@ -136,6 +136,8 @@ def main(
         ds: Any = psana.DataSource(**(source_items))
         run: Any = next(ds.runs())
         det: Any = run.Detector(detector)
+        evt: Any = next(run.events())
+        _ = det.raw.calib(evt)
         psana_mask = det.raw._mask(
             calib=calib,
             status=status,
