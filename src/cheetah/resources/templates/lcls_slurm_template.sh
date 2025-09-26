@@ -13,7 +13,9 @@ sbatch << EOF
 #SBATCH -t 10:00:00
 #SBATCH --job-name {{job_name}}
 #SBATCH --output batch.out
-#SBATCH --ntasks=60
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=72
+#SBATCH --exclusive
 $FULLCOMMAND
 EOF
 
