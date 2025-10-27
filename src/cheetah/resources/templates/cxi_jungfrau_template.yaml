@@ -1,6 +1,6 @@
 om:
   parallelization_layer: MpiParallelization
-  data_retrieval_layer: CxiLclsDataRetrieval
+  data_retrieval_layer: PsanaDataEventHandler
   processing_layer: {{processing_layer}}
 
 data_retrieval_layer:
