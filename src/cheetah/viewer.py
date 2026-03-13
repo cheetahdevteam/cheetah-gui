@@ -16,7 +16,6 @@ import click  # type: ignore
 import h5py  # type: ignore
 import numpy
 import numpy.typing
-import pyqtgraph  # type: ignore
 import ruamel.yaml  # type: ignore
 import yaml
 from numpy.typing import NDArray
@@ -34,8 +33,9 @@ from om.lib.geometry import (
     _retrieve_layout_info_from_geometry,
 )
 from PyQt5 import QtCore, QtGui, QtWidgets, uic  # type: ignore
+import pyqtgraph  # type: ignore
 from scipy import constants  # type: ignore
-from scipy.ndimage.morphology import binary_dilation, binary_erosion  # type: ignore
+from scipy.ndimage import binary_dilation, binary_erosion  # type: ignore
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.frame_retrieval.base import CheetahFrameRetrieval, EventData, PeakList
@@ -424,7 +424,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         self._mask_hdf5_path = self._geometry.panels[first_panel].mask
 
         pixel_maps: PixelMaps = _compute_pix_maps(geometry=self._geometry)
-        self._radius_pixel_map: NDArray[numpy.float_] = pixel_maps.radius
+        self._radius_pixel_map: NDArray[numpy.float64] = pixel_maps.radius
         self._detector_layout_info: DetectorLayoutInformation = (
             _retrieve_layout_info_from_geometry(geometry=self._geometry)
         )
@@ -996,7 +996,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
             corner[0] + radius - 0.5,
             corner[1] + radius - 0.5,
         )
-        rsquared_map: NDArray[numpy.float_] = (
+        rsquared_map: NDArray[numpy.float64] = (
             self._visualization_pixel_maps.x - center[0]
         ) ** 2 + (self._visualization_pixel_maps.y - center[1]) ** 2
         self._mask_original_pixels(numpy.where(rsquared_map <= radius**2))
@@ -1125,21 +1125,21 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         else:
             self._discard_brush()
 
-    def _generate_brush_kernel(self) -> NDArray[numpy.float_]:
+    def _generate_brush_kernel(self) -> NDArray[numpy.float64]:
         size: int = self._ui.brush_size_sb.value()
         radius: float = size / 2.0
         corner: float = (size - 1) / 2.0
-        xgrid: NDArray[numpy.float_]
-        ygrid: NDArray[numpy.float_]
+        xgrid: NDArray[numpy.float64]
+        ygrid: NDArray[numpy.float64]
         xgrid, ygrid = numpy.ogrid[-corner : size - corner, -corner : size - corner]
-        kernel: NDArray[numpy.float_] = numpy.zeros((size, size, 4))
+        kernel: NDArray[numpy.float64] = numpy.zeros((size, size, 4))
         kernel[:, :, 0][xgrid**2 + ygrid**2 < radius**2] = 1
         kernel[:, :, 3][xgrid**2 + ygrid**2 < radius**2] = 1
         return kernel
 
     def _change_brush_size(self) -> None:
         if self._ui.brush_button.isChecked():
-            kernel: NDArray[numpy.float_] = self._generate_brush_kernel()
+            kernel: NDArray[numpy.float64] = self._generate_brush_kernel()
             self._brush_image.setLevels([0, 1])
             self._brush_image.setDrawKernel(
                 kernel,

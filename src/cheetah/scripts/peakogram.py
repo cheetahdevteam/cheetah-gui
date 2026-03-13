@@ -44,7 +44,7 @@ class _PeaksReader(FileReader):
             filenames, parameters, output_emit_interval=2000, sleep_timeout=10000
         )
 
-        self._radius_pixelmap: NDArray[numpy.float_] = (
+        self._radius_pixelmap: NDArray[numpy.float64] = (
             GeometryInformation.from_file(geometry_filename=parameters["geometry"])
             .get_pixel_maps()
             .radius
@@ -55,7 +55,7 @@ class _PeaksReader(FileReader):
 
         self._peakogram_radius_bin_size: float = parameters["radius_bin_size"]
         self._peakogram_intensity_bin_size: float = parameters["intensity_bin_size"]
-        self._peakogram: NDArray[numpy.float_] = numpy.zeros((1, 1))
+        self._peakogram: NDArray[numpy.float64] = numpy.zeros((1, 1))
 
     def _process_line(self, line: str) -> None:
         # Processes a line from the input file adding information to the peak list.
@@ -180,7 +180,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         )
         self._peakogram_radius_bin_size: float = radius_bin_size
         self._peakogram_intensity_bin_size: float = intensity_bin_size
-        self._peakogram: NDArray[numpy.float_] = numpy.zeros((1, 1))
+        self._peakogram: NDArray[numpy.float64] = numpy.zeros((1, 1))
 
         self._peakogram_plot_widget = pyqtgraph.PlotWidget(
             title="Peakogram", lockAspect=False
@@ -228,7 +228,7 @@ class PeakogramGui(QtWidgets.QMainWindow):  # type: ignore
         self._peakogram_plot_widget.setTitle(
             f"Peakogram: {data['npeaks']} peaks loaded."
         )
-        peakogram: NDArray[numpy.float_] = data["peakogram"]
+        peakogram: NDArray[numpy.float64] = data["peakogram"]
         peakogram[numpy.where(peakogram == 0)] = numpy.nan
         self._peakogram_plot_image_view.setImage(
             numpy.log(peakogram),

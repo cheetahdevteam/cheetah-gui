@@ -3,12 +3,13 @@ Hitrate GUI.
 
 This module contains Cheetah hitrate GUI.
 """
+
 import click  # type: ignore
 import numpy
 import pathlib
 import sys
 from sortedcontainers import SortedList  # type: ignore
-from scipy.ndimage.filters import uniform_filter1d  # type: ignore
+from scipy.ndimage import uniform_filter1d  # type: ignore
 from typing import Any, List, Dict, Optional
 
 from numpy.typing import NDArray
@@ -149,7 +150,7 @@ class HitrateGui(QtWidgets.QMainWindow):  # type: ignore
         self._stop_reader_thread.connect(self._frame_reader.stop)
         self._frame_reader_thread.start()
 
-    def _update_plots(self, data: Dict[str, NDArray[numpy.float_]]) -> None:
+    def _update_plots(self, data: Dict[str, NDArray[numpy.float64]]) -> None:
         # Updates hitrate plots.
         filename: str
         for filename in data:
