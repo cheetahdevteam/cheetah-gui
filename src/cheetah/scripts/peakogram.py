@@ -13,10 +13,10 @@ import click  # type: ignore
 
 
 import numpy
-import pyqtgraph  # type: ignore
 from numpy.typing import NDArray
 from om.lib.geometry import GeometryInformation
 from PyQt5 import QtCore, QtGui, QtWidgets  # type: ignore
+import pyqtgraph  # type: ignore
 
 from cheetah import __file__ as cheetah_src_path
 from cheetah.utils.file_reader_base import FileReader
