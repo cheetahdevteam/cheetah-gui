@@ -15,7 +15,6 @@ from typing import Any, Callable, Dict, List, Optional, TextIO, Tuple, Union
 import click  # type: ignore
 import h5py  # type: ignore
 import numpy
-import numpy.typing
 import ruamel.yaml  # type: ignore
 import yaml
 from numpy.typing import NDArray
@@ -45,6 +44,11 @@ from cheetah.frame_retrieval.frame_retrieval_stream import StreamRetrieval
 from cheetah.utils.logging import logging_config
 
 logger = logging.getLogger("cheetah_viewer")
+
+
+# Hard cap for pixel-value text overlays to avoid runaway memory usage when
+# the visible view range becomes unexpectedly large.
+_MAX_PIXEL_VALUE_LABELS: int = 10_000
 
 
 class Viewer(QtWidgets.QMainWindow):  # type: ignore
@@ -107,7 +111,6 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
                 str((pathlib.Path(cheetah_src_path) / "../ui_src/icon.svg").resolve())
             )
         )
-        self.show()
 
         self._ui.tab_widget.setCurrentIndex(open_tab)
         self._ui.tab_widget.currentChanged.connect(self._tab_changed)
@@ -223,6 +226,8 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
 
         self._update_image_and_peaks()
         self._tab_changed()
+
+        self.show()
 
     def _init_show_tab(self) -> None:
         # Initialize UI elements in the Show tab
@@ -938,14 +943,37 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if pixel_size >= 50 and self._current_tab != 1:
             self._show_pixel_values = True
             view_range = self._image_view.viewRange()
-            i: int
-            j: int
-            for i in range(int(view_range[0][1] - view_range[0][0]) + 1):
-                for j in range(int(view_range[1][1] - view_range[1][0]) + 1):
-                    self._pixel_value_labels[(i, j)] = pyqtgraph.TextItem(
-                        anchor=(0.5, 0.5), color="g"
+            data = self._image_widget.image
+            if data is None:
+                self._show_pixel_values = False
+            else:
+                min_x: int = max(0, int(numpy.floor(view_range[0][0])))
+                max_x: int = min(data.shape[0] - 1, int(numpy.ceil(view_range[0][1])))
+                min_y: int = max(0, int(numpy.floor(view_range[1][0])))
+                max_y: int = min(data.shape[1] - 1, int(numpy.ceil(view_range[1][1])))
+
+                width: int = max(0, max_x - min_x + 1)
+                height: int = max(0, max_y - min_y + 1)
+                if width == 0 or height == 0:
+                    self._show_pixel_values = False
+                elif width * height > _MAX_PIXEL_VALUE_LABELS:
+                    logger.debug(
+                        "Skipping pixel-value overlay: visible area too large "
+                        "(%s x %s > %s labels).",
+                        width,
+                        height,
+                        _MAX_PIXEL_VALUE_LABELS,
                     )
-                    self._image_view.addItem(self._pixel_value_labels[(i, j)])
+                    self._show_pixel_values = False
+                else:
+                    i: int
+                    j: int
+                    for i in range(width):
+                        for j in range(height):
+                            self._pixel_value_labels[(i, j)] = pyqtgraph.TextItem(
+                                anchor=(0.5, 0.5), color="g"
+                            )
+                            self._image_view.addItem(self._pixel_value_labels[(i, j)])
         else:
             self._show_pixel_values = False
         self._update_pixel_values()
@@ -1757,6 +1785,11 @@ def main(
     sys.stdout.flush()
     if len(frame_retrieval.get_event_list()) == 0:
         return
+
+    if sys.version_info >= (3, 13):
+        # Newer Python/Qt stacks can end up with unstable GPU-backed contexts
+        # on some systems. Prefer software OpenGL for reliability.
+        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseSoftwareOpenGL, True)
 
     app: Any = QtWidgets.QApplication(sys.argv)
     _ = Viewer(
