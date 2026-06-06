@@ -1214,7 +1214,7 @@ class Viewer(QtWidgets.QMainWindow):  # type: ignore
         if filename:
             logger.info(f"Saving new mask to {filename}.")
             with h5py.File(filename, "w") as fh:
-                fh.create_dataset("/data/data", data=(1 - self._maskmaker_mask))
+                fh.create_dataset("/data/data", data=(1 - self._maskmaker_mask).astype(numpy.int8))
 
     def _load_peakfinder_parameters(self) -> None:
         filename: str = QtWidgets.QFileDialog().getOpenFileName(
