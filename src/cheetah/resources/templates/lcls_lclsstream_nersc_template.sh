@@ -19,7 +19,7 @@ fi
 
 
 uv run submit_crystfel_nersc.py --exp {{experiment_id}} --run {{run_id}} --status <job_id> \
---crystfel-args -g {{geometry_file}} --peaks peakfinder8 --threshold 10 --min-snr 6 \
+--crystfel-args -g $geometry_filename --peaks peakfinder8 --threshold 10 --min-snr 6 \
 ${cell_arg} {{extra_args}} -o {{filename_prefix}}.stream
 
 # TODO: Copy stream file to {{output_dir}}
