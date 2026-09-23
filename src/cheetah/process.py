@@ -443,6 +443,9 @@ class CheetahProcess:
             "cell_file_arg": cell_file_arg,
             "indexing_arg": indexing_arg,
             "extra_args": extra_args,
+            "mask_file": config["mask"],
+            "run_id": run_id,
+            "cell_file": config["indexing_config"]["cell_file"],
         }
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))
