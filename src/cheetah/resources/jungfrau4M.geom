@@ -1,18 +1,29 @@
-clen =  /LCLS/detector_1/EncoderValue
-photon_energy = /LCLS/photon_energy_eV
 adu_per_eV = 0.001
 res = 13333.333
 
-data = /entry_1/data_1/data
+; Uncomment these lines to read data from file
+; photon_energy = /LCLS/photon_energy_eV
+; clen =  /LCLS/detector_1/EncoderValue
+; peak_list = /entry_1/result_1
+; peak_list_type = cxi
+; data = /entry_1/data_1/data
+; dim0 = %
+; dim1 = ss
+; dim2 = fs
 
-dim0 = %
-dim1 = ss
-dim2 = fs
+; Uncomment these lines when streaming data from OM to CrystFEL
+photon_energy = beam_energy
+clen = detector_distance
+peak_list = peak_list
+data = detector_data
+dim0 = ss
+dim1 = fs
 
-;mask_file = /path/to/mask.h5
-;mask = /data/data
-;mask_good = 0x01
-;mask_bad = 0x00
+; Uncomment these lines if you have a separate bad pixel map (recommended!)
+; mask_file = /path/to/mask.h5
+; mask = /data/data
+; mask_good = 0x1
+; mask_bad = 0x0
 
 p0a0/fs = +1.000000x +0.000000y
 p0a0/ss = +0.000000x -1.000000y
