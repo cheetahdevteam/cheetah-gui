@@ -418,11 +418,13 @@ class CheetahProcess:
             event_list_arg = f"--event-list={config['event_list']}"
 
         cell_file_arg = ""
+        cell_file = ""
         indexing_arg = ""
         extra_args = ""
         if config["indexing_config"]:
             if config["indexing_config"]["cell_file"]:
-                cell_file_arg: str = f"-p {config['indexing_config']['cell_file']}"
+                cell_file = config["indexing_config"]["cell_file"]
+                cell_file_arg: str = f"-p {cell_file}"
             if config["indexing_config"]["indexing"]:
                 indexing_arg: str = (
                     f"--indexing={config['indexing_config']['indexing']}"
@@ -445,7 +447,7 @@ class CheetahProcess:
             "extra_args": extra_args,
             "mask_file": config["mask"],
             "run_id": run_id,
-            "cell_file": config["indexing_config"]["cell_file"],
+            "cell_file": cell_file,
         }
         with open(process_script, "w") as fh:
             fh.write(process_template.render(process_script_data))
